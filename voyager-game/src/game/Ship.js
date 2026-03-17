@@ -48,123 +48,188 @@ export class Ship {
 
   buildShip() {
     const bodyMat = new THREE.MeshStandardMaterial({
-      color: 0xbbbbcc, metalness: 0.85, roughness: 0.15, emissive: 0x050510,
+      color: 0xc4c4d0, metalness: 0.6, roughness: 0.3, emissive: 0x050510,
+    });
+    const darkMat = new THREE.MeshStandardMaterial({
+      color: 0x33333b, metalness: 0.8, roughness: 0.5,
     });
     const accentMat = new THREE.MeshStandardMaterial({
-      color: 0xdd5544, metalness: 0.5, roughness: 0.3, emissive: 0x331111,
+      color: 0x992222, metalness: 0.4, roughness: 0.4, emissive: 0x330000,
     });
     const glowMat = new THREE.MeshBasicMaterial({
-      color: 0x66aaff, transparent: true, opacity: 0.9,
+      color: 0x4488ff, transparent: true, opacity: 0.9,
       blending: THREE.AdditiveBlending,
     });
 
-    // Saucer section (faces -Z = forward)
-    const saucer = new THREE.Mesh(new THREE.CylinderGeometry(5, 5, 0.8, 32), bodyMat);
-    saucer.position.set(0, 0, -2);
+    // --- SAUCER SECTION (Spoon shape) ---
+    // Main saucer body
+    const saucer = new THREE.Mesh(new THREE.CylinderGeometry(5.5, 4.8, 0.6, 64), bodyMat);
+    saucer.scale.set(1, 1, 1.4); // Stretch along Z to make it spoon-like
+    saucer.position.set(0, 0, -2.5);
     this.visualGroup.add(saucer);
 
-    // Bridge dome
-    const bridge = new THREE.Mesh(
-      new THREE.SphereGeometry(1.5, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), bodyMat
-    );
-    bridge.position.set(0, 0.4, -2);
+    // Saucer upper slope
+    const saucerTop = new THREE.Mesh(new THREE.CylinderGeometry(2.8, 5.5, 0.5, 64), bodyMat);
+    saucerTop.scale.set(1, 1, 1.4);
+    saucerTop.position.set(0, 0.55, -2.5);
+    this.visualGroup.add(saucerTop);
+    
+    // Saucer lower slope
+    const saucerBot = new THREE.Mesh(new THREE.CylinderGeometry(4.8, 2.5, 0.6, 64), bodyMat);
+    saucerBot.scale.set(1, 1, 1.4);
+    saucerBot.position.set(0, -0.6, -2.5);
+    this.visualGroup.add(saucerBot);
+
+    // Bridge / Main sensor dome
+    const bridge = new THREE.Mesh(new THREE.SphereGeometry(1.0, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2), bodyMat);
+    bridge.scale.set(1, 0.4, 1.2);
+    bridge.position.set(0, 0.8, -3.0);
     this.visualGroup.add(bridge);
 
-    // Engineering hull (behind saucer, +Z direction)
-    const hull = new THREE.Mesh(new THREE.CylinderGeometry(1.8, 2.2, 10, 12), bodyMat);
+    // Secondary sensor dome (bottom)
+    const lowerDome = new THREE.Mesh(new THREE.SphereGeometry(0.8, 32, 16, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), bodyMat);
+    lowerDome.scale.set(1, 0.4, 1.2);
+    lowerDome.position.set(0, -0.9, -2.5);
+    this.visualGroup.add(lowerDome);
+
+    // --- ENGINEERING HULL ---
+    // Smooth transition from saucer
+    const hullGeo = new THREE.CylinderGeometry(2.0, 1.2, 11, 32);
+    const hull = new THREE.Mesh(hullGeo, bodyMat);
     hull.rotation.x = Math.PI / 2;
-    hull.position.set(0, -2, 4);
+    hull.position.set(0, -1.2, 4.5);
     this.visualGroup.add(hull);
 
-    // Neck connecting saucer to hull
-    const neck = new THREE.Mesh(new THREE.BoxGeometry(1.2, 2, 3), bodyMat);
-    neck.position.set(0, -1, 1);
-    this.visualGroup.add(neck);
+    // Spine/Neck blending saucer into hull
+    const spine = new THREE.Mesh(new THREE.BoxGeometry(3.0, 1.8, 9), bodyMat);
+    spine.position.set(0, -0.3, 1.5);
+    this.visualGroup.add(spine);
 
-    // Deflector dish (front of engineering hull)
-    const deflector = new THREE.Mesh(
-      new THREE.SphereGeometry(1.2, 12, 12, 0, Math.PI * 2, 0, Math.PI / 2),
-      new THREE.MeshBasicMaterial({ color: 0x00ccff, transparent: true, opacity: 1.0, blending: THREE.AdditiveBlending })
-    );
+    // Deflector Dish
+    const deflectorGeo = new THREE.CylinderGeometry(1.5, 1.8, 0.6, 32);
+    const deflector = new THREE.Mesh(deflectorGeo, new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending }));
     deflector.rotation.x = Math.PI / 2;
-    deflector.position.set(0, -2.5, -0.5);
+    deflector.position.set(0, -1.2, -1.3);
     this.visualGroup.add(deflector);
 
     // Deflector glow light
-    const deflectorLight = new THREE.PointLight(0x00ccff, 3, 15);
-    deflectorLight.position.set(0, -2.5, -0.5);
+    const deflectorLight = new THREE.PointLight(0x00ffff, 4, 25);
+    deflectorLight.position.set(0, -1.2, -1.6);
     this.visualGroup.add(deflectorLight);
 
-    // Nacelles (behind and above, +Z direction)
+    // Deflector housing/rim
+    const deflectorRim = new THREE.Mesh(new THREE.TorusGeometry(1.65, 0.15, 16, 32), darkMat);
+    deflectorRim.rotation.x = Math.PI / 2;
+    deflectorRim.position.set(0, -1.2, -1.1);
+    this.visualGroup.add(deflectorRim);
+
+    // --- NACELLES & PYLONS ---
     for (const side of [-1, 1]) {
-      const pylon = new THREE.Mesh(new THREE.BoxGeometry(0.4, 3, 1), bodyMat);
-      pylon.position.set(side * 3.5, -0.5, 5);
-      pylon.rotation.z = side * -0.3;
-      this.visualGroup.add(pylon);
+      // Swept up and back pylons (variable geometry)
+      const pylonGrp = new THREE.Group();
+      pylonGrp.position.set(side * 1.5, -0.5, 6.5);
+      // Voyager's pylons tilt up when entering warp, let's set them at an aggressive angle
+      pylonGrp.rotation.z = side * -0.7; 
+      pylonGrp.rotation.x = 0.2; // Sweep back
+      this.visualGroup.add(pylonGrp);
 
-      const nacelle = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 8, 8), bodyMat);
-      nacelle.rotation.x = Math.PI / 2;
-      nacelle.position.set(side * 5.5, 1.5, 5);
-      this.visualGroup.add(nacelle);
+      const pylonGeo = new THREE.BoxGeometry(4.5, 0.5, 3.0);
+      const pylon = new THREE.Mesh(pylonGeo, bodyMat);
+      pylon.position.set(side * 2.2, 0, 0);
+      pylonGrp.add(pylon);
 
-      // Warp coil glow strips on top of nacelles
-      const strip = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.15, 7.5), glowMat.clone());
-      strip.position.set(side * 5.5, 2.15, 5);
-      this.visualGroup.add(strip);
-      this.engineMaterials.push(strip.material);
+      // Nacelle main body
+      const nacelleGrp = new THREE.Group();
+      nacelleGrp.position.set(side * 5.2, 1.8, 7.5);
+      this.visualGroup.add(nacelleGrp);
 
-      // Bussard collectors (front of nacelles, -Z = forward)
-      const bussard = new THREE.Mesh(
-        new THREE.SphereGeometry(0.75, 12, 12),
-        new THREE.MeshBasicMaterial({ color: 0xff4400, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending })
-      );
-      bussard.position.set(side * 5.5, 1.5, 1);
-      this.visualGroup.add(bussard);
+      const nacelleGeo = new THREE.CylinderGeometry(0.8, 0.6, 12, 24);
+      nacelleGeo.rotateX(Math.PI / 2);
+      const nacelle = new THREE.Mesh(nacelleGeo, bodyMat);
+      nacelleGrp.add(nacelle);
+
+      // Dark accent strips on top of nacelles
+      const nStripe = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.2, 11), darkMat);
+      nStripe.position.set(0, 0.7, -0.5);
+      nacelleGrp.add(nStripe);
+
+      // Warp coil glow (Blue side strips)
+      const coilGeo = new THREE.CylinderGeometry(0.82, 0.62, 9, 24, 1, true, Math.PI * 1.25, Math.PI * 0.5);
+      coilGeo.rotateX(Math.PI / 2);
+      if (side === 1) coilGeo.rotateZ(Math.PI);
+      const coil = new THREE.Mesh(coilGeo, glowMat.clone());
+      coil.position.set(0, 0, 0.5);
+      nacelleGrp.add(coil);
+      this.engineMaterials.push(coil.material);
+
+      // Bussard Collectors (Red domes at the front)
+      const bussardGeo = new THREE.SphereGeometry(0.8, 24, 24, 0, Math.PI * 2, 0, Math.PI / 2);
+      bussardGeo.rotateX(-Math.PI / 2);
+      bussardGeo.scale(1, 1, 1.2);
+      const bussard = new THREE.Mesh(bussardGeo, new THREE.MeshBasicMaterial({ 
+        color: 0xff3300, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending 
+      }));
+      bussard.position.set(0, 0, -5.8);
+      nacelleGrp.add(bussard);
+      
+      // Bussard inner detail/glow
+      const bussardInner = new THREE.Mesh(new THREE.SphereGeometry(0.6, 12, 12), new THREE.MeshBasicMaterial({color: 0xffaa55}));
+      bussardInner.position.set(0, 0, -5.6);
+      bussardInner.scale.set(1, 1, 1.5);
+      nacelleGrp.add(bussardInner);
+
       if (side === -1) this.bussardLeft = bussard;
       else this.bussardRight = bussard;
 
-      // Engine exhaust glow (back of nacelles, +Z)
-      const engine = new THREE.Mesh(
-        new THREE.SphereGeometry(0.5, 8, 8),
-        new THREE.MeshBasicMaterial({ color: 0x66aaff, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending })
-      );
-      engine.position.set(side * 5.5, 1.5, 9);
-      this.visualGroup.add(engine);
-      this.engines.push(engine);
-      this.engineMaterials.push(engine.material);
+      // Engine exhaust (Blue glow at the back)
+      const exhaustGeo = new THREE.SphereGeometry(0.55, 16, 16);
+      const exhaust = new THREE.Mesh(exhaustGeo, new THREE.MeshBasicMaterial({ 
+        color: 0x66aaff, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending 
+      }));
+      exhaust.position.set(0, 0, 5.8);
+      nacelleGrp.add(exhaust);
+      this.engines.push(exhaust);
+      this.engineMaterials.push(exhaust.material);
 
-      // Point light per engine for glow
-      const glow = new THREE.PointLight(0x4488ff, 4, 25);
-      glow.position.set(side * 5.5, 1.5, 9);
-      this.visualGroup.add(glow);
+      const exhaustLight = new THREE.PointLight(0x4488ff, 4, 30);
+      exhaustLight.position.set(side * 5.2, 1.8, 12.5);
+      this.visualGroup.add(exhaustLight);
     }
 
-    // Accent stripe on saucer rim
-    const stripe = new THREE.Mesh(new THREE.TorusGeometry(4.5, 0.12, 4, 32), accentMat);
-    stripe.rotation.x = Math.PI / 2;
-    stripe.position.set(0, 0.45, -2);
-    this.visualGroup.add(stripe);
+    // --- ACCENTS & DETAILS ---
+    // Red accent stripes on the saucer (Starfleet livery)
+    const topStripeGeo = new THREE.TorusGeometry(3.8, 0.15, 8, 64);
+    const topStripe = new THREE.Mesh(topStripeGeo, accentMat);
+    topStripe.rotation.x = Math.PI / 2;
+    topStripe.scale.set(1, 1.4, 1);
+    topStripe.position.set(0, 0.6, -2.5);
+    this.visualGroup.add(topStripe);
 
-    // Second accent stripe for detail
-    const stripe2 = new THREE.Mesh(new THREE.TorusGeometry(3.5, 0.08, 4, 32), accentMat);
-    stripe2.rotation.x = Math.PI / 2;
-    stripe2.position.set(0, 0.45, -2);
-    this.visualGroup.add(stripe2);
+    // Shuttlebay / Rear hull detailing
+    const shuttlebay = new THREE.Mesh(new THREE.BoxGeometry(2.8, 1.0, 1.5), darkMat);
+    shuttlebay.position.set(0, -0.6, 9.8);
+    this.visualGroup.add(shuttlebay);
 
-    // Hull panel line — dark ring simulating panel separation
-    const panelLineMat = new THREE.MeshBasicMaterial({ color: 0x222233 });
-    const panelLine = new THREE.Mesh(new THREE.TorusGeometry(3.0, 0.03, 4, 32), panelLineMat);
-    panelLine.rotation.x = Math.PI / 2;
-    panelLine.position.set(0, 0.45, -2);
-    this.visualGroup.add(panelLine);
-
-    // Window dots along saucer edge
-    const windowMat = new THREE.MeshBasicMaterial({ color: 0xffffcc });
-    for (let i = 0; i < 8; i++) {
-      const angle = (i / 8) * Math.PI * 2;
-      const win = new THREE.Mesh(new THREE.SphereGeometry(0.08, 6, 6), windowMat);
-      win.position.set(Math.cos(angle) * 4.6, 0.45, -2 + Math.sin(angle) * 4.6);
+    // Windows (Glowing dots)
+    const windowMat = new THREE.MeshBasicMaterial({ color: 0xffffee });
+    // Saucer edge windows
+    for (let i = 0; i < 40; i++) {
+      if (i > 15 && i < 25) continue; // Gap at the back for the neck
+      const angle = (i / 40) * Math.PI * 2;
+      const win = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.08, 0.1), windowMat);
+      win.position.set(Math.cos(angle) * 5.3, 0.15, -2.5 + Math.sin(angle) * 5.3 * 1.4);
+      win.lookAt(0, 0.15, -2.5);
       this.visualGroup.add(win);
+    }
+
+    // Secondary hull windows
+    for (let i = 0; i < 8; i++) {
+      const win1 = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.08, 0.15), windowMat);
+      win1.position.set(1.8, -1.0, 2 + i * 1.0);
+      this.visualGroup.add(win1);
+      const win2 = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.08, 0.15), windowMat);
+      win2.position.set(-1.8, -1.0, 2 + i * 1.0);
+      this.visualGroup.add(win2);
     }
   }
 
