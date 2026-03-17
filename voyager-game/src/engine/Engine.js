@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
@@ -22,15 +21,11 @@ export class Engine {
 
     // Camera
     this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 20000);
-    this.camera.position.set(0, 30, 60);
+    this.camera.position.set(0, 12, 40);
 
-    // Controls
-    this.controls = new OrbitControls(this.camera, this.renderer.domElement);
-    this.controls.enableDamping = true;
-    this.controls.dampingFactor = 0.08;
-    this.controls.maxDistance = 200;
-    this.controls.minDistance = 15;
-    this.controls.maxPolarAngle = Math.PI * 0.85;
+    // Camera follow state (no OrbitControls — ship flies, camera follows)
+    this.cameraTarget = new THREE.Vector3();
+    this.cameraOffset = new THREE.Vector3(0, 12, 40);
 
     // Post-processing
     this.composer = new EffectComposer(this.renderer);
@@ -42,12 +37,12 @@ export class Engine {
     this.composer.addPass(this.bloomPass);
 
     // Lighting
-    const ambient = new THREE.AmbientLight(0x112244, 0.8);
+    const ambient = new THREE.AmbientLight(0x223355, 1.0);
     this.scene.add(ambient);
-    const sun = new THREE.DirectionalLight(0xffeedd, 1.5);
+    const sun = new THREE.DirectionalLight(0xffeedd, 1.8);
     sun.position.set(50, 30, 50);
     this.scene.add(sun);
-    const fill = new THREE.DirectionalLight(0x4488ff, 0.4);
+    const fill = new THREE.DirectionalLight(0x4488ff, 0.5);
     fill.position.set(-30, -10, -20);
     this.scene.add(fill);
 
@@ -71,12 +66,23 @@ export class Engine {
     if (idx >= 0) this.updatables.splice(idx, 1);
   }
 
+  // Follow a target (the ship) with smooth interpolation
+  followTarget(targetPos, targetQuaternion, delta, lerpSpeed = 4) {
+    // Compute desired camera position: behind and above the ship
+    const offset = this.cameraOffset.clone().applyQuaternion(targetQuaternion);
+    const desiredPos = targetPos.clone().add(offset);
+    this.camera.position.lerp(desiredPos, Math.min(1, delta * lerpSpeed));
+    // Look at point slightly ahead of ship
+    const lookAhead = new THREE.Vector3(0, 2, -15).applyQuaternion(targetQuaternion).add(targetPos);
+    this.cameraTarget.lerp(lookAhead, Math.min(1, delta * lerpSpeed));
+    this.camera.lookAt(this.cameraTarget);
+  }
+
   animate() {
     requestAnimationFrame(() => this.animate());
     if (this.paused) return;
     const delta = this.clock.getDelta();
     const elapsed = this.clock.getElapsedTime();
-    this.controls.update();
     for (const u of this.updatables) u.update(elapsed, delta);
     this.composer.render();
   }

@@ -160,10 +160,11 @@ class VoyagerGame {
           cameraShake.set(0, 0, 0);
         }
 
-        // ── Camera follows ship ──
-        this.engine.controls.target.copy(this.ship.mesh.position);
+        // ── Camera follows ship (smooth third-person) ──
+        const camLerp = jumpPhase !== 'idle' ? 2 : (this.ship.isWarping ? 3 : 4);
+        this.engine.followTarget(this.ship.mesh.position, this.ship.mesh.quaternion, delta, camLerp);
 
-        // Apply shake
+        // Apply shake on top
         this.engine.camera.position.add(cameraShake);
 
         // ── Displacement pulse trigger ──
@@ -209,8 +210,7 @@ class VoyagerGame {
     }
 
     // Position camera behind the ship
-    this.engine.camera.position.set(0, 15, 50);
-    this.engine.controls.target.copy(this.ship.mesh.position);
+    this.engine.camera.position.set(0, 12, 40);
   }
 
   async warpToSystem(targetId) {
@@ -240,7 +240,6 @@ class VoyagerGame {
     this.ship.mesh.position.set(0, 0, 0);
     this.ship.mesh.rotation.set(0, 0, 0);
     this.ship.currentSpeed = 0;
-    this.engine.camera.position.set(0, 15, 50);
 
     // End warp
     this.ship.setForcedWarpMode(false);

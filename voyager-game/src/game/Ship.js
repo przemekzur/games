@@ -5,7 +5,6 @@ export class Ship {
     this.scene = scene;
     this.mesh = new THREE.Group();
     this.visualGroup = new THREE.Group();
-    this.visualGroup.rotation.y = Math.PI; // Face forward
     this.mesh.add(this.visualGroup);
 
     // Flight state
@@ -49,17 +48,17 @@ export class Ship {
 
   buildShip() {
     const bodyMat = new THREE.MeshStandardMaterial({
-      color: 0x888899, metalness: 0.7, roughness: 0.3,
+      color: 0xbbbbcc, metalness: 0.8, roughness: 0.2,
     });
     const accentMat = new THREE.MeshStandardMaterial({
-      color: 0xcc4444, metalness: 0.5, roughness: 0.4,
+      color: 0xdd5544, metalness: 0.5, roughness: 0.3, emissive: 0x331111,
     });
     const glowMat = new THREE.MeshBasicMaterial({
-      color: 0x4488ff, transparent: true, opacity: 0.8,
+      color: 0x66aaff, transparent: true, opacity: 0.9,
       blending: THREE.AdditiveBlending,
     });
 
-    // Saucer section
+    // Saucer section (faces -Z = forward)
     const saucer = new THREE.Mesh(new THREE.CylinderGeometry(5, 5, 0.8, 32), bodyMat);
     saucer.position.set(0, 0, -2);
     this.visualGroup.add(saucer);
@@ -71,27 +70,27 @@ export class Ship {
     bridge.position.set(0, 0.4, -2);
     this.visualGroup.add(bridge);
 
-    // Engineering hull
+    // Engineering hull (behind saucer, +Z direction)
     const hull = new THREE.Mesh(new THREE.CylinderGeometry(1.8, 2.2, 10, 12), bodyMat);
     hull.rotation.x = Math.PI / 2;
     hull.position.set(0, -2, 4);
     this.visualGroup.add(hull);
 
-    // Neck
+    // Neck connecting saucer to hull
     const neck = new THREE.Mesh(new THREE.BoxGeometry(1.2, 2, 3), bodyMat);
     neck.position.set(0, -1, 1);
     this.visualGroup.add(neck);
 
-    // Deflector dish
+    // Deflector dish (front of engineering hull)
     const deflector = new THREE.Mesh(
       new THREE.SphereGeometry(1.2, 12, 12, 0, Math.PI * 2, 0, Math.PI / 2),
-      new THREE.MeshBasicMaterial({ color: 0x00aaff, transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending })
+      new THREE.MeshBasicMaterial({ color: 0x00ccff, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending })
     );
     deflector.rotation.x = Math.PI / 2;
     deflector.position.set(0, -2.5, -0.5);
     this.visualGroup.add(deflector);
 
-    // Nacelles
+    // Nacelles (behind and above, +Z direction)
     for (const side of [-1, 1]) {
       const pylon = new THREE.Mesh(new THREE.BoxGeometry(0.4, 3, 1), bodyMat);
       pylon.position.set(side * 3.5, -0.5, 5);
@@ -103,33 +102,39 @@ export class Ship {
       nacelle.position.set(side * 5.5, 1.5, 5);
       this.visualGroup.add(nacelle);
 
+      // Warp coil glow strips on top of nacelles
       const strip = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.15, 7.5), glowMat.clone());
       strip.position.set(side * 5.5, 2.15, 5);
       this.visualGroup.add(strip);
       this.engineMaterials.push(strip.material);
 
-      // Bussard collectors
+      // Bussard collectors (front of nacelles, -Z = forward)
       const bussard = new THREE.Mesh(
         new THREE.SphereGeometry(0.65, 12, 12),
-        new THREE.MeshBasicMaterial({ color: 0xff3300, transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending })
+        new THREE.MeshBasicMaterial({ color: 0xff4400, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending })
       );
       bussard.position.set(side * 5.5, 1.5, 1);
       this.visualGroup.add(bussard);
       if (side === -1) this.bussardLeft = bussard;
       else this.bussardRight = bussard;
 
-      // Engine glow spheres (back of nacelles)
+      // Engine exhaust glow (back of nacelles, +Z)
       const engine = new THREE.Mesh(
         new THREE.SphereGeometry(0.5, 8, 8),
-        new THREE.MeshBasicMaterial({ color: 0x4488ff, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending })
+        new THREE.MeshBasicMaterial({ color: 0x66aaff, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending })
       );
       engine.position.set(side * 5.5, 1.5, 9);
       this.visualGroup.add(engine);
       this.engines.push(engine);
       this.engineMaterials.push(engine.material);
+
+      // Point light per engine for glow
+      const glow = new THREE.PointLight(0x4488ff, 2, 20);
+      glow.position.set(side * 5.5, 1.5, 9);
+      this.visualGroup.add(glow);
     }
 
-    // Accent stripe
+    // Accent stripe on saucer rim
     const stripe = new THREE.Mesh(new THREE.TorusGeometry(4.5, 0.12, 4, 32), accentMat);
     stripe.rotation.x = Math.PI / 2;
     stripe.position.set(0, 0.45, -2);
@@ -140,7 +145,7 @@ export class Ship {
     this.shieldUniforms = {
       time: { value: 0 },
       pulse: { value: 0 },
-      baseGlow: { value: 0.2 },
+      baseGlow: { value: 0 },  // hidden by default
       color: { value: new THREE.Color(0x00ffff) },
     };
     const mat = new THREE.ShaderMaterial({
@@ -184,7 +189,7 @@ export class Ship {
   createEngineGlow() {
     const impulseGeo = new THREE.PlaneGeometry(2, 0.6);
     const impulseMat = new THREE.MeshBasicMaterial({
-      color: 0xff4400, transparent: true, opacity: 0.6,
+      color: 0xff4400, transparent: true, opacity: 0.7,
       blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
     });
     this.impulseGlow = new THREE.Mesh(impulseGeo, impulseMat);
@@ -221,7 +226,6 @@ export class Ship {
     } else if (this.keys.s) {
       this.currentSpeed -= accel * delta;
     } else {
-      // Natural deceleration
       if (this.currentSpeed > 0)
         this.currentSpeed = Math.max(0, this.currentSpeed - this.deceleration * (this.isWarping ? 5 : 1) * delta);
       else if (this.currentSpeed < 0)
@@ -234,23 +238,28 @@ export class Ship {
     if (this.keys.d) this.mesh.rotateY(-this.yawSpeed * delta);
 
     // Pitch (Arrow Up/Down)
-    if (this.keys.ArrowUp) this.mesh.rotateX(this.pitchSpeed * delta);
-    if (this.keys.ArrowDown) this.mesh.rotateX(-this.pitchSpeed * delta);
+    if (this.keys.ArrowUp) this.mesh.rotateX(-this.pitchSpeed * delta);
+    if (this.keys.ArrowDown) this.mesh.rotateX(this.pitchSpeed * delta);
 
-    // Move forward
-    this.mesh.translateZ(-this.currentSpeed * delta);
+    // Move ship forward along its local -Z axis (saucer faces -Z)
+    const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(this.mesh.quaternion);
+    this.mesh.position.addScaledVector(forward, this.currentSpeed * delta);
 
     // ── Visual banking ──
     const speedNorm = Math.max(1, maxSpd);
     const speedRatio = Math.max(0, this.currentSpeed) / speedNorm;
     const yawInput = (this.keys.a ? 1 : 0) + (this.keys.d ? -1 : 0);
     const pitchInput = (this.keys.ArrowUp ? 1 : 0) + (this.keys.ArrowDown ? -1 : 0);
-    const bankZ = yawInput * 0.16 - speedRatio * 0.05;
-    const bankX = -pitchInput * 0.12 + speedRatio * 0.02;
+    const bankZ = yawInput * 0.22;
+    const bankX = pitchInput * 0.15;
 
     this.visualGroup.rotation.z = THREE.MathUtils.lerp(this.visualGroup.rotation.z, bankZ, delta * 4);
     this.visualGroup.rotation.x = THREE.MathUtils.lerp(this.visualGroup.rotation.x, bankX, delta * 3);
-    this.visualGroup.rotation.y = Math.PI + Math.sin(this.displacementSpinAngle) * 0.65;
+
+    // Displacement spin
+    const spinTarget = Math.sin(this.displacementSpinAngle) * 0.65;
+    this.visualGroup.rotation.y = THREE.MathUtils.lerp(this.visualGroup.rotation.y, spinTarget, delta * 5);
+
     this.visualGroup.position.y = THREE.MathUtils.lerp(
       this.visualGroup.position.y,
       Math.sin(t * 1.6) * 0.18 + speedRatio * 0.08,
@@ -266,25 +275,27 @@ export class Ship {
       this.displacementSpinAngle = THREE.MathUtils.lerp(this.displacementSpinAngle, 0, delta * 5.5);
     }
 
-    // ── Engine glow intensity ──
-    const warpMul = this.isWarping ? 1.3 : 1;
-    const enginePulse = 1 + Math.sin(t * 18) * 0.03 + speedRatio * 0.45 + (this.isWarping ? 0.2 : 0);
+    // ── Engine glow intensity — much more vivid ──
+    const warpMul = this.isWarping ? 1.5 : 1;
+    const enginePulse = 1 + Math.sin(t * 6) * 0.08 + speedRatio * 0.5 + (this.isWarping ? 0.4 : 0);
     for (let i = 0; i < this.engines.length; i++) {
       const eng = this.engines[i];
-      const d = Math.sin(t * (8 + i * 0.7)) * 0.02;
-      const sScale = this.isWarping ? 1.5 + speedRatio * 1.4 : 1;
+      const d = Math.sin(t * (8 + i * 0.7)) * 0.04;
+      const sScale = this.isWarping ? 1.8 + speedRatio * 1.6 : 1;
       eng.scale.set(enginePulse + d, enginePulse + d, sScale);
-      this.engineMaterials[i * 2 + 1].opacity = (0.6 + speedRatio * 2.1 + d * 6) * warpMul * 0.15;
+      // Warp coil strip [i*2] and engine sphere [i*2+1]
+      this.engineMaterials[i * 2].opacity = (0.4 + speedRatio * 0.5 + (this.isWarping ? 0.3 : 0)) * warpMul;
+      this.engineMaterials[i * 2 + 1].opacity = (0.6 + speedRatio * 0.3 + d * 2) * warpMul;
     }
 
     // Bussard collector pulsing
-    const bPulse = 0.5 + Math.sin(t * 3) * 0.3;
+    const bPulse = 0.55 + Math.sin(t * 3) * 0.35;
     if (this.bussardLeft) this.bussardLeft.material.opacity = bPulse;
     if (this.bussardRight) this.bussardRight.material.opacity = bPulse;
 
     // Impulse engine
-    const impulseBase = this.isWarping ? 1 : 0.6;
-    this.impulseGlow.material.opacity = impulseBase + Math.sin(t * 5) * 0.15;
+    const impulseBase = this.isWarping ? 1 : 0.7;
+    this.impulseGlow.material.opacity = impulseBase + Math.sin(t * 5) * 0.2;
 
     // ── Shield shader ──
     if (this.shieldUniforms) {

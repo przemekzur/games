@@ -41,6 +41,7 @@ export class Starfield {
       blending: THREE.AdditiveBlending, depthWrite: false,
     });
     this.stars = new THREE.Points(geo, mat);
+    this._baseSizes = new Float32Array(sizes);
     this.scene.add(this.stars);
   }
 
@@ -100,20 +101,26 @@ export class Starfield {
 
   update(elapsed, delta) {
     if (!delta) return;
-    this.stars.rotation.y += delta * 0.001;
+    this.stars.rotation.y += delta * 0.008;
+
+    // Star twinkling via size oscillation
+    const sizes = this.stars.geometry.getAttribute('size');
+    for (let i = 0; i < sizes.count; i += 20) {
+      sizes.array[i] = this._baseSizes[i] * (0.7 + 0.3 * Math.sin(elapsed * 2 + i * 0.1));
+    }
+    sizes.needsUpdate = true;
 
     // Warp stretch effect
     const target = this.warpMode ? 1 : 0;
-    this.warpIntensity += (target - this.warpIntensity) * delta * 3;
-    this.stars.material.size = 2 + this.warpIntensity * 6;
+    this.warpIntensity += (target - this.warpIntensity) * delta * 4;
+    this.stars.material.size = 2 + this.warpIntensity * 10;
 
     for (const n of this.nebulae) {
       n.rotation.z += n.userData.rotSpeed * delta;
     }
 
-    // Dust parallax
     if (this.dust) {
-      this.dust.rotation.y += delta * 0.005;
+      this.dust.rotation.y += delta * 0.015;
     }
   }
 }
