@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Simple Asteroids</title>
+  <style>
+    :root {
+      --bg: #06090f;
+      --panel: #0b1220;
+      --line: #1f3b57;
+      --ink: #d9eeff;
+      --accent: #63d5ff;
+      --warn: #ff8a8a;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background:
+        radial-gradient(circle at 20% 10%, #122036 0%, transparent 45%),
+        radial-gradient(circle at 85% 90%, #111833 0%, transparent 48%),
+        var(--bg);
+      color: var(--ink);
+      font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+    }
+
+    .back-link {
+      position: fixed;
+      top: 14px;
+      left: 14px;
+      text-decoration: none;
+      color: #071120;
+      background: linear-gradient(90deg, #63d5ff, #a997ff);
+      border-radius: 9px;
+      padding: 8px 11px;
+      font-weight: 700;
+      border: 1px solid rgba(173, 228, 255, 0.4);
+    }
+
+    .shell {
+      width: min(96vw, 1000px);
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: linear-gradient(180deg, #0d1525 0%, var(--panel) 100%);
+      box-shadow: 0 16px 38px rgba(0, 0, 0, 0.45), inset 0 0 0 1px rgba(99, 213, 255, 0.08);
+    }
+
+    .title {
+      margin: 0 0 10px 0;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--accent);
+      font-size: 1rem;
+    }
+
+    canvas {
+      width: 100%;
+      height: auto;
+      display: block;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #03060d;
+    }
+
+    .help {
+      margin-top: 10px;
+      font-size: 0.86rem;
+      color: #9fb4ca;
+    }
+  </style>
+</head>
+<body>
+  <a class="back-link" href="../index.html">Back to launcher</a>
+  <main class="shell">
+    <h1 class="title">Simple Asteroids</h1>
+    <canvas id="game" width="960" height="640" aria-label="Asteroids game canvas"></canvas>
+    <div class="help">Controls: <strong>← →</strong> rotate, <strong>↑</strong> thrust, <strong>Space</strong> shoot, <strong>Enter</strong> restart.</div>
+  </main>
+
+  <script src="../shared/strudel-sfx.js"></script>
+  <script src="../shared/arcade-bgm.js"></script>
+  <script>
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
+    const sfx = window.StrudelSfx;
+
+    const WIDTH = canvas.width;
+    const HEIGHT = canvas.height;
+    const SHIP_RADIUS = 14;
+    const SHIP_THRUST = 260;
+    const ROTATION_SPEED = 3.8;
+    const DRAG_PER_FRAME = 0.986;
+    const BULLET_SPEED = 460;
+    const BULLET_TTL = 1.1;
+    const FIRE_COOLDOWN = 0.17;
+    const START_LIVES = 3;
+    const INVULN_TIME = 2.2;
+
+    const keys = new Set();
+    const stars = Array.from({ length: 120 }, () => ({
+      x: Math.random() * WIDTH,
+      y: Math.random() * HEIGHT,
+      size: 0.5 + Math.random() * 1.8,
+      phase: Math.random() * Math.PI * 2
+    }));
+
+    function rand(min, max) {
+      return Math.random() * (max - min) + min;
+    }
+
+    function distSq(ax, ay, bx, by) {
+      const dx = ax - bx;
+      const dy = ay - by;
+      return dx * dx + dy * dy;
+    }
+
+    function wrap(entity, radius) {
+      if (entity.x < -radius) entity.x = WIDTH + radius;
+      else if (entity.x > WIDTH + radius) entity.x = -radius;
+      if (entity.y < -radius) entity.y = HEIGHT + radius;
+      else if (entity.y > HEIGHT + radius) entity.y = -radius;
+    }
+
+    function createShip() {
+      return {
+        x: WIDTH * 0.5,
+        y: HEIGHT * 0.5,
+        vx: 0,
+        vy: 0,
+        angle: -Math.PI / 2,
+        cooldown: 0,
+        invuln: INVULN_TIME
+      };
+    }
+
+    function makeAsteroid(x, y, radius, splitLevel) {
+      const speed = rand(34, 86) * (1 + (state.level - 1) * 0.07);
+      const direction = rand(0, Math.PI * 2);
+      const points = Math.floor(rand(8, 13));
+      return {
+        x,
+        y,
+        vx: Math.cos(direction) * speed,
+        vy: Math.sin(direction) * speed,
+        radius,
+        splitLevel,
+        points,
+        offset: Array.from({ length: points }, () => rand(0.68, 1.22)),
+        angle: rand(0, Math.PI * 2),
+        spin: rand(-0.75, 0.75)
+      };
+    }
+
+    function spawnWave() {
+      const count = 3 + state.level;
+      for (let i = 0; i < count; i += 1) {
+        let x = rand(0, WIDTH);
+        let y = rand(0, HEIGHT);
+        let attempts = 0;
+        while (distSq(x, y, state.ship.x, state.ship.y) < 170 * 170 && attempts < 25) {
+          x = rand(0, WIDTH);
+          y = rand(0, HEIGHT);
+          attempts += 1;
+        }
+        state.asteroids.push(makeAsteroid(x, y, rand(42, 60), 2));
+      }
+    }
+
+    function resetGame() {
+      state = {
+        ship: createShip(),
+        bullets: [],
+        asteroids: [],
+        score: 0,
+        lives: START_LIVES,
+        level: 1,
+        gameOver: false
+      };
+      spawnWave();
+      sfx?.play("start", 0.8);
+    }
+
+    function shoot() {
+      const ship = state.ship;
+      const nx = Math.cos(ship.angle);
+      const ny = Math.sin(ship.angle);
+      state.bullets.push({
+        x: ship.x + nx * SHIP_RADIUS * 1.35,
+        y: ship.y + ny * SHIP_RADIUS * 1.35,
+        vx: ship.vx + nx * BULLET_SPEED,
+        vy: ship.vy + ny * BULLET_SPEED,
+        life: BULLET_TTL
+      });
+      ship.cooldown = FIRE_COOLDOWN;
+      sfx?.play("shoot", 0.95);
+    }
+
+    function destroyAsteroid(index) {
+      const asteroid = state.asteroids[index];
+      state.asteroids.splice(index, 1);
+      state.score += asteroid.splitLevel === 2 ? 20 : asteroid.splitLevel === 1 ? 50 : 100;
+      sfx?.play("hit", asteroid.splitLevel === 0 ? 0.9 : 0.72);
+      if (asteroid.splitLevel > 0) {
+        for (let i = 0; i < 2; i += 1) {
+          const child = makeAsteroid(asteroid.x, asteroid.y, asteroid.radius * 0.62, asteroid.splitLevel - 1);
+          child.vx += asteroid.vx * 0.25;
+          child.vy += asteroid.vy * 0.25;
+          state.asteroids.push(child);
+        }
+      }
+    }
+
+    function update(dt) {
+      const ship = state.ship;
+
+      if (state.gameOver) return;
+
+      if (keys.has("ArrowLeft")) ship.angle -= ROTATION_SPEED * dt;
+      if (keys.has("ArrowRight")) ship.angle += ROTATION_SPEED * dt;
+      if (keys.has("ArrowUp")) {
+        ship.vx += Math.cos(ship.angle) * SHIP_THRUST * dt;
+        ship.vy += Math.sin(ship.angle) * SHIP_THRUST * dt;
+      }
+      if (keys.has("Space") && ship.cooldown <= 0) shoot();
+
+      const drag = Math.pow(DRAG_PER_FRAME, dt * 60);
+      ship.vx *= drag;
+      ship.vy *= drag;
+      ship.x += ship.vx * dt;
+      ship.y += ship.vy * dt;
+      wrap(ship, SHIP_RADIUS + 2);
+      ship.cooldown = Math.max(0, ship.cooldown - dt);
+      ship.invuln = Math.max(0, ship.invuln - dt);
+
+      for (let i = state.bullets.length - 1; i >= 0; i -= 1) {
+        const bullet = state.bullets[i];
+        bullet.x += bullet.vx * dt;
+        bullet.y += bullet.vy * dt;
+        bullet.life -= dt;
+        wrap(bullet, 2);
+        if (bullet.life <= 0) {
+          state.bullets.splice(i, 1);
+          continue;
+        }
+        for (let j = state.asteroids.length - 1; j >= 0; j -= 1) {
+          const asteroid = state.asteroids[j];
+          const r = asteroid.radius + 2;
+          if (distSq(bullet.x, bullet.y, asteroid.x, asteroid.y) < r * r) {
+            state.bullets.splice(i, 1);
+            destroyAsteroid(j);
+            break;
+          }
+        }
+      }
+
+      for (const asteroid of state.asteroids) {
+        asteroid.x += asteroid.vx * dt;
+        asteroid.y += asteroid.vy * dt;
+        asteroid.angle += asteroid.spin * dt;
+        wrap(asteroid, asteroid.radius);
+      }
+
+      if (ship.invuln <= 0) {
+        for (const asteroid of state.asteroids) {
+          const crash = SHIP_RADIUS * 0.9 + asteroid.radius;
+          if (distSq(ship.x, ship.y, asteroid.x, asteroid.y) < crash * crash) {
+            state.lives -= 1;
+            sfx?.play("crash", 1);
+            if (state.lives <= 0) {
+              state.gameOver = true;
+              sfx?.play("gameover", 1);
+              return;
+            }
+            state.ship = createShip();
+            break;
+          }
+        }
+      }
+
+      if (state.asteroids.length === 0) {
+        state.level += 1;
+        state.ship.invuln = Math.max(state.ship.invuln, 1);
+        spawnWave();
+        sfx?.play("level", 0.95);
+      }
+    }
+
+    function drawShip(ship) {
+      const hidden = ship.invuln > 0 && Math.floor(ship.invuln * 12) % 2 === 0;
+      if (hidden) return;
+
+      const nx = Math.cos(ship.angle);
+      const ny = Math.sin(ship.angle);
+      const lx = Math.cos(ship.angle + 2.52);
+      const ly = Math.sin(ship.angle + 2.52);
+      const rx = Math.cos(ship.angle - 2.52);
+      const ry = Math.sin(ship.angle - 2.52);
+
+      ctx.lineWidth = 2.2;
+      ctx.strokeStyle = "#9be3ff";
+      ctx.beginPath();
+      ctx.moveTo(ship.x + nx * SHIP_RADIUS * 1.45, ship.y + ny * SHIP_RADIUS * 1.45);
+      ctx.lineTo(ship.x + lx * SHIP_RADIUS, ship.y + ly * SHIP_RADIUS);
+      ctx.lineTo(ship.x + rx * SHIP_RADIUS, ship.y + ry * SHIP_RADIUS);
+      ctx.closePath();
+      ctx.stroke();
+
+      if (keys.has("ArrowUp")) {
+        ctx.strokeStyle = "#ffb36d";
+        ctx.beginPath();
+        ctx.moveTo(ship.x - nx * SHIP_RADIUS * 0.9, ship.y - ny * SHIP_RADIUS * 0.9);
+        ctx.lineTo(ship.x - nx * SHIP_RADIUS * 1.9 + rand(-2.5, 2.5), ship.y - ny * SHIP_RADIUS * 1.9 + rand(-2.5, 2.5));
+        ctx.stroke();
+      }
+    }
+
+    function draw(now) {
+      ctx.clearRect(0, 0, WIDTH, HEIGHT);
+
+      for (const star of stars) {
+        const twinkle = 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(now * 1.3 + star.phase));
+        ctx.fillStyle = `rgba(180, 225, 255, ${0.25 * twinkle})`;
+        ctx.fillRect(star.x, star.y, star.size, star.size);
+      }
+
+      for (const asteroid of state.asteroids) {
+        ctx.save();
+        ctx.translate(asteroid.x, asteroid.y);
+        ctx.rotate(asteroid.angle);
+        ctx.strokeStyle = "#d1e7ff";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        for (let i = 0; i < asteroid.points; i += 1) {
+          const t = (i / asteroid.points) * Math.PI * 2;
+          const radius = asteroid.radius * asteroid.offset[i];
+          const px = Math.cos(t) * radius;
+          const py = Math.sin(t) * radius;
+          if (i === 0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+        }
+        ctx.closePath();
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      ctx.fillStyle = "#a8ebff";
+      for (const bullet of state.bullets) {
+        ctx.beginPath();
+        ctx.arc(bullet.x, bullet.y, 2.2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      drawShip(state.ship);
+
+      ctx.fillStyle = "#63d5ff";
+      ctx.font = '18px "Trebuchet MS", "Segoe UI", sans-serif';
+      ctx.fillText(`Score: ${state.score}`, 16, 28);
+      ctx.fillText(`Lives: ${state.lives}`, 16, 52);
+      ctx.fillText(`Level: ${state.level}`, 16, 76);
+
+      if (state.gameOver) {
+        ctx.fillStyle = "rgba(0, 0, 0, 0.55)";
+        ctx.fillRect(0, 0, WIDTH, HEIGHT);
+        ctx.fillStyle = "#ff9ca3";
+        ctx.font = 'bold 48px "Trebuchet MS", "Segoe UI", sans-serif';
+        ctx.textAlign = "center";
+        ctx.fillText("Game Over", WIDTH / 2, HEIGHT / 2 - 10);
+        ctx.fillStyle = "#d9eeff";
+        ctx.font = '22px "Trebuchet MS", "Segoe UI", sans-serif';
+        ctx.fillText(`Final Score: ${state.score}`, WIDTH / 2, HEIGHT / 2 + 30);
+        ctx.font = '18px "Trebuchet MS", "Segoe UI", sans-serif';
+        ctx.fillText("Press Enter to restart", WIDTH / 2, HEIGHT / 2 + 65);
+        ctx.textAlign = "left";
+      }
+    }
+
+    let state;
+    let lastTime = performance.now();
+    resetGame();
+
+    function frame(now) {
+      const dt = Math.min((now - lastTime) / 1000, 1 / 30);
+      lastTime = now;
+      update(dt);
+      draw(now / 1000);
+      requestAnimationFrame(frame);
+    }
+
+    requestAnimationFrame(frame);
+
+    window.addEventListener("keydown", (event) => {
+      if (["ArrowLeft", "ArrowRight", "ArrowUp", "Space"].includes(event.code)) {
+        event.preventDefault();
+        sfx?.unlock();
+      }
+      keys.add(event.code);
+      if (event.code === "Enter" && state.gameOver) {
+        resetGame();
+      }
+    });
+
+    window.addEventListener("keyup", (event) => {
+      keys.delete(event.code);
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pong: Neon Rally</title>
+  <style>
+    :root {
+      --bg: #060912;
+      --panel: rgba(8, 15, 28, 0.92);
+      --line: rgba(125, 216, 255, 0.28);
+      --ink: #dff2ff;
+      --muted: #8eaec4;
+      --cyan: #71e9ff;
+      --pink: #ff88c0;
+      --gold: #ffc972;
+      --danger: #ff8894;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      color: var(--ink);
+      font-family: "Trebuchet MS", "Lucida Sans Unicode", sans-serif;
+      background:
+        radial-gradient(circle at 14% 15%, rgba(56, 110, 148, 0.48) 0%, transparent 40%),
+        radial-gradient(circle at 83% 84%, rgba(120, 56, 148, 0.38) 0%, transparent 44%),
+        var(--bg);
+    }
+
+    .cabinet {
+      width: min(1180px, 100%);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      overflow: hidden;
+      background: linear-gradient(168deg, rgba(10, 18, 32, 0.96), var(--panel));
+      box-shadow: 0 28px 78px rgba(0, 0, 0, 0.62);
+      position: relative;
+    }
+
+    .cabinet::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background-image: linear-gradient(transparent 49%, rgba(125, 216, 255, 0.035) 50%);
+      background-size: 100% 4px;
+      opacity: 0.45;
+      mix-blend-mode: screen;
+    }
+
+    .top {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--line);
+      background: linear-gradient(90deg, rgba(113, 233, 255, 0.11), rgba(255, 136, 192, 0.08));
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(1.2rem, 2.4vw, 1.85rem);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--cyan);
+      font-family: "Rockwell", "Palatino Linotype", serif;
+    }
+
+    .subtitle {
+      margin: 4px 0 0;
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+
+    .back {
+      text-decoration: none;
+      color: #071224;
+      background: linear-gradient(90deg, var(--cyan), #a697ff);
+      border-radius: 10px;
+      padding: 10px 13px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .layout {
+      position: relative;
+      z-index: 1;
+      padding: 14px;
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      gap: 14px;
+    }
+
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgba(8, 14, 25, 0.8);
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .metric {
+      border: 1px solid rgba(125, 216, 255, 0.22);
+      border-radius: 10px;
+      padding: 8px 10px;
+      background: rgba(7, 12, 21, 0.66);
+    }
+
+    .metric .label {
+      display: block;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--muted);
+      margin-bottom: 3px;
+    }
+
+    .metric .value {
+      font-size: 1.1rem;
+      font-weight: 800;
+      font-family: "Consolas", "Lucida Console", monospace;
+    }
+
+    .controls {
+      border: 1px solid rgba(125, 216, 255, 0.2);
+      border-radius: 10px;
+      padding: 10px;
+      font-size: 0.82rem;
+      color: var(--muted);
+      line-height: 1.45;
+      background: rgba(7, 12, 22, 0.62);
+    }
+
+    .buttons {
+      display: grid;
+      gap: 8px;
+    }
+
+    button {
+      border: none;
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-weight: 800;
+      cursor: pointer;
+      letter-spacing: 0.02em;
+      font-family: "Trebuchet MS", sans-serif;
+    }
+
+    #startPauseBtn {
+      color: #071224;
+      background: linear-gradient(90deg, var(--cyan), #a793ff);
+    }
+
+    #restartBtn {
+      color: #291200;
+      background: linear-gradient(90deg, var(--gold), #ff9a80);
+    }
+
+    .status {
+      min-height: 1.3em;
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: #8dffc7;
+    }
+
+    .status.danger { color: var(--danger); }
+
+    .arena-wrap {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgba(6, 11, 20, 0.84);
+      padding: 10px;
+      min-width: 0;
+      position: relative;
+    }
+
+    canvas {
+      width: 100%;
+      height: auto;
+      border: 1px solid rgba(125, 216, 255, 0.25);
+      border-radius: 8px;
+      background: #04070f;
+      display: block;
+    }
+
+    .hint {
+      margin-top: 8px;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+
+    @media (max-width: 960px) {
+      .layout { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main class="cabinet">
+    <header class="top">
+      <div>
+        <h1>Pong: Neon Rally</h1>
+        <p class="subtitle">One paddle, one rival bot, one more classic unlocked.</p>
+      </div>
+      <a class="back" href="../index.html">Back to launcher</a>
+    </header>
+
+    <section class="layout">
+      <aside class="panel">
+        <div class="metric">
+          <span class="label">Player</span>
+          <span id="playerScore" class="value">0</span>
+        </div>
+        <div class="metric">
+          <span class="label">CPU</span>
+          <span id="cpuScore" class="value">0</span>
+        </div>
+        <div class="metric">
+          <span class="label">Rally Speed</span>
+          <span id="speedValue" class="value">1.00x</span>
+        </div>
+        <div class="metric">
+          <span class="label">Round Target</span>
+          <span class="value">7</span>
+        </div>
+
+        <div class="controls">
+          <strong>Controls:</strong><br />
+          W/S or Arrow Up/Down move paddle.<br />
+          Space toggles pause/play.
+        </div>
+
+        <div class="buttons">
+          <button id="startPauseBtn" type="button">Start Match</button>
+          <button id="restartBtn" type="button">Restart Match</button>
+        </div>
+
+        <div id="statusText" class="status">Press Start Match to serve.</div>
+      </aside>
+
+      <section class="arena-wrap">
+        <canvas id="arena" width="960" height="540" aria-label="Pong arena"></canvas>
+        <p class="hint">First to 7 wins the match. Read your opponent and control the pace.</p>
+      </section>
+    </section>
+  </main>
+
+  <script src="../shared/strudel-sfx.js"></script>
+  <script src="../shared/arcade-bgm.js"></script>
+  <script>
+    const WIDTH = 960;
+    const HEIGHT = 540;
+    const PADDLE_W = 16;
+    const PADDLE_H = 108;
+    const PLAYER_X = 36;
+    const CPU_X = WIDTH - 52;
+    const BALL_R = 10;
+    const BASE_BALL_SPEED = 360;
+    const MAX_BALL_SPEED = 760;
+    const PLAYER_SPEED = 420;
+    const CPU_SPEED = 360;
+    const WIN_SCORE = 7;
+
+    const arena = document.getElementById("arena");
+    const ctx = arena.getContext("2d");
+    const sfx = window.StrudelSfx;
+    const playerScoreEl = document.getElementById("playerScore");
+    const cpuScoreEl = document.getElementById("cpuScore");
+    const speedValueEl = document.getElementById("speedValue");
+    const statusText = document.getElementById("statusText");
+    const startPauseBtn = document.getElementById("startPauseBtn");
+    const restartBtn = document.getElementById("restartBtn");
+
+    const keys = new Set();
+    const state = {
+      playerY: HEIGHT * 0.5 - PADDLE_H * 0.5,
+      cpuY: HEIGHT * 0.5 - PADDLE_H * 0.5,
+      playerScore: 0,
+      cpuScore: 0,
+      ball: { x: WIDTH * 0.5, y: HEIGHT * 0.5, vx: 0, vy: 0 },
+      running: false,
+      paused: false,
+      gameOver: false,
+      serveTimer: 0.7,
+      lastTime: performance.now(),
+      pulse: 0
+    };
+
+    function clamp(value, min, max) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    function setStatus(text, danger = false) {
+      statusText.textContent = text;
+      statusText.classList.toggle("danger", danger);
+    }
+
+    function setServe(direction = Math.random() > 0.5 ? 1 : -1) {
+      state.ball.x = WIDTH * 0.5;
+      state.ball.y = HEIGHT * 0.5;
+      state.ball.vx = direction * BASE_BALL_SPEED;
+      state.ball.vy = (Math.random() * 2 - 1) * 140;
+      state.serveTimer = 0.8;
+      if (state.running && !state.paused && !state.gameOver) sfx?.play("serve", 0.8);
+    }
+
+    function resetMatch(autostart = false) {
+      state.playerY = HEIGHT * 0.5 - PADDLE_H * 0.5;
+      state.cpuY = HEIGHT * 0.5 - PADDLE_H * 0.5;
+      state.playerScore = 0;
+      state.cpuScore = 0;
+      state.running = autostart;
+      state.paused = false;
+      state.gameOver = false;
+      setServe(Math.random() > 0.5 ? 1 : -1);
+      updateHud();
+      startPauseBtn.textContent = autostart ? "Pause" : "Start Match";
+      setStatus(autostart ? "Match on." : "Press Start Match to serve.");
+    }
+
+    function updateHud() {
+      playerScoreEl.textContent = String(state.playerScore);
+      cpuScoreEl.textContent = String(state.cpuScore);
+      const rallySpeed = Math.hypot(state.ball.vx, state.ball.vy) / BASE_BALL_SPEED;
+      speedValueEl.textContent = `${rallySpeed.toFixed(2)}x`;
+    }
+
+    function paddleHit(paddleY) {
+      return state.ball.y + BALL_R >= paddleY && state.ball.y - BALL_R <= paddleY + PADDLE_H;
+    }
+
+    function bounceFromPaddle(paddleCenterY, direction) {
+      const relative = clamp((state.ball.y - paddleCenterY) / (PADDLE_H * 0.5), -1, 1);
+      const speed = clamp(Math.hypot(state.ball.vx, state.ball.vy) * 1.055, BASE_BALL_SPEED, MAX_BALL_SPEED);
+      state.ball.vx = direction * speed;
+      state.ball.vy = relative * speed * 0.86;
+      sfx?.play("paddle", 0.9);
+    }
+
+    function scorePoint(playerScored) {
+      if (playerScored) state.playerScore += 1;
+      else state.cpuScore += 1;
+
+      if (state.playerScore >= WIN_SCORE || state.cpuScore >= WIN_SCORE) {
+        state.gameOver = true;
+        state.running = false;
+        const playerWon = state.playerScore > state.cpuScore;
+        setStatus(playerWon ? "You win the match." : "CPU wins this one.", !playerWon);
+        startPauseBtn.textContent = "Start Match";
+        sfx?.play(playerWon ? "win" : "lose", 1);
+      } else {
+        setServe(playerScored ? -1 : 1);
+        setStatus(playerScored ? "Point for you." : "Point for CPU.", !playerScored);
+        sfx?.play("score", playerScored ? 0.95 : 0.85);
+      }
+      updateHud();
+    }
+
+    function update(dt) {
+      const up = keys.has("KeyW") || keys.has("ArrowUp");
+      const down = keys.has("KeyS") || keys.has("ArrowDown");
+      let move = 0;
+      if (up) move -= 1;
+      if (down) move += 1;
+      state.playerY = clamp(state.playerY + move * PLAYER_SPEED * dt, 0, HEIGHT - PADDLE_H);
+
+      const cpuCenter = state.cpuY + PADDLE_H * 0.5;
+      const cpuTarget = state.ball.vx > 0 ? state.ball.y : HEIGHT * 0.5;
+      const cpuStep = clamp(cpuTarget - cpuCenter, -CPU_SPEED * dt, CPU_SPEED * dt);
+      state.cpuY = clamp(state.cpuY + cpuStep, 0, HEIGHT - PADDLE_H);
+
+      if (!state.running || state.paused || state.gameOver) return;
+
+      if (state.serveTimer > 0) {
+        state.serveTimer -= dt;
+        return;
+      }
+
+      state.ball.x += state.ball.vx * dt;
+      state.ball.y += state.ball.vy * dt;
+
+      if (state.ball.y - BALL_R <= 0) {
+        state.ball.y = BALL_R;
+        state.ball.vy = Math.abs(state.ball.vy);
+        sfx?.play("wall", 0.7);
+      } else if (state.ball.y + BALL_R >= HEIGHT) {
+        state.ball.y = HEIGHT - BALL_R;
+        state.ball.vy = -Math.abs(state.ball.vy);
+        sfx?.play("wall", 0.7);
+      }
+
+      if (
+        state.ball.vx < 0 &&
+        state.ball.x - BALL_R <= PLAYER_X + PADDLE_W &&
+        state.ball.x + BALL_R >= PLAYER_X &&
+        paddleHit(state.playerY)
+      ) {
+        state.ball.x = PLAYER_X + PADDLE_W + BALL_R;
+        bounceFromPaddle(state.playerY + PADDLE_H * 0.5, 1);
+      }
+
+      if (
+        state.ball.vx > 0 &&
+        state.ball.x + BALL_R >= CPU_X &&
+        state.ball.x - BALL_R <= CPU_X + PADDLE_W &&
+        paddleHit(state.cpuY)
+      ) {
+        state.ball.x = CPU_X - BALL_R;
+        bounceFromPaddle(state.cpuY + PADDLE_H * 0.5, -1);
+      }
+
+      if (state.ball.x + BALL_R < 0) scorePoint(false);
+      else if (state.ball.x - BALL_R > WIDTH) scorePoint(true);
+    }
+
+    function drawCenterLine() {
+      ctx.strokeStyle = "rgba(129, 226, 255, 0.28)";
+      ctx.lineWidth = 3;
+      ctx.setLineDash([14, 14]);
+      ctx.beginPath();
+      ctx.moveTo(WIDTH * 0.5, 12);
+      ctx.lineTo(WIDTH * 0.5, HEIGHT - 12);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    function drawArenaBackground() {
+      const bg = ctx.createLinearGradient(0, 0, 0, HEIGHT);
+      bg.addColorStop(0, "#07172a");
+      bg.addColorStop(1, "#040812");
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, WIDTH, HEIGHT);
+
+      for (let i = 0; i < 24; i += 1) {
+        const x = i * 52 + ((state.pulse * 22) % 52);
+        ctx.fillStyle = "rgba(109, 176, 221, 0.1)";
+        ctx.fillRect((x % (WIDTH + 60)) - 30, HEIGHT - 115 - (i % 5) * 16, 28, 115 + (i % 5) * 16);
+      }
+      drawCenterLine();
+    }
+
+    function drawPaddle(x, y, color) {
+      ctx.fillStyle = color;
+      ctx.fillRect(x, y, PADDLE_W, PADDLE_H);
+      ctx.fillStyle = "rgba(255, 255, 255, 0.35)";
+      ctx.fillRect(x + 3, y + 6, PADDLE_W - 6, 10);
+    }
+
+    function drawBall() {
+      const pulse = 1 + Math.sin(state.pulse * 10) * 0.07;
+      const radius = BALL_R * pulse;
+      ctx.beginPath();
+      ctx.arc(state.ball.x, state.ball.y, radius + 6, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(113, 233, 255, 0.2)";
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(state.ball.x, state.ball.y, radius, 0, Math.PI * 2);
+      ctx.fillStyle = "#d9f8ff";
+      ctx.fill();
+    }
+
+    function drawOverlay() {
+      const show = !state.running || state.paused || state.gameOver || state.serveTimer > 0;
+      if (!show) return;
+
+      ctx.fillStyle = "rgba(4, 9, 16, 0.38)";
+      ctx.fillRect(0, 0, WIDTH, HEIGHT);
+      ctx.textAlign = "center";
+
+      let title = "PONG";
+      let sub = "Press Start Match to begin";
+      let color = "#97ecff";
+
+      if (state.gameOver) {
+        const playerWon = state.playerScore > state.cpuScore;
+        title = playerWon ? "VICTORY" : "DEFEAT";
+        sub = playerWon ? "You outplayed the CPU." : "CPU takes this match.";
+        color = playerWon ? "#8bffba" : "#ff9ba7";
+      } else if (state.paused) {
+        title = "PAUSED";
+        sub = "Press Space or Start to continue";
+      } else if (state.serveTimer > 0 && state.running) {
+        title = `${Math.ceil(state.serveTimer * 2)}`;
+        sub = "Get ready";
+        color = "#ffe0a6";
+      }
+
+      ctx.fillStyle = color;
+      ctx.font = 'bold 62px "Rockwell", serif';
+      ctx.fillText(title, WIDTH * 0.5, HEIGHT * 0.46);
+      ctx.fillStyle = "#d8f2ff";
+      ctx.font = '20px "Trebuchet MS", sans-serif';
+      ctx.fillText(sub, WIDTH * 0.5, HEIGHT * 0.54);
+      ctx.textAlign = "left";
+    }
+
+    function render() {
+      drawArenaBackground();
+      drawPaddle(PLAYER_X, state.playerY, "#71e9ff");
+      drawPaddle(CPU_X, state.cpuY, "#ff88c0");
+      drawBall();
+      drawOverlay();
+    }
+
+    function frame(now) {
+      const dt = Math.min((now - state.lastTime) / 1000, 0.1);
+      state.lastTime = now;
+      state.pulse += dt;
+      update(dt);
+      render();
+      requestAnimationFrame(frame);
+    }
+
+    function toggleStartPause() {
+      if (state.gameOver) {
+        resetMatch(true);
+        startPauseBtn.textContent = "Pause";
+        sfx?.play("start", 0.82);
+        return;
+      }
+
+      if (!state.running) {
+        state.running = true;
+        state.paused = false;
+        startPauseBtn.textContent = "Pause";
+        setStatus("Match on.");
+        sfx?.play("start", 0.82);
+      } else {
+        state.paused = !state.paused;
+        startPauseBtn.textContent = state.paused ? "Resume" : "Pause";
+        setStatus(state.paused ? "Paused." : "Back in play.");
+        sfx?.play(state.paused ? "pause" : "resume", 0.66);
+      }
+    }
+
+    window.addEventListener("keydown", (event) => {
+      const accepted = ["ArrowUp", "ArrowDown", "KeyW", "KeyS", "Space"];
+      if (!accepted.includes(event.code)) return;
+      event.preventDefault();
+      sfx?.unlock();
+      if (event.code === "Space") {
+        toggleStartPause();
+        return;
+      }
+      keys.add(event.code);
+    });
+
+    window.addEventListener("keyup", (event) => {
+      keys.delete(event.code);
+    });
+
+    startPauseBtn.addEventListener("click", toggleStartPause);
+    restartBtn.addEventListener("click", () => resetMatch(true));
+
+    resetMatch(false);
+    requestAnimationFrame(frame);
+  </script>
+</body>
+</html>

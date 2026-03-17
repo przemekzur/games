@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Arcade Hub</title>
+  <style>
+    :root {
+      --bg: #070b14;
+      --panel: rgba(14, 20, 36, 0.88);
+      --line: rgba(130, 190, 255, 0.22);
+      --ink: #e6f3ff;
+      --muted: #9cb3c9;
+      --brand: #64d5ff;
+      --brand-2: #b987ff;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Inter", "Segoe UI", Arial, sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 12% 12%, #1b2f52 0%, transparent 42%),
+        radial-gradient(circle at 85% 85%, #24183e 0%, transparent 46%),
+        var(--bg);
+      display: grid;
+      place-items: center;
+      padding: 24px;
+    }
+
+    .app {
+      width: min(1100px, 100%);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: linear-gradient(165deg, rgba(20, 28, 48, 0.88), var(--panel));
+      box-shadow: 0 30px 70px rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(6px);
+      overflow: hidden;
+    }
+
+    .hero {
+      padding: 28px 28px 14px;
+      border-bottom: 1px solid var(--line);
+      background: linear-gradient(90deg, rgba(100, 213, 255, 0.09), rgba(185, 135, 255, 0.06));
+    }
+
+    .eyebrow {
+      font-size: 0.76rem;
+      text-transform: uppercase;
+      letter-spacing: 0.13em;
+      color: var(--brand);
+      margin-bottom: 8px;
+      font-weight: 700;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(1.6rem, 3vw, 2.4rem);
+    }
+
+    .sub {
+      margin: 8px 0 0;
+      color: var(--muted);
+      font-size: 0.98rem;
+      max-width: 72ch;
+    }
+
+    .grid {
+      padding: 24px 24px 28px;
+      display: grid;
+      gap: 16px;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    }
+
+    .card {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 18px;
+      background: rgba(9, 14, 24, 0.76);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+    }
+
+    .card:hover {
+      transform: translateY(-4px);
+      border-color: rgba(130, 190, 255, 0.46);
+      box-shadow: 0 14px 34px rgba(2, 8, 18, 0.55);
+    }
+
+    .pill {
+      align-self: flex-start;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 700;
+      color: #0c1426;
+      background: linear-gradient(90deg, var(--brand), var(--brand-2));
+      padding: 5px 9px;
+      border-radius: 999px;
+    }
+
+    .card h2 {
+      margin: 0;
+      font-size: 1.15rem;
+    }
+
+    .card p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.45;
+      flex-grow: 1;
+    }
+
+    .btn {
+      text-decoration: none;
+      color: #07111f;
+      background: linear-gradient(90deg, #70dcff, #c29aff);
+      border: none;
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-weight: 800;
+      text-align: center;
+      letter-spacing: 0.02em;
+    }
+
+    .btn:hover { filter: brightness(1.05); }
+
+    .coming {
+      opacity: 0.78;
+      border-style: dashed;
+    }
+
+    .coming .btn {
+      pointer-events: none;
+      opacity: 0.55;
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <section class="hero">
+      <div class="eyebrow">Game Launcher</div>
+      <h1>Choose your game</h1>
+      <p class="sub">A modern mini-arcade with dedicated game folders. Pick a title below and jump in instantly.</p>
+    </section>
+
+    <section class="grid">
+      <article class="card">
+        <span class="pill">Arcade Shooter</span>
+        <h2>Asteroids</h2>
+        <p>Classic space survival with thrust, split asteroids, score progression, and quick restarts.</p>
+        <a class="btn" href="./asteroids/index.html">Play Asteroids</a>
+      </article>
+
+      <article class="card">
+        <span class="pill">Fighting</span>
+        <h2>Mortal Combat 1: Neo Exchange</h2>
+        <p>Modernized one-on-one combat with character selection and intense special moves.</p>
+        <a class="btn" href="./mortal-combat-1/index.html">Play Mortal Combat</a>
+      </article>
+
+      <article class="card">
+        <span class="pill">FPS</span>
+        <h2>DOOM</h2>
+        <p>Retro raycasting FPS — explore a demon-infested base, blast enemies with your shotgun, and reach the exit alive.</p>
+        <a class="btn" href="./doom/index.html">Play DOOM</a>
+      </article>
+
+      <article class="card">
+        <span class="pill">Arcade Classic</span>
+        <h2>Snake: Childhood Remix</h2>
+        <p>Guide your neon snake, scale speed with each bite, and chase your personal high score.</p>
+        <a class="btn" href="./snake/index.html">Play Snake</a>
+      </article>
+
+      <article class="card">
+        <span class="pill">Arcade Duel</span>
+        <h2>Pong: Neon Rally</h2>
+        <p>Face a smart CPU paddle in a polished neon take on Pong, first to seven points wins.</p>
+        <a class="btn" href="./pong/index.html">Play Pong</a>
+      </article>
+
+      <article class="card">
+        <span class="pill">Arcade Action</span>
+        <h2>Breakout: Prism Crash</h2>
+        <p>Shatter neon brick walls, manage your lives, and push through accelerating levels.</p>
+        <a class="btn" href="./breakout/index.html">Play Breakout</a>
+      </article>
+
+      <article class="card">
+        <span class="pill">Vertical Shooter</span>
+        <h2>River Raid</h2>
+        <p>Modern re-imagining of the classic — fly your jet over a glowing river, blast helis, boats &amp; planes, and don't run out of fuel.</p>
+        <a class="btn" href="./river-raid/index.html">Play River Raid</a>
+      </article>
+
+      <article class="card">
+        <span class="pill">Turn Strategy RPG</span>
+        <h2>Fintech Heroes: Ledger of Dominion</h2>
+        <p>Heroes-style fantasy strategy in a fintech realm — choose a champion, uncover story chapters, and battle market monsters.</p>
+        <a class="btn" href="./fintech-heroes/index.html">Play Fintech Heroes</a>
+      </article>
+
+      <article class="card">
+        <span class="pill">Fantasy Action RPG</span>
+        <h2>Echoes of the Hollow Crown</h2>
+        <p>Cinematic top-down RPG adventure — choose a champion, recover the three sigils of the vale, and duel the sovereign behind the Rift Gate.</p>
+        <a class="btn" href="./hollow-crown/index.html">Play Hollow Crown</a>
+      </article>
+
+      <article class="card">
+        <span class="pill">Arcade Shooter</span>
+        <h2>Space Invaders: Neon Siege</h2>
+        <p>Defend Earth in this flashy modern take — multiple waves, powerups, combo scoring, and a persistent leaderboard.</p>
+        <a class="btn" href="./space-invaders/index.html">Play Neon Siege</a>
+      </article>
+
+      <article class="card">
+        <span class="pill">3D Space Strategy</span>
+        <h2>Star Trek Voyager</h2>
+        <p>Command the USS Voyager through the Delta Quadrant — 3D space exploration with Three.js-powered visuals and tactical gameplay.</p>
+        <a class="btn" href="./voyager-game/index.html">Play Voyager</a>
+      </article>
+    </section>
+  </main>
+  <script src="./shared/arcade-bgm.js"></script>
+</body>
+</html>

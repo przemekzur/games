@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Snake: Childhood Remix</title>
+  <style>
+    :root {
+      --bg: #05090d;
+      --panel: rgba(8, 16, 26, 0.9);
+      --line: rgba(120, 214, 255, 0.3);
+      --ink: #dbf3ff;
+      --muted: #8badc1;
+      --neon: #69edff;
+      --lime: #8bff9f;
+      --rose: #ff8cbf;
+      --gold: #ffc870;
+      --danger: #ff8892;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      color: var(--ink);
+      font-family: "Trebuchet MS", "Lucida Sans Unicode", sans-serif;
+      background:
+        radial-gradient(circle at 10% 15%, rgba(61, 118, 161, 0.45) 0%, transparent 44%),
+        radial-gradient(circle at 86% 82%, rgba(105, 61, 154, 0.34) 0%, transparent 48%),
+        var(--bg);
+    }
+
+    .arcade {
+      width: min(1100px, 100%);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: linear-gradient(165deg, rgba(10, 18, 31, 0.96), var(--panel));
+      box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
+      overflow: hidden;
+      position: relative;
+    }
+
+    .arcade::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background-image: linear-gradient(transparent 49%, rgba(120, 214, 255, 0.04) 50%);
+      background-size: 100% 4px;
+      opacity: 0.45;
+      mix-blend-mode: screen;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 14px;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--line);
+      background: linear-gradient(90deg, rgba(105, 237, 255, 0.1), rgba(255, 140, 191, 0.08));
+      position: relative;
+      z-index: 1;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(1.2rem, 2.2vw, 1.8rem);
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      color: var(--neon);
+      font-family: "Rockwell", "Palatino Linotype", serif;
+    }
+
+    .tagline {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 0.86rem;
+    }
+
+    .back-link {
+      text-decoration: none;
+      color: #081224;
+      background: linear-gradient(90deg, var(--neon), #b4a0ff);
+      border-radius: 10px;
+      font-weight: 800;
+      padding: 10px 13px;
+      white-space: nowrap;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 240px 1fr;
+      gap: 14px;
+      padding: 14px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgba(8, 15, 25, 0.8);
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 11px;
+    }
+
+    .stat {
+      border: 1px solid rgba(120, 214, 255, 0.24);
+      border-radius: 10px;
+      padding: 8px 10px;
+      background: rgba(10, 20, 32, 0.65);
+    }
+
+    .label {
+      display: block;
+      font-size: 0.72rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      margin-bottom: 3px;
+    }
+
+    .value {
+      font-size: 1.15rem;
+      font-weight: 800;
+      letter-spacing: 0.02em;
+      color: var(--ink);
+      font-family: "Consolas", "Lucida Console", monospace;
+    }
+
+    .controls {
+      font-size: 0.82rem;
+      line-height: 1.45;
+      color: var(--muted);
+      border: 1px solid rgba(120, 214, 255, 0.2);
+      border-radius: 10px;
+      padding: 10px;
+      background: rgba(7, 12, 21, 0.64);
+    }
+
+    .btn-row {
+      display: grid;
+      gap: 8px;
+      grid-template-columns: 1fr;
+    }
+
+    button {
+      border: none;
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-weight: 800;
+      letter-spacing: 0.02em;
+      cursor: pointer;
+      font-family: "Trebuchet MS", sans-serif;
+    }
+
+    #startPauseBtn {
+      color: #061223;
+      background: linear-gradient(90deg, var(--neon), #a38fff);
+    }
+
+    #restartBtn {
+      color: #201300;
+      background: linear-gradient(90deg, var(--gold), #ff997f);
+    }
+
+    .status {
+      font-size: 0.88rem;
+      color: var(--lime);
+      min-height: 1.2em;
+      font-weight: 700;
+    }
+
+    .status.danger { color: var(--danger); }
+
+    .board-wrap {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 10px;
+      background: rgba(6, 12, 20, 0.84);
+      position: relative;
+      min-width: 0;
+    }
+
+    canvas {
+      width: 100%;
+      height: auto;
+      display: block;
+      border-radius: 8px;
+      border: 1px solid rgba(120, 214, 255, 0.26);
+      background: #04080e;
+    }
+
+    .hint {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 0.8rem;
+    }
+
+    @media (max-width: 920px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="arcade">
+    <header class="topbar">
+      <div>
+        <h1>Snake: Childhood Remix</h1>
+        <p class="tagline">Classic snake gameplay with a modern arcade shell.</p>
+      </div>
+      <a class="back-link" href="../index.html">Back to launcher</a>
+    </header>
+
+    <section class="layout">
+      <aside class="panel">
+        <div class="stat">
+          <span class="label">Score</span>
+          <span id="scoreValue" class="value">0</span>
+        </div>
+        <div class="stat">
+          <span class="label">High Score</span>
+          <span id="highScoreValue" class="value">0</span>
+        </div>
+        <div class="stat">
+          <span class="label">Speed</span>
+          <span id="speedValue" class="value">1.0x</span>
+        </div>
+        <div class="stat">
+          <span class="label">Length</span>
+          <span id="lengthValue" class="value">3</span>
+        </div>
+
+        <div class="controls">
+          <strong>Controls:</strong><br />
+          Arrow keys or WASD to move.<br />
+          Space toggles pause/play.
+        </div>
+
+        <div class="btn-row">
+          <button id="startPauseBtn" type="button">Start Game</button>
+          <button id="restartBtn" type="button">Restart</button>
+        </div>
+
+        <div id="statusText" class="status">Press Start to begin.</div>
+      </aside>
+
+      <section class="board-wrap">
+        <canvas id="board" width="672" height="480" aria-label="Snake game board"></canvas>
+        <p class="hint">Eat fruit, avoid walls and your own tail, and push your best score.</p>
+      </section>
+    </section>
+  </main>
+
+  <script src="../shared/strudel-sfx.js"></script>
+  <script src="../shared/arcade-bgm.js"></script>
+  <script>
+    const GRID_COLS = 28;
+    const GRID_ROWS = 20;
+    const CELL = 24;
+    const BASE_TPS = 8;
+    const MAX_TPS = 16;
+    const HIGH_SCORE_KEY = "snake_childhood_high_score";
+
+    const board = document.getElementById("board");
+    const ctx = board.getContext("2d");
+    const sfx = window.StrudelSfx;
+    const scoreValue = document.getElementById("scoreValue");
+    const highScoreValue = document.getElementById("highScoreValue");
+    const speedValue = document.getElementById("speedValue");
+    const lengthValue = document.getElementById("lengthValue");
+    const statusText = document.getElementById("statusText");
+    const startPauseBtn = document.getElementById("startPauseBtn");
+    const restartBtn = document.getElementById("restartBtn");
+
+    const inputDirection = {
+      ArrowUp: { x: 0, y: -1 },
+      ArrowDown: { x: 0, y: 1 },
+      ArrowLeft: { x: -1, y: 0 },
+      ArrowRight: { x: 1, y: 0 },
+      KeyW: { x: 0, y: -1 },
+      KeyS: { x: 0, y: 1 },
+      KeyA: { x: -1, y: 0 },
+      KeyD: { x: 1, y: 0 }
+    };
+
+    const state = {
+      snake: [],
+      direction: { x: 1, y: 0 },
+      queuedDirection: { x: 1, y: 0 },
+      food: { x: 0, y: 0 },
+      score: 0,
+      highScore: Number(localStorage.getItem(HIGH_SCORE_KEY) || 0),
+      running: false,
+      paused: false,
+      gameOver: false,
+      speed: BASE_TPS,
+      accumulator: 0,
+      lastTime: performance.now(),
+      pulse: 0
+    };
+
+    function cellKey(c) {
+      return `${c.x},${c.y}`;
+    }
+
+    function randomCell() {
+      return {
+        x: Math.floor(Math.random() * GRID_COLS),
+        y: Math.floor(Math.random() * GRID_ROWS)
+      };
+    }
+
+    function placeFood() {
+      const occupied = new Set(state.snake.map(cellKey));
+      let candidate = randomCell();
+      while (occupied.has(cellKey(candidate))) {
+        candidate = randomCell();
+      }
+      state.food = candidate;
+    }
+
+    function setStatus(text, danger = false) {
+      statusText.textContent = text;
+      statusText.classList.toggle("danger", danger);
+    }
+
+    function resetGame(autostart = false) {
+      state.snake = [
+        { x: 8, y: 10 },
+        { x: 7, y: 10 },
+        { x: 6, y: 10 }
+      ];
+      state.direction = { x: 1, y: 0 };
+      state.queuedDirection = { x: 1, y: 0 };
+      state.score = 0;
+      state.speed = BASE_TPS;
+      state.gameOver = false;
+      state.paused = false;
+      state.running = autostart;
+      state.accumulator = 0;
+      state.lastTime = performance.now();
+      placeFood();
+      setStatus(autostart ? "Good luck." : "Press Start to begin.");
+      startPauseBtn.textContent = autostart ? "Pause" : "Start Game";
+      updateHud();
+      if (autostart) sfx?.play("start", 0.82);
+    }
+
+    function updateHud() {
+      scoreValue.textContent = String(state.score);
+      highScoreValue.textContent = String(state.highScore);
+      speedValue.textContent = `${(state.speed / BASE_TPS).toFixed(1)}x`;
+      lengthValue.textContent = String(state.snake.length);
+    }
+
+    function commitHighScore() {
+      if (state.score > state.highScore) {
+        state.highScore = state.score;
+        localStorage.setItem(HIGH_SCORE_KEY, String(state.highScore));
+      }
+    }
+
+    function isReverse(next) {
+      return next.x === -state.direction.x && next.y === -state.direction.y;
+    }
+
+    function stepGame() {
+      state.direction = state.queuedDirection;
+      const head = state.snake[0];
+      const nextHead = {
+        x: head.x + state.direction.x,
+        y: head.y + state.direction.y
+      };
+
+      if (
+        nextHead.x < 0 || nextHead.x >= GRID_COLS ||
+        nextHead.y < 0 || nextHead.y >= GRID_ROWS
+      ) {
+        state.gameOver = true;
+      } else {
+        const nextHeadKey = cellKey(nextHead);
+        const bodySet = new Set(state.snake.map(cellKey));
+        if (bodySet.has(nextHeadKey)) {
+          state.gameOver = true;
+        }
+      }
+
+      if (state.gameOver) {
+        state.running = false;
+        commitHighScore();
+        updateHud();
+        setStatus("Game over. Press Restart and try again.", true);
+        startPauseBtn.textContent = "Start Game";
+        sfx?.play("crash", 0.95);
+        sfx?.play("gameover", 1);
+        return;
+      }
+
+      state.snake.unshift(nextHead);
+      if (nextHead.x === state.food.x && nextHead.y === state.food.y) {
+        const prevSpeed = state.speed;
+        state.score += 10;
+        state.speed = Math.min(MAX_TPS, BASE_TPS + Math.floor(state.score / 30));
+        placeFood();
+        setStatus("Nice bite.");
+        sfx?.play("pickup", 0.9);
+        if (state.speed > prevSpeed) sfx?.play("level", 0.72);
+      } else {
+        state.snake.pop();
+      }
+
+      updateHud();
+    }
+
+    function drawBoard() {
+      const gradient = ctx.createLinearGradient(0, 0, board.width, board.height);
+      gradient.addColorStop(0, "#061120");
+      gradient.addColorStop(1, "#071526");
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, board.width, board.height);
+
+      ctx.strokeStyle = "rgba(128, 214, 255, 0.09)";
+      ctx.lineWidth = 1;
+      for (let x = 0; x <= GRID_COLS; x += 1) {
+        ctx.beginPath();
+        ctx.moveTo(x * CELL + 0.5, 0);
+        ctx.lineTo(x * CELL + 0.5, board.height);
+        ctx.stroke();
+      }
+      for (let y = 0; y <= GRID_ROWS; y += 1) {
+        ctx.beginPath();
+        ctx.moveTo(0, y * CELL + 0.5);
+        ctx.lineTo(board.width, y * CELL + 0.5);
+        ctx.stroke();
+      }
+    }
+
+    function drawFood() {
+      const cx = state.food.x * CELL + CELL / 2;
+      const cy = state.food.y * CELL + CELL / 2;
+      const pulse = 0.82 + Math.sin(state.pulse * 7) * 0.1;
+      const r = 8 * pulse;
+
+      ctx.fillStyle = "rgba(255, 140, 191, 0.18)";
+      ctx.beginPath();
+      ctx.arc(cx, cy, r + 7, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = "#ff8cbf";
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = "#ffeaf5";
+      ctx.beginPath();
+      ctx.arc(cx - 2.5, cy - 2.5, 2.2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    function drawSnake() {
+      state.snake.forEach((part, idx) => {
+        const x = part.x * CELL;
+        const y = part.y * CELL;
+        const t = idx / Math.max(1, state.snake.length - 1);
+        const hueMix = Math.round(150 + (210 - 150) * (1 - t));
+        const fill = `hsl(${hueMix}, 92%, ${idx === 0 ? 63 : 50}%)`;
+        const stroke = idx === 0 ? "#d7fbff" : "rgba(218, 255, 226, 0.55)";
+
+        ctx.fillStyle = fill;
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.roundRect(x + 2, y + 2, CELL - 4, CELL - 4, 7);
+        ctx.fill();
+        ctx.stroke();
+      });
+
+      const head = state.snake[0];
+      const hx = head.x * CELL + CELL / 2;
+      const hy = head.y * CELL + CELL / 2;
+      const eyeOffsetX = state.direction.x === 0 ? 5 : state.direction.x * 4;
+      const eyeOffsetY = state.direction.y === 0 ? 5 : state.direction.y * 4;
+      ctx.fillStyle = "#082032";
+      ctx.beginPath();
+      ctx.arc(hx - eyeOffsetX * 0.5, hy - eyeOffsetY * 0.5, 2, 0, Math.PI * 2);
+      ctx.arc(hx + eyeOffsetX * 0.5, hy + eyeOffsetY * 0.5, 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    function drawOverlay() {
+      if (!state.gameOver && !state.paused && state.running) return;
+      ctx.fillStyle = "rgba(3, 8, 13, 0.54)";
+      ctx.fillRect(0, 0, board.width, board.height);
+      ctx.textAlign = "center";
+      ctx.fillStyle = state.gameOver ? "#ff9ca7" : "#9deeff";
+      ctx.font = 'bold 42px "Rockwell", "Trebuchet MS", serif';
+      const title = state.gameOver ? "Game Over" : state.paused ? "Paused" : "Snake";
+      ctx.fillText(title, board.width / 2, board.height / 2 - 20);
+      ctx.fillStyle = "#ddf5ff";
+      ctx.font = '18px "Trebuchet MS", sans-serif';
+      const sub = state.gameOver
+        ? "Press Restart for another run"
+        : state.paused
+          ? "Press Space or Start to continue"
+          : "Press Start to begin";
+      ctx.fillText(sub, board.width / 2, board.height / 2 + 18);
+      ctx.textAlign = "left";
+    }
+
+    function render() {
+      drawBoard();
+      drawFood();
+      drawSnake();
+      drawOverlay();
+    }
+
+    function frame(now) {
+      const dt = Math.min((now - state.lastTime) / 1000, 0.1);
+      state.lastTime = now;
+      state.pulse += dt;
+
+      if (state.running && !state.paused && !state.gameOver) {
+        state.accumulator += dt;
+        const stepDur = 1 / state.speed;
+        while (state.accumulator >= stepDur) {
+          stepGame();
+          state.accumulator -= stepDur;
+          if (!state.running || state.gameOver) break;
+        }
+      }
+
+      render();
+      requestAnimationFrame(frame);
+    }
+
+    function toggleStartPause() {
+      if (state.gameOver) return;
+      if (!state.running) {
+        state.running = true;
+        state.paused = false;
+        startPauseBtn.textContent = "Pause";
+        setStatus("Run started.");
+        sfx?.play("start", 0.82);
+      } else {
+        state.paused = !state.paused;
+        startPauseBtn.textContent = state.paused ? "Resume" : "Pause";
+        setStatus(state.paused ? "Paused." : "Back in action.");
+        sfx?.play(state.paused ? "pause" : "resume", 0.66);
+      }
+    }
+
+    window.addEventListener("keydown", (event) => {
+      if (event.code === "Space") {
+        event.preventDefault();
+        sfx?.unlock();
+        toggleStartPause();
+        return;
+      }
+
+      const dir = inputDirection[event.code];
+      if (!dir) return;
+      event.preventDefault();
+      sfx?.unlock();
+      if (isReverse(dir)) return;
+      state.queuedDirection = dir;
+      if (!state.running && !state.gameOver) {
+        state.running = true;
+        state.paused = false;
+        startPauseBtn.textContent = "Pause";
+        setStatus("Run started.");
+        sfx?.play("start", 0.78);
+      }
+    });
+
+    startPauseBtn.addEventListener("click", toggleStartPause);
+    restartBtn.addEventListener("click", () => resetGame(true));
+
+    resetGame(false);
+    requestAnimationFrame(frame);
+  </script>
+</body>
+</html>

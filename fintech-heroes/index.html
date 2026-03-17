@@ -1,0 +1,1206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fintech Heroes: Ledger of Dominion</title>
+  <style>
+    :root{
+      --bg:#070b12;
+      --panel:#101a27cc;
+      --line:#3ce0b144;
+      --ink:#eef6ff;
+      --muted:#9cb4c8;
+      --mint:#3ce0b1;
+      --gold:#f2b84b;
+      --danger:#ff6b6b;
+      --violet:#7f67ff;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      min-height:100vh;
+      color:var(--ink);
+      font-family:"Consolas","Lucida Console",monospace;
+      background:
+        radial-gradient(circle at 15% 20%, #1e3248 0%, transparent 45%),
+        radial-gradient(circle at 85% 80%, #1a2e2a 0%, transparent 50%),
+        linear-gradient(160deg,#04070d,#08101a 45%,#05080f);
+      overflow:hidden;
+    }
+    .grain{
+      position:fixed;
+      inset:0;
+      pointer-events:none;
+      background-image:radial-gradient(rgba(255,255,255,.03) 1px, transparent 1px);
+      background-size:3px 3px;
+      mix-blend-mode:soft-light;
+      opacity:.15;
+    }
+    .shell{
+      position:relative;
+      width:min(1240px,100vw);
+      height:min(94vh,860px);
+      margin:2vh auto;
+      border:1px solid var(--line);
+      border-radius:18px;
+      background:linear-gradient(165deg,#0e1724ee,#0a111cee);
+      box-shadow:0 30px 90px #000b, inset 0 0 0 1px #7fffff14;
+      display:grid;
+      grid-template-rows:auto 1fr auto;
+      overflow:hidden;
+    }
+    header{
+      padding:14px 18px;
+      border-bottom:1px solid var(--line);
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:16px;
+      background:linear-gradient(90deg,#1a2638aa,#122a24aa 60%,#1e193aaa);
+    }
+    .title{
+      display:flex;
+      flex-direction:column;
+      gap:4px;
+    }
+    .title .kicker{
+      color:var(--mint);
+      letter-spacing:.18em;
+      font-size:.72rem;
+      text-transform:uppercase;
+      opacity:.9;
+    }
+    .title h1{
+      margin:0;
+      font-family:"Palatino Linotype","Book Antiqua",serif;
+      letter-spacing:.04em;
+      font-size:1.4rem;
+      font-weight:700;
+    }
+    .status-strip{
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px;
+      justify-content:flex-end;
+    }
+    .chip{
+      border:1px solid #7fffff26;
+      background:#081420aa;
+      border-radius:999px;
+      padding:6px 10px;
+      font-size:.78rem;
+      color:var(--muted);
+      min-width:94px;
+      text-align:center;
+    }
+    .chip strong{color:#e7fbff}
+    .layout{
+      min-height:0;
+      display:grid;
+      grid-template-columns:1.05fr 1.35fr 1fr;
+      gap:14px;
+      padding:14px;
+    }
+    .panel{
+      border:1px solid var(--line);
+      border-radius:14px;
+      background:var(--panel);
+      min-height:0;
+      display:flex;
+      flex-direction:column;
+    }
+    .panel h2{
+      margin:0;
+      padding:12px 12px 9px;
+      border-bottom:1px solid var(--line);
+      font-family:"Palatino Linotype","Book Antiqua",serif;
+      letter-spacing:.05em;
+      font-size:1rem;
+      color:#d8fef5;
+      background:linear-gradient(90deg,#17312966,#1d2b4666);
+    }
+    .story-body{
+      padding:12px;
+      overflow:auto;
+      display:grid;
+      gap:10px;
+    }
+    .story-current{
+      border:1px solid #f2b84b55;
+      background:#2a211155;
+      border-radius:10px;
+      padding:10px;
+      line-height:1.45;
+    }
+    .story-current h3{
+      margin:0 0 6px;
+      font-size:.9rem;
+      color:var(--gold);
+      letter-spacing:.06em;
+      text-transform:uppercase;
+    }
+    .story-log{
+      display:grid;
+      gap:8px;
+    }
+    .story-note{
+      border:1px solid #7f67ff44;
+      background:#19182a99;
+      border-radius:10px;
+      padding:8px;
+      font-size:.8rem;
+      color:#d8d5ff;
+      line-height:1.35;
+    }
+    .board-wrap{
+      padding:12px;
+      min-height:0;
+      display:grid;
+      grid-template-rows:1fr auto auto;
+      gap:10px;
+    }
+    #map{
+      display:grid;
+      grid-template-columns:repeat(10,minmax(0,1fr));
+      gap:6px;
+      align-content:start;
+    }
+    .tile{
+      border:1px solid #7fffff2f;
+      border-radius:10px;
+      min-height:52px;
+      background:#121a27;
+      color:#deeeff;
+      font-size:.7rem;
+      letter-spacing:.03em;
+      text-transform:uppercase;
+      font-family:inherit;
+      padding:6px 4px;
+      cursor:pointer;
+      transition:transform .12s ease, border-color .12s ease, background .12s ease;
+      position:relative;
+      overflow:hidden;
+    }
+    .tile::after{
+      content:"";
+      position:absolute;
+      inset:0;
+      background:linear-gradient(180deg,#ffffff1a,transparent 36%);
+      opacity:.35;
+      pointer-events:none;
+    }
+    .tile:hover{transform:translateY(-2px)}
+    .tile.fog{
+      background:#070b12;
+      color:#456;
+      border-color:#1a2533;
+    }
+    .tile.reachable{border-color:#5fffd27a}
+    .tile.hero{
+      border-color:#f2b84baa;
+      box-shadow:0 0 0 1px #f2b84b66 inset, 0 0 16px #f2b84b44;
+    }
+    .tile.start{background:#16302f}
+    .tile.market{background:#183044}
+    .tile.mine{background:#332715}
+    .tile.data{background:#20295a}
+    .tile.story{background:#2b1e46}
+    .tile.monster{background:#3b1c2a}
+    .tile.boss{background:#4a1721}
+    .tile.cleared{background:#203523}
+    .actions{
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+    }
+    .btn{
+      border:1px solid #86fff260;
+      border-radius:10px;
+      color:#ecfffc;
+      background:linear-gradient(135deg,#14453f,#1f3f56);
+      font-family:inherit;
+      padding:8px 12px;
+      font-size:.8rem;
+      cursor:pointer;
+    }
+    .btn:hover{filter:brightness(1.08)}
+    .btn:disabled{opacity:.5;cursor:not-allowed}
+    .btn.warn{
+      border-color:#ffc76f77;
+      background:linear-gradient(135deg,#5a371b,#564117);
+    }
+    .btn.danger{
+      border-color:#ff9a9a66;
+      background:linear-gradient(135deg,#54222b,#4a1823);
+    }
+    #toast{
+      min-height:22px;
+      color:#b7f8df;
+      font-size:.8rem;
+      letter-spacing:.02em;
+      padding:2px 4px;
+    }
+    .roster{
+      padding:12px;
+      overflow:auto;
+      display:grid;
+      gap:10px;
+    }
+    .hero-card{
+      border:1px solid #7fffff3d;
+      border-radius:10px;
+      background:#111d2acc;
+      padding:10px;
+      display:grid;
+      gap:6px;
+    }
+    .hero-card h3{
+      margin:0;
+      color:#f7f1d0;
+      font-family:"Palatino Linotype","Book Antiqua",serif;
+      letter-spacing:.04em;
+      font-size:1rem;
+    }
+    .hero-class{color:var(--mint);font-size:.76rem;text-transform:uppercase;letter-spacing:.08em}
+    .stat-row{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+    .stat{
+      border:1px solid #73e5c538;
+      background:#0a141f;
+      border-radius:8px;
+      padding:6px;
+      font-size:.74rem;
+      text-align:center;
+      color:#cce8ff;
+    }
+    .list{
+      display:grid;
+      gap:6px;
+    }
+    .list-item{
+      border:1px solid #7f67ff33;
+      border-radius:9px;
+      background:#171829cc;
+      padding:8px;
+      font-size:.75rem;
+      line-height:1.35;
+    }
+    .list-item b{color:#f6e7ff}
+    .overlay{
+      position:absolute;
+      inset:0;
+      background:linear-gradient(170deg,#04080fef,#060d17ef 55%,#070f15ef);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:24px;
+      z-index:30;
+    }
+    .overlay.hidden{display:none}
+    .modal{
+      width:min(980px,100%);
+      border:1px solid #7fffff4f;
+      border-radius:18px;
+      background:#0f1826f2;
+      box-shadow:0 30px 80px #000d;
+      overflow:hidden;
+    }
+    .modal-head{
+      padding:14px 16px;
+      border-bottom:1px solid var(--line);
+      background:linear-gradient(90deg,#16332988,#2a1f4c88);
+    }
+    .modal-head h3{
+      margin:0;
+      font-family:"Palatino Linotype","Book Antiqua",serif;
+      letter-spacing:.05em;
+      font-size:1.18rem;
+      color:#f2fbff;
+    }
+    .modal-body{padding:14px;display:grid;gap:12px}
+    .hero-pick{
+      display:grid;
+      grid-template-columns:repeat(auto-fit,minmax(230px,1fr));
+      gap:10px;
+    }
+    .pick{
+      border:1px solid #8bf5d04a;
+      border-radius:12px;
+      background:#132232c9;
+      padding:11px;
+      display:grid;
+      gap:8px;
+    }
+    .pick h4{
+      margin:0;
+      font-family:"Palatino Linotype","Book Antiqua",serif;
+      font-size:1rem;
+      color:#f5ecd6;
+    }
+    .pick .role{font-size:.74rem;color:#7bf7cb;text-transform:uppercase;letter-spacing:.07em}
+    .pick p{margin:0;font-size:.78rem;color:#b8cce0;line-height:1.35}
+    .battle-grid{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:10px;
+    }
+    .battle-card{
+      border:1px solid #7fffff33;
+      border-radius:12px;
+      background:#101b2ab8;
+      padding:10px;
+      display:grid;
+      gap:8px;
+    }
+    .hp{
+      height:10px;
+      border:1px solid #6ef4bf55;
+      border-radius:999px;
+      background:#081116;
+      overflow:hidden;
+    }
+    .hp > i{
+      display:block;
+      height:100%;
+      background:linear-gradient(90deg,#24d693,#7fffc8);
+      width:100%;
+    }
+    .hp.red > i{background:linear-gradient(90deg,#ff6b6b,#ff9d83)}
+    #battleLog{
+      border:1px solid #7f67ff3c;
+      border-radius:10px;
+      background:#17172a;
+      padding:8px;
+      min-height:110px;
+      max-height:170px;
+      overflow:auto;
+      font-size:.78rem;
+      line-height:1.35;
+      color:#ded8ff;
+    }
+    footer{
+      border-top:1px solid var(--line);
+      padding:8px 12px;
+      display:flex;
+      justify-content:space-between;
+      gap:12px;
+      color:#8ea8c0;
+      font-size:.76rem;
+    }
+    #back{
+      position:absolute;
+      top:12px;
+      left:12px;
+      z-index:40;
+      border:1px solid #7fffff5b;
+      border-radius:10px;
+      background:#132a2f;
+      color:#dbfff6;
+      text-decoration:none;
+      padding:7px 11px;
+      font-size:.78rem;
+      letter-spacing:.03em;
+    }
+    #back:hover{filter:brightness(1.1)}
+    @media (max-width:1080px){
+      .shell{height:auto;min-height:96vh}
+      .layout{grid-template-columns:1fr}
+      body{overflow:auto}
+    }
+  </style>
+</head>
+<body>
+  <a id="back" href="../index.html">Back to Hub</a>
+  <div class="shell">
+    <header>
+      <div class="title">
+        <div class="kicker">Turn Strategy Campaign</div>
+        <h1>Fintech Heroes: Ledger of Dominion</h1>
+      </div>
+      <div class="status-strip" id="statusStrip"></div>
+    </header>
+
+    <div class="layout">
+      <section class="panel">
+        <h2>Story Chronicle</h2>
+        <div class="story-body">
+          <div class="story-current">
+            <h3 id="storyTitle">Prologue</h3>
+            <div id="storyText"></div>
+          </div>
+          <div class="story-log" id="storyLog"></div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Market Grid</h2>
+        <div class="board-wrap">
+          <div id="map"></div>
+          <div class="actions">
+            <button class="btn warn" id="endDayBtn">End Day</button>
+            <button class="btn" id="marketBtn">Visit Exchange</button>
+            <button class="btn danger" id="resetBtn">Restart Campaign</button>
+          </div>
+          <div id="toast"></div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Heroes & Beasts</h2>
+        <div class="roster">
+          <div id="heroCard" class="hero-card"></div>
+          <div>
+            <b>Characters</b>
+            <div class="list" id="characterList"></div>
+          </div>
+          <div>
+            <b>Monster Ledger</b>
+            <div class="list" id="monsterList"></div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <footer>
+      <div>Objective: Defeat the Basel Dragon and unite the fractured financial realms.</div>
+      <div>Tip: Captured banks produce daily income, and data vaults unlock story power.</div>
+    </footer>
+  </div>
+
+  <div id="startOverlay" class="overlay">
+    <div class="modal">
+      <div class="modal-head">
+        <h3>The Story of the Broken Ledger</h3>
+      </div>
+      <div class="modal-body">
+        <div style="line-height:1.45;color:#c8d8ea;font-size:.9rem">
+          The seven market kingdoms are collapsing under flash crashes, shadow debt, and
+          hostile algorithmic beasts. In the ruins of Neo Warsaw, the Great Ledger shattered
+          into sealed data shards. Choose a champion, reclaim the shards, and confront the
+          Basel Dragon before trust in the realm is erased forever.
+        </div>
+        <div class="hero-pick" id="heroPick"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="battleOverlay" class="overlay hidden">
+    <div class="modal">
+      <div class="modal-head">
+        <h3 id="battleTitle">Battle</h3>
+      </div>
+      <div class="modal-body">
+        <div class="battle-grid">
+          <div class="battle-card">
+            <b id="battleHeroName">Hero</b>
+            <div class="hp"><i id="heroBattleHp"></i></div>
+            <div id="heroBattleStats"></div>
+          </div>
+          <div class="battle-card">
+            <b id="battleMonsterName">Monster</b>
+            <div class="hp red"><i id="monsterBattleHp"></i></div>
+            <div id="monsterBattleStats"></div>
+          </div>
+        </div>
+        <div id="battleLog"></div>
+        <div class="actions">
+          <button class="btn" id="atkBtn">Attack</button>
+          <button class="btn" id="abilityBtn">Ability</button>
+          <button class="btn warn" id="defendBtn">Defend</button>
+          <button class="btn danger" id="retreatBtn">Retreat</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="endOverlay" class="overlay hidden">
+    <div class="modal">
+      <div class="modal-head">
+        <h3 id="endTitle">Campaign End</h3>
+      </div>
+      <div class="modal-body">
+        <div id="endText" style="line-height:1.45;color:#cfdef0"></div>
+        <div class="actions">
+          <button class="btn" id="playAgainBtn">Play Again</button>
+          <a class="btn" href="../index.html">Back to Hub</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="grain"></div>
+
+  <script>
+    "use strict";
+
+    const MAP_W = 10;
+    const MAP_H = 7;
+
+    const heroes = [
+      {
+        id: "ava",
+        name: "Ava Quantblade",
+        role: "Algorithm Knight",
+        bio: "A tactical commander who weaponized high-frequency execution into a precise battlefield art.",
+        maxHp: 132,
+        attack: 20,
+        defense: 8,
+        maxMana: 18,
+        abilityName: "Flash Loan Strike",
+        abilityDesc: "Deal heavy damage and siphon 20 gold.",
+        special: "quant"
+      },
+      {
+        id: "dorian",
+        name: "Dorian Ledgerguard",
+        role: "Risk Paladin",
+        bio: "Former chief auditor of the Emerald Exchange, master of mitigation and survival.",
+        maxHp: 154,
+        attack: 16,
+        defense: 12,
+        maxMana: 14,
+        abilityName: "Hedge Wall",
+        abilityDesc: "Gain a massive shield before enemy retaliation.",
+        special: "guard"
+      },
+      {
+        id: "nyx",
+        name: "Nyx Oracle",
+        role: "DeFi Arcanist",
+        bio: "An oracle-mage who bends smart contracts into controlled bursts of destructive liquidity.",
+        maxHp: 118,
+        attack: 14,
+        defense: 7,
+        maxMana: 28,
+        abilityName: "Protocol Surge",
+        abilityDesc: "Spend mana for a devastating spell.",
+        special: "oracle"
+      }
+    ];
+
+    const monsterCodex = [
+      { id: "phish", name: "Phishing Imp", hp: 54, attack: 10, rewardGold: 40, rewardXp: 34, rewardTrust: 1, blurb: "Scams travelers with forged transfer prompts." },
+      { id: "debt", name: "Debt Golem", hp: 76, attack: 14, rewardGold: 60, rewardXp: 50, rewardTrust: 1, blurb: "Built from stacked liabilities and angry invoices." },
+      { id: "vol", name: "Volatility Specter", hp: 92, attack: 17, rewardGold: 82, rewardXp: 66, rewardTrust: 2, blurb: "Feeds on unstable spreads and panic orders." },
+      { id: "compliance", name: "Compliance Wraith", hp: 116, attack: 20, rewardGold: 105, rewardXp: 82, rewardTrust: 2, blurb: "Punishes careless risk disclosures." },
+      { id: "kraken", name: "Liquidity Kraken", hp: 138, attack: 23, rewardGold: 130, rewardXp: 100, rewardTrust: 3, blurb: "Drags entire markets below the funding line." },
+      { id: "boss", name: "Basel Dragon", hp: 224, attack: 28, rewardGold: 300, rewardXp: 220, rewardTrust: 5, blurb: "Ancient tyrant of leverage and fear." }
+    ];
+
+    const loreNodes = [
+      {
+        title: "Chapter I: The Margin Riots",
+        text: "In the district of Silver Futures, citizens burn debt ledgers while rogue bots force liquidations."
+      },
+      {
+        title: "Chapter II: Oracle Fracture",
+        text: "You discover one of the ledger shards hidden in a broken oracle temple beneath a silent exchange."
+      },
+      {
+        title: "Chapter III: The Last Clearing House",
+        text: "A surviving clearing guild pledges support if you can restore trust before dawn."
+      }
+    ];
+
+    const mapEl = document.getElementById("map");
+    const statusStrip = document.getElementById("statusStrip");
+    const heroCard = document.getElementById("heroCard");
+    const storyTitle = document.getElementById("storyTitle");
+    const storyText = document.getElementById("storyText");
+    const storyLog = document.getElementById("storyLog");
+    const toastEl = document.getElementById("toast");
+    const marketBtn = document.getElementById("marketBtn");
+
+    const startOverlay = document.getElementById("startOverlay");
+    const battleOverlay = document.getElementById("battleOverlay");
+    const endOverlay = document.getElementById("endOverlay");
+
+    const battleTitle = document.getElementById("battleTitle");
+    const battleHeroName = document.getElementById("battleHeroName");
+    const battleMonsterName = document.getElementById("battleMonsterName");
+    const heroBattleHp = document.getElementById("heroBattleHp");
+    const monsterBattleHp = document.getElementById("monsterBattleHp");
+    const heroBattleStats = document.getElementById("heroBattleStats");
+    const monsterBattleStats = document.getElementById("monsterBattleStats");
+    const battleLog = document.getElementById("battleLog");
+
+    const endTitle = document.getElementById("endTitle");
+    const endText = document.getElementById("endText");
+
+    let map = [];
+    let state = null;
+    let toastTimer = null;
+
+    function randInt(min, max){
+      return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+
+    function idx(x, y){ return y * MAP_W + x; }
+    function inBounds(x, y){ return x >= 0 && x < MAP_W && y >= 0 && y < MAP_H; }
+    function getTile(x, y){ return map[idx(x, y)]; }
+
+    function showToast(msg){
+      toastEl.textContent = msg;
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => { toastEl.textContent = ""; }, 2100);
+    }
+
+    function cloneMonster(id, tier){
+      const base = monsterCodex.find(m => m.id === id);
+      const scale = 1 + (tier - 1) * 0.18;
+      return {
+        id: base.id,
+        name: base.name,
+        maxHp: Math.round(base.hp * scale),
+        hp: Math.round(base.hp * scale),
+        attack: Math.round(base.attack * scale),
+        rewardGold: Math.round(base.rewardGold * scale),
+        rewardXp: Math.round(base.rewardXp * scale),
+        rewardTrust: base.rewardTrust + (tier > 3 ? 1 : 0),
+        blurb: base.blurb,
+        isBoss: base.id === "boss"
+      };
+    }
+
+    function createMap(){
+      map = Array.from({ length: MAP_W * MAP_H }, () => ({
+        type: "plain",
+        discovered: false,
+        cleared: false,
+        storyIndex: -1,
+        monster: null
+      }));
+
+      const setType = (x, y, type) => { getTile(x, y).type = type; };
+      setType(0, MAP_H - 1, "start");
+      setType(MAP_W - 1, 0, "boss");
+      setType(2, 5, "market");
+      setType(6, 2, "market");
+      setType(1, 4, "mine");
+      setType(4, 5, "mine");
+      setType(8, 2, "mine");
+      setType(3, 4, "data");
+      setType(5, 3, "data");
+      setType(7, 1, "data");
+
+      const loreCoords = [[1, 3], [4, 2], [8, 3]];
+      loreCoords.forEach((p, i) => {
+        const t = getTile(p[0], p[1]);
+        t.type = "story";
+        t.storyIndex = i;
+      });
+
+      const monsterCoords = [
+        [2, 4, 1, "phish"], [3, 5, 1, "debt"], [4, 4, 2, "vol"],
+        [5, 4, 2, "debt"], [6, 4, 3, "compliance"], [7, 4, 3, "vol"],
+        [5, 2, 3, "kraken"], [7, 2, 4, "compliance"], [8, 1, 4, "kraken"]
+      ];
+      monsterCoords.forEach(m => {
+        const t = getTile(m[0], m[1]);
+        t.type = "monster";
+        t.monster = cloneMonster(m[3], m[2]);
+      });
+      const bossTile = getTile(MAP_W - 1, 0);
+      bossTile.monster = cloneMonster("boss", 5);
+    }
+
+    function revealAround(x, y, radius){
+      for(let yy = y - radius; yy <= y + radius; yy++){
+        for(let xx = x - radius; xx <= x + radius; xx++){
+          if(!inBounds(xx, yy)) continue;
+          if(Math.abs(xx - x) + Math.abs(yy - y) <= radius + 1){
+            getTile(xx, yy).discovered = true;
+          }
+        }
+      }
+    }
+
+    function tileLabel(tile){
+      switch(tile.type){
+        case "start": return "HQ";
+        case "market": return "MKT";
+        case "mine": return "BANK";
+        case "data": return "DATA";
+        case "story": return "LORE";
+        case "monster": return tile.cleared ? "CLR" : "MON";
+        case "boss": return tile.cleared ? "THRONE" : "BOSS";
+        case "cleared": return "CLR";
+        default: return "PLAIN";
+      }
+    }
+
+    function addStory(title, text){
+      state.currentStory = { title, text };
+      state.storyLog.unshift({ title, text });
+      state.storyLog = state.storyLog.slice(0, 6);
+      storyTitle.textContent = title;
+      storyText.textContent = text;
+      renderStoryLog();
+    }
+
+    function renderStoryLog(){
+      storyLog.innerHTML = "";
+      state.storyLog.forEach(item => {
+        const div = document.createElement("div");
+        div.className = "story-note";
+        div.innerHTML = "<b>" + item.title + "</b><br>" + item.text;
+        storyLog.appendChild(div);
+      });
+    }
+
+    function renderStatus(){
+      const xpNeed = xpRequired(state.level);
+      statusStrip.innerHTML = [
+        chip("Day", state.day),
+        chip("Moves", state.moves + "/" + state.maxMoves),
+        chip("Gold", state.gold),
+        chip("Data", state.dataShards),
+        chip("Trust", state.trust),
+        chip("XP", state.xp + "/" + xpNeed)
+      ].join("");
+    }
+
+    function chip(label, value){
+      return "<div class='chip'>" + label + "<br><strong>" + value + "</strong></div>";
+    }
+
+    function renderHeroCard(){
+      const h = state.hero;
+      heroCard.innerHTML =
+        "<h3>" + h.name + "</h3>" +
+        "<div class='hero-class'>" + h.role + "</div>" +
+        "<div>" + h.abilityName + " - " + h.abilityDesc + "</div>" +
+        "<div class='stat-row'>" +
+          stat("HP", h.hp + "/" + h.maxHp) +
+          stat("ATK", h.attack) +
+          stat("DEF", h.defense) +
+        "</div>" +
+        "<div class='stat-row'>" +
+          stat("Mana", h.mana + "/" + h.maxMana) +
+          stat("Level", state.level) +
+          stat("Banks", state.mines) +
+        "</div>";
+    }
+
+    function stat(name, value){
+      return "<div class='stat'><b>" + name + "</b><br>" + value + "</div>";
+    }
+
+    function renderCodex(){
+      const characterList = document.getElementById("characterList");
+      characterList.innerHTML = heroes.map(h =>
+        "<div class='list-item'><b>" + h.name + "</b><br>" + h.role + "<br>" + h.bio + "</div>"
+      ).join("");
+
+      const monsterList = document.getElementById("monsterList");
+      monsterList.innerHTML = monsterCodex.map(m =>
+        "<div class='list-item'><b>" + m.name + "</b><br>ATK " + m.attack + ", HP " + m.hp + "<br>" + m.blurb + "</div>"
+      ).join("");
+    }
+
+    function renderMap(){
+      mapEl.innerHTML = "";
+      for(let y = 0; y < MAP_H; y++){
+        for(let x = 0; x < MAP_W; x++){
+          const t = getTile(x, y);
+          const b = document.createElement("button");
+          b.className = "tile " + t.type;
+          const adjacent = Math.abs(x - state.x) + Math.abs(y - state.y) === 1;
+          if(!t.discovered && !(x === state.x && y === state.y)){
+            b.classList.add("fog");
+            b.textContent = "??";
+          } else {
+            b.textContent = tileLabel(t);
+          }
+          if(x === state.x && y === state.y){
+            b.classList.add("hero");
+            b.textContent = "HERO";
+          } else if(adjacent){
+            b.classList.add("reachable");
+          }
+          b.disabled = state.mode !== "explore" || !adjacent;
+          b.addEventListener("click", () => tryMove(x, y));
+          mapEl.appendChild(b);
+        }
+      }
+    }
+
+    function tryMove(nx, ny){
+      if(state.mode !== "explore") return;
+      if(state.moves <= 0){
+        showToast("No movement points left. End the day.");
+        return;
+      }
+      const dist = Math.abs(nx - state.x) + Math.abs(ny - state.y);
+      if(dist !== 1) return;
+
+      state.x = nx;
+      state.y = ny;
+      state.moves -= 1;
+      revealAround(nx, ny, 2);
+      resolveTile(getTile(nx, ny));
+      renderAll();
+
+      if(state.mode === "explore" && state.moves <= 0){
+        showToast("Movement exhausted. A new day begins.");
+        nextDay();
+      }
+    }
+
+    function resolveTile(tile){
+      if(tile.type === "mine" && !tile.cleared){
+        tile.cleared = true;
+        state.mines += 1;
+        state.gold += 80;
+        state.trust += 1;
+        addStory("Secured Digital Bank", "A treasury node now funds your campaign. Daily income increased.");
+      }
+
+      if(tile.type === "data" && !tile.cleared){
+        tile.cleared = true;
+        state.dataShards += 1;
+        state.trust += 2;
+        state.hero.mana = Math.min(state.hero.maxMana, state.hero.mana + 7);
+        addStory("Recovered Ledger Shard", "A fragment of the Great Ledger restores strategic forecasts.");
+      }
+
+      if(tile.type === "story" && !tile.cleared){
+        tile.cleared = true;
+        const lore = loreNodes[Math.max(0, tile.storyIndex)];
+        state.trust += 1;
+        addStory(lore.title, lore.text);
+      }
+
+      if(tile.type === "market"){
+        showToast("Exchange district reached. Visit to buy upgrades.");
+      }
+
+      if(tile.type === "monster" && !tile.cleared){
+        startBattle(tile);
+      }
+
+      if(tile.type === "boss" && !tile.cleared){
+        startBattle(tile);
+      }
+
+      if(tile.type === "plain" && Math.random() < 0.1){
+        const windfall = randInt(18, 42);
+        state.gold += windfall;
+        showToast("Arbitrage route found: +" + windfall + " gold.");
+      }
+    }
+
+    function nextDay(){
+      state.day += 1;
+      state.moves = state.maxMoves;
+      const income = state.mines * 26;
+      if(income > 0){
+        state.gold += income;
+        showToast("Banks generated " + income + " gold.");
+      }
+      state.hero.mana = Math.min(state.hero.maxMana, state.hero.mana + 3);
+      state.hero.hp = Math.min(state.hero.maxHp, state.hero.hp + 4);
+      renderAll();
+    }
+
+    function xpRequired(level){
+      return 70 + level * 34;
+    }
+
+    function applyLevelUps(){
+      while(state.xp >= xpRequired(state.level)){
+        state.xp -= xpRequired(state.level);
+        state.level += 1;
+        state.hero.maxHp += 14;
+        state.hero.attack += 3;
+        state.hero.defense += 1;
+        state.hero.maxMana += 2;
+        state.hero.hp = state.hero.maxHp;
+        state.hero.mana = state.hero.maxMana;
+        addStory("Level Up: " + state.level, "Your hero learned advanced treasury tactics and grew stronger.");
+      }
+    }
+
+    function startBattle(tile){
+      state.mode = "battle";
+      state.battle = {
+        tile,
+        monster: { ...tile.monster },
+        defending: false,
+        log: ["Encounter: " + tile.monster.name + ". " + tile.monster.blurb]
+      };
+      battleOverlay.classList.remove("hidden");
+      renderBattle();
+    }
+
+    function battleWrite(msg){
+      state.battle.log.push(msg);
+      if(state.battle.log.length > 8) state.battle.log.shift();
+    }
+
+    function monsterTurn(){
+      const b = state.battle;
+      const h = state.hero;
+      let dmg = randInt(b.monster.attack - 4, b.monster.attack + 4) - Math.floor(h.defense * 0.55);
+      if(b.defending){
+        dmg -= 12;
+        b.defending = false;
+        battleWrite("Shielded stance absorbed part of the strike.");
+      }
+      dmg = Math.max(3, dmg);
+      h.hp -= dmg;
+      battleWrite(b.monster.name + " hits for " + dmg + ".");
+      if(h.hp <= 0){
+        h.hp = 0;
+        renderBattle();
+        loseCampaign();
+        return false;
+      }
+      return true;
+    }
+
+    function battleAction(type){
+      if(state.mode !== "battle") return;
+      const b = state.battle;
+      const h = state.hero;
+      let acted = false;
+
+      if(type === "attack"){
+        const dmg = randInt(h.attack - 2, h.attack + 8) + state.level;
+        b.monster.hp -= dmg;
+        battleWrite(h.name + " strikes for " + dmg + ".");
+        acted = true;
+      }
+
+      if(type === "ability"){
+        if(h.special === "quant"){
+          const dmg = h.attack + 18 + randInt(0, 6);
+          b.monster.hp -= dmg;
+          state.gold += 20;
+          battleWrite("Flash Loan Strike deals " + dmg + " and steals 20 gold.");
+          acted = true;
+        } else if(h.special === "guard"){
+          b.defending = true;
+          const chip = randInt(8, 14);
+          b.monster.hp -= chip;
+          battleWrite("Hedge Wall grants armor and deals " + chip + " counter damage.");
+          acted = true;
+        } else if(h.special === "oracle"){
+          if(h.mana < 9){
+            battleWrite("Not enough mana for Protocol Surge.");
+          } else {
+            h.mana -= 9;
+            const dmg = h.attack + 24 + randInt(0, 10);
+            b.monster.hp -= dmg;
+            battleWrite("Protocol Surge detonates for " + dmg + ".");
+            acted = true;
+          }
+        }
+      }
+
+      if(type === "defend"){
+        b.defending = true;
+        battleWrite(h.name + " braces for incoming volatility.");
+        acted = true;
+      }
+
+      if(type === "retreat"){
+        if(b.monster.isBoss){
+          battleWrite("No retreat from the Basel Dragon.");
+        } else {
+          const penalty = 12;
+          h.hp = Math.max(1, h.hp - penalty);
+          state.mode = "explore";
+          state.battle = null;
+          battleOverlay.classList.add("hidden");
+          showToast("Retreated and lost " + penalty + " HP.");
+          renderAll();
+          return;
+        }
+      }
+
+      if(b.monster.hp <= 0){
+        winBattle();
+        return;
+      }
+
+      if(acted){
+        if(!monsterTurn()) return;
+      }
+
+      renderBattle();
+      renderAll();
+    }
+
+    function winBattle(){
+      const b = state.battle;
+      const m = b.monster;
+      state.gold += m.rewardGold;
+      state.xp += m.rewardXp;
+      state.trust += m.rewardTrust;
+      state.hero.mana = Math.min(state.hero.maxMana, state.hero.mana + 4);
+      b.tile.cleared = true;
+      b.tile.type = m.isBoss ? "boss" : "cleared";
+      b.tile.monster = null;
+
+      battleOverlay.classList.add("hidden");
+      state.mode = "explore";
+      state.battle = null;
+      applyLevelUps();
+
+      if(m.isBoss){
+        winCampaign();
+        return;
+      }
+
+      addStory("Battle Won", "You defeated " + m.name + " and secured " + m.rewardGold + " gold.");
+      showToast("Victory! Rewards claimed.");
+      renderAll();
+    }
+
+    function winCampaign(){
+      state.mode = "victory";
+      endTitle.textContent = "Victory: Ledger Restored";
+      endText.innerHTML =
+        "The Basel Dragon falls. With the final shard restored, cross-border markets stabilize and trust returns to the seven realms." +
+        "<br><br><b>Final Ledger:</b><br>" +
+        "Day " + state.day + ", Gold " + state.gold + ", Trust " + state.trust + ", Level " + state.level + ".";
+      endOverlay.classList.remove("hidden");
+      renderAll();
+    }
+
+    function loseCampaign(){
+      state.mode = "defeat";
+      battleOverlay.classList.add("hidden");
+      endTitle.textContent = "Defeat: Liquidity Collapse";
+      endText.innerHTML =
+        "Your hero has fallen. The markets fragment into panic and predatory bots overrun the network." +
+        "<br><br>Restart the campaign and forge a stronger treasury path.";
+      endOverlay.classList.remove("hidden");
+      renderAll();
+    }
+
+    function renderBattle(){
+      if(!state.battle) return;
+      const b = state.battle;
+      const h = state.hero;
+      battleTitle.textContent = "Combat at (" + state.x + "," + state.y + ")";
+      battleHeroName.textContent = h.name;
+      battleMonsterName.textContent = b.monster.name;
+      heroBattleHp.style.width = (100 * h.hp / h.maxHp) + "%";
+      monsterBattleHp.style.width = (100 * Math.max(0, b.monster.hp) / b.monster.maxHp) + "%";
+      heroBattleStats.textContent = "HP " + h.hp + "/" + h.maxHp + " | ATK " + h.attack + " | DEF " + h.defense + " | Mana " + h.mana;
+      monsterBattleStats.textContent = "HP " + Math.max(0, b.monster.hp) + "/" + b.monster.maxHp + " | ATK " + b.monster.attack;
+      battleLog.innerHTML = b.log.map(line => "<div>" + line + "</div>").join("");
+    }
+
+    function renderAll(){
+      renderStatus();
+      renderMap();
+      renderHeroCard();
+      marketBtn.disabled = !(state.mode === "explore" && getTile(state.x, state.y).type === "market");
+      document.getElementById("endDayBtn").disabled = state.mode !== "explore";
+    }
+
+    function openStartOverlay(){
+      const heroPick = document.getElementById("heroPick");
+      heroPick.innerHTML = heroes.map(h =>
+        "<div class='pick'>" +
+          "<h4>" + h.name + "</h4>" +
+          "<div class='role'>" + h.role + "</div>" +
+          "<p>" + h.bio + "</p>" +
+          "<p><b>" + h.abilityName + ":</b> " + h.abilityDesc + "</p>" +
+          "<button class='btn' data-hero='" + h.id + "'>Choose " + h.name.split(" ")[0] + "</button>" +
+        "</div>"
+      ).join("");
+
+      heroPick.querySelectorAll("button[data-hero]").forEach(btn => {
+        btn.addEventListener("click", () => startGame(btn.dataset.hero));
+      });
+    }
+
+    function startGame(heroId){
+      const base = heroes.find(h => h.id === heroId);
+      state = {
+        hero: {
+          ...base,
+          hp: base.maxHp,
+          mana: base.maxMana
+        },
+        x: 0,
+        y: MAP_H - 1,
+        day: 1,
+        maxMoves: 4,
+        moves: 4,
+        level: 1,
+        xp: 0,
+        gold: 140,
+        dataShards: 0,
+        trust: 0,
+        mines: 0,
+        mode: "explore",
+        battle: null,
+        currentStory: {
+          title: "Prologue: Broken Ledger",
+          text: "You leave Neo Warsaw with a single escort caravan and a mandate to reclaim the ledger shards."
+        },
+        storyLog: []
+      };
+
+      createMap();
+      revealAround(state.x, state.y, 2);
+      addStory(state.currentStory.title, state.currentStory.text);
+      renderCodex();
+      renderAll();
+      startOverlay.classList.add("hidden");
+      endOverlay.classList.add("hidden");
+      battleOverlay.classList.add("hidden");
+      showToast("Campaign started. Move to adjacent tiles to explore.");
+    }
+
+    document.getElementById("endDayBtn").addEventListener("click", () => {
+      if(state && state.mode === "explore") nextDay();
+    });
+
+    marketBtn.addEventListener("click", () => {
+      if(!state || state.mode !== "explore") return;
+      const tile = getTile(state.x, state.y);
+      if(tile.type !== "market"){
+        showToast("Visit an exchange district first.");
+        return;
+      }
+      const cost = 90;
+      if(state.gold < cost){
+        showToast("Need " + cost + " gold for upgrades.");
+        return;
+      }
+      state.gold -= cost;
+      state.hero.attack += 2;
+      state.hero.defense += 1;
+      state.hero.hp = Math.min(state.hero.maxHp, state.hero.hp + 15);
+      state.trust += 1;
+      addStory("Exchange Upgrade", "You hired quant auditors. Attack and defense increased.");
+      showToast("Upgrade purchased for " + cost + " gold.");
+      renderAll();
+    });
+
+    document.getElementById("resetBtn").addEventListener("click", () => {
+      startOverlay.classList.remove("hidden");
+      battleOverlay.classList.add("hidden");
+      endOverlay.classList.add("hidden");
+    });
+    document.getElementById("playAgainBtn").addEventListener("click", () => {
+      startOverlay.classList.remove("hidden");
+      battleOverlay.classList.add("hidden");
+      endOverlay.classList.add("hidden");
+    });
+
+    document.getElementById("atkBtn").addEventListener("click", () => battleAction("attack"));
+    document.getElementById("abilityBtn").addEventListener("click", () => battleAction("ability"));
+    document.getElementById("defendBtn").addEventListener("click", () => battleAction("defend"));
+    document.getElementById("retreatBtn").addEventListener("click", () => battleAction("retreat"));
+
+    openStartOverlay();
+  </script>
+</body>
+</html>

@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DOOM – Arcade Hub</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #000;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      font-family: 'Courier New', monospace;
+    }
+    #canvas {
+      border: 2px solid #600;
+      cursor: crosshair;
+      display: block;
+      image-rendering: pixelated;
+    }
+    #wrapper { position: relative; }
+    #overlay {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0,0,0,0.88);
+      color: #f00;
+      text-align: center;
+      gap: 6px;
+    }
+    #overlay.hidden { display: none; }
+    #overlay h1 { font-size: 3rem; text-shadow: 0 0 24px #f00; }
+    #overlay p  { font-size: 1rem; color: #faa; }
+    #overlay .hint { font-size: 0.82rem; color: #966; margin: 2px 0; }
+    #overlay button {
+      margin-top: 14px;
+      padding: 12px 30px;
+      font-size: 1.1rem;
+      background: #800;
+      color: #fff;
+      border: 2px solid #f00;
+      cursor: pointer;
+      font-family: inherit;
+      letter-spacing: 0.05em;
+    }
+    #overlay button:hover { background: #a00; }
+    #back-btn {
+      position: fixed;
+      top: 12px; left: 12px;
+      padding: 7px 14px;
+      background: #600;
+      color: #fff;
+      border: 1px solid #f00;
+      cursor: pointer;
+      font-family: 'Courier New', monospace;
+      font-size: 0.82rem;
+      text-decoration: none;
+      z-index: 10;
+    }
+    #back-btn:hover { background: #800; }
+  </style>
+</head>
+<body>
+<a href="../index.html" id="back-btn">← Hub</a>
+<div id="wrapper">
+  <canvas id="canvas" width="640" height="480"></canvas>
+  <div id="overlay" id="overlay">
+    <h1>💀 DOOM</h1>
+    <p>Kill all demons. Find the exit.</p>
+    <div class="hint">W / ↑ — Move forward &nbsp;|&nbsp; S / ↓ — Move backward</div>
+    <div class="hint">A — Strafe left &nbsp;|&nbsp; D — Strafe right</div>
+    <div class="hint">← → Arrow keys — Turn &nbsp;|&nbsp; Mouse — Look (click canvas)</div>
+    <div class="hint">SPACE or Click — Shoot</div>
+    <button id="start-btn">▶ START GAME</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// ── Constants ────────────────────────────────────────────────────────────────
+const W = 640, H = 480, HUD_H = 80, VIEW_H = H - HUD_H;
+const TEX = 64;
+const FOV = Math.PI / 3;
+const HALF_FOV = FOV / 2;
+const MOVE_SPEED = 0.055;
+const ROT_SPEED  = 0.038;
+const PLAYER_R   = 0.28;
+
+// ── Map ──────────────────────────────────────────────────────────────────────
+// 0=floor 1-5=wall  9=exit floor tile
+const MAP = [
+  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,2,2,2,0,0,0,0,0,0,0,0,0,0,3,3,3,3,0,0,0,1],
+  [1,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,3,0,0,3,0,0,0,1],
+  [1,0,0,2,0,2,0,0,0,4,4,0,0,0,0,0,3,0,0,3,0,0,0,1],
+  [1,0,0,0,0,2,0,0,0,4,4,0,0,0,0,0,3,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,0,5,5,5,5,5,5,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,0,5,0,0,0,0,5,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,0,5,0,0,0,0,5,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,0,5,5,5,0,5,5,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,9,0,0,1,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,1,1,1,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+];
+const MAP_W = MAP[0].length, MAP_H = MAP.length;
+
+function mapAt(x, y) {
+  const mx = x | 0, my = y | 0;
+  if (mx < 0 || mx >= MAP_W || my < 0 || my >= MAP_H) return 1;
+  return MAP[my][mx];
+}
+function isWall(x, y) { const t = mapAt(x, y); return t >= 1 && t <= 5; }
+
+// ── Procedural Textures ───────────────────────────────────────────────────────
+function mkTex(fn) {
+  const t = new Uint8Array(TEX * TEX * 3);
+  for (let y = 0; y < TEX; y++)
+    for (let x = 0; x < TEX; x++) {
+      const [r,g,b] = fn(x, y);
+      const i = (y * TEX + x) * 3;
+      t[i]=r; t[i+1]=g; t[i+2]=b;
+    }
+  return t;
+}
+const rn = (a,b) => a + Math.random()*(b-a);
+
+const TEXTURES = [
+  // 1 – brick
+  mkTex((x,y) => {
+    const row = y/10|0, ox = row&1 ? 16:0;
+    const mortar = (x+ox)%32 < 2 || y%10 < 1;
+    if (mortar) return [85+rn(-5,5)|0, 85+rn(-5,5)|0, 85+rn(-5,5)|0];
+    const n = rn(-15,15); return [(160+n)|0, (82+n*.4)|0, (62+n*.3)|0];
+  }),
+  // 2 – stone
+  mkTex((x,y) => {
+    const mortar = x%20 < 1 || y%12 < 1;
+    if (mortar) return [55,55,55];
+    const n = rn(-18,18); return [(108+n)|0,(108+n)|0,(100+n)|0];
+  }),
+  // 3 – metal
+  mkTex((x,y) => {
+    const rivet = x%16 < 2 && y%16 < 2;
+    if (rivet) return [200,175,90];
+    const base = (y/8|0)&1 ? 68 : 90, n = rn(-8,8);
+    return [(base+n)|0,(base+n)|0,(base+n+12)|0];
+  }),
+  // 4 – tech
+  mkTex((x,y) => {
+    const bx=x%16, by=y%16;
+    if (bx<1||by<1||bx>=15||by>=15) return [18,75,155];
+    if (bx===8&&by===8) return [0,255,190];
+    const n = rn(-5,5); return [(18+n)|0,(38+n)|0,(78+n)|0];
+  }),
+  // 5 – wood
+  mkTex((x,y) => {
+    const g = Math.sin(y*.32+x*.025)*14;
+    const k = Math.exp(-((x-32)**2+(y-32)**2)/180)*38;
+    const n = rn(-7,7);
+    return [(118+g+k+n)|0,(68+g*.5+n)|0,(28+n)|0];
+  }),
+  // 6 – floor
+  mkTex((x,y) => {
+    const c = ((x>>4)^(y>>4))&1, n=rn(-8,8), b=c?52:68;
+    return [(b+n)|0,(b+n)|0,(b+n)|0];
+  }),
+  // 7 – ceiling
+  mkTex((_x,_y) => { const n=rn(-4,4); return [(28+n)|0,(28+n)|0,(32+n)|0]; }),
+];
+
+// ── Sprite Canvases ───────────────────────────────────────────────────────────
+function mkCanvas(w,h) { const c=document.createElement('canvas'); c.width=w; c.height=h; return c; }
+
+function makeEnemySprite(alive) {
+  const c = mkCanvas(64,64), cx = c.getContext('2d');
+  if (!alive) {
+    cx.fillStyle='#600'; cx.beginPath(); cx.ellipse(32,52,20,10,0,0,Math.PI*2); cx.fill();
+    cx.fillStyle='#400'; cx.fillRect(26,42,12,12);
+    return c;
+  }
+  cx.fillStyle='#4a8030'; cx.fillRect(20,22,24,26); // body
+  cx.fillStyle='#3a6828'; cx.fillRect(22,9,20,16);  // head
+  cx.fillStyle='#ff1111'; cx.fillRect(25,13,5,5); cx.fillRect(34,13,5,5); // eyes
+  cx.fillStyle='#000';    cx.fillRect(26,22,12,3); // mouth
+  cx.fillStyle='#4a8030'; cx.fillRect(8,22,12,18); cx.fillRect(44,22,12,18); // arms
+  cx.fillStyle='#222';    cx.fillRect(20,48,10,14); cx.fillRect(34,48,10,14); // legs
+  cx.fillStyle='#c8800a';
+  cx.beginPath(); cx.moveTo(25,9); cx.lineTo(20,1); cx.lineTo(29,7); cx.fill();
+  cx.beginPath(); cx.moveTo(39,9); cx.lineTo(44,1); cx.lineTo(35,7); cx.fill();
+  return c;
+}
+
+function makeHealthSprite() {
+  const c=mkCanvas(64,64), cx=c.getContext('2d');
+  cx.fillStyle='#076007'; cx.fillRect(8,8,48,48);
+  cx.fillStyle='#00ee00'; cx.fillRect(26,14,12,36); cx.fillRect(14,26,36,12);
+  return c;
+}
+function makeAmmoSprite() {
+  const c=mkCanvas(64,64), cx=c.getContext('2d');
+  cx.fillStyle='#404000'; cx.fillRect(8,22,48,26);
+  cx.fillStyle='#a0a000'; for(let i=0;i<5;i++) cx.fillRect(10+i*9,14,7,12);
+  cx.fillStyle='#ffdd00'; for(let i=0;i<5;i++) cx.fillRect(11+i*9,12,5,4);
+  return c;
+}
+
+const SPR_ENEMY_ALIVE = makeEnemySprite(true);
+const SPR_ENEMY_DEAD  = makeEnemySprite(false);
+const SPR_HEALTH = makeHealthSprite();
+const SPR_AMMO   = makeAmmoSprite();
+
+// ── Audio ─────────────────────────────────────────────────────────────────────
+let AC;
+function getAC() { if (!AC) AC = new (window.AudioContext||window.webkitAudioContext)(); return AC; }
+
+function playNoise(dur, vol=0.3, decay=0.03) {
+  const ac = getAC();
+  const buf = ac.createBuffer(1, ac.sampleRate*dur, ac.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i=0;i<d.length;i++) d[i] = (Math.random()*2-1)*Math.exp(-i/(ac.sampleRate*decay));
+  const src=ac.createBufferSource(), gain=ac.createGain();
+  src.buffer=buf; gain.gain.value=vol;
+  src.connect(gain); gain.connect(ac.destination); src.start();
+}
+function playTone(freq, endFreq, dur, type='sawtooth', vol=0.18) {
+  const ac=getAC(), osc=ac.createOscillator(), gain=ac.createGain();
+  osc.type=type; osc.frequency.setValueAtTime(freq,ac.currentTime);
+  osc.frequency.exponentialRampToValueAtTime(endFreq,ac.currentTime+dur);
+  gain.gain.setValueAtTime(vol,ac.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+dur);
+  osc.connect(gain); gain.connect(ac.destination); osc.start(); osc.stop(ac.currentTime+dur);
+}
+function sndShoot()  { playNoise(0.12, 0.32, 0.028); }
+function sndHurt()   { playTone(210, 75, 0.22, 'sawtooth', 0.18); }
+function sndDie()    { playTone(400, 28, 0.55, 'square', 0.18); }
+function sndPickup() { const ac=getAC(), osc=ac.createOscillator(), g=ac.createGain(); osc.type='sine'; osc.frequency.setValueAtTime(440,ac.currentTime); osc.frequency.setValueAtTime(660,ac.currentTime+0.06); g.gain.setValueAtTime(0.14,ac.currentTime); g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+0.18); osc.connect(g); g.connect(ac.destination); osc.start(); osc.stop(ac.currentTime+0.18); }
+
+// ── Canvas & Buffers ──────────────────────────────────────────────────────────
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+canvas.addEventListener('click', () => { if(gameState==='playing') canvas.requestPointerLock(); });
+
+const offscreen = mkCanvas(W, VIEW_H);
+const offCtx = offscreen.getContext('2d');
+const imgData = offCtx.createImageData(W, VIEW_H);
+const buf32 = new Uint32Array(imgData.data.buffer);
+const zBuf = new Float32Array(W);
+
+// Pre-build RGBA for texels (native endian: ABGR on little-endian)
+const TEXRGBA = TEXTURES.map(t => {
+  const a = new Uint32Array(TEX*TEX);
+  for (let i=0;i<TEX*TEX;i++) a[i] = 0xFF000000 | (t[i*3+2]<<16) | (t[i*3+1]<<8) | t[i*3];
+  return a;
+});
+
+function setPixel32(x, y, col32) { buf32[y*W+x] = col32; }
+
+// ── Game State ────────────────────────────────────────────────────────────────
+let player, enemies, items, gameState='start';
+let shootTimer=0, hurtTimer=0, mouseX=0;
+
+function initGame() {
+  player = { x:2.5, y:2.5, angle:0, dirX:1, dirY:0, health:100, ammo:50, kills:0 };
+  enemies = [
+    {x:4.5,  y:7.5,  hp:30, alive:true, state:'idle', timer:0},
+    {x:11.5, y:5.5,  hp:30, alive:true, state:'idle', timer:0},
+    {x:7.5,  y:11.5, hp:30, alive:true, state:'idle', timer:0},
+    {x:18.5, y:4.5,  hp:30, alive:true, state:'idle', timer:0},
+    {x:15.5, y:16.5, hp:30, alive:true, state:'idle', timer:0},
+    {x:20.5, y:20.5, hp:30, alive:true, state:'idle', timer:0},
+    {x:6.5,  y:20.5, hp:30, alive:true, state:'idle', timer:0},
+    {x:10.5, y:2.5,  hp:30, alive:true, state:'idle', timer:0},
+  ];
+  items = [
+    {x:5.5,  y:1.5,  type:'health', picked:false},
+    {x:11.5, y:10.5, type:'health', picked:false},
+    {x:20.5, y:11.5, type:'health', picked:false},
+    {x:2.5,  y:20.5, type:'ammo',   picked:false},
+    {x:8.5,  y:1.5,  type:'ammo',   picked:false},
+    {x:20.5, y:2.5,  type:'ammo',   picked:false},
+  ];
+  gameState  = 'playing';
+  shootTimer = 0; hurtTimer = 0;
+}
+
+// ── Input ─────────────────────────────────────────────────────────────────────
+const keys = {};
+window.addEventListener('keydown', e => {
+  keys[e.code] = true;
+  if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code)) e.preventDefault();
+  if (e.code === 'Space' && gameState==='playing') shoot();
+});
+window.addEventListener('keyup', e => { keys[e.code] = false; });
+window.addEventListener('mousemove', e => {
+  if (document.pointerLockElement === canvas) mouseX += e.movementX * 0.0022;
+});
+window.addEventListener('click', () => { if (gameState==='playing') shoot(); });
+
+function shoot() {
+  if (shootTimer > 0 || player.ammo <= 0 || gameState !== 'playing') return;
+  player.ammo--;
+  shootTimer = 14;
+  sndShoot();
+  // Hitscan – find closest enemy within ~40° cone in front
+  let best = null, bestDist = Infinity;
+  for (const e of enemies) {
+    if (!e.alive) continue;
+    const dx = e.x-player.x, dy = e.y-player.y;
+    const dist = Math.sqrt(dx*dx+dy*dy);
+    if (dist > 13) continue;
+    const dot = (dx/dist)*player.dirX + (dy/dist)*player.dirY;
+    if (dot < 0.78) continue;
+    if (dist < bestDist) { bestDist=dist; best=e; }
+  }
+  if (best) {
+    const dmg = 14 + Math.random()*18;
+    best.hp -= dmg;
+    if (best.hp <= 0) { best.alive=false; best.state='dead'; player.kills++; sndDie(); }
+    else { best.state='chase'; sndHurt(); }
+  }
+}
+
+// ── Update ────────────────────────────────────────────────────────────────────
+function update(dt) {
+  if (gameState !== 'playing') return;
+
+  // Rotation – arrow keys or mouse only
+  if (mouseX !== 0) { player.angle += mouseX; mouseX = 0; }
+  if (keys['ArrowLeft'])  player.angle -= ROT_SPEED;
+  if (keys['ArrowRight']) player.angle += ROT_SPEED;
+
+  player.dirX = Math.cos(player.angle);
+  player.dirY = Math.sin(player.angle);
+
+  // Movement
+  let mx=0, my=0;
+  if (keys['ArrowUp']  || keys['KeyW']) { mx+=player.dirX*MOVE_SPEED; my+=player.dirY*MOVE_SPEED; }
+  if (keys['ArrowDown']|| keys['KeyS']) { mx-=player.dirX*MOVE_SPEED; my-=player.dirY*MOVE_SPEED; }
+  // Strafe – A/D
+  if (keys['KeyA']) { mx-=player.dirY*MOVE_SPEED*.85; my+=player.dirX*MOVE_SPEED*.85; }
+  if (keys['KeyD']) { mx+=player.dirY*MOVE_SPEED*.85; my-=player.dirX*MOVE_SPEED*.85; }
+
+  const nx=player.x+mx, ny=player.y+my;
+  if (!isWall(nx+Math.sign(mx)*PLAYER_R, player.y)) player.x = nx;
+  if (!isWall(player.x, ny+Math.sign(my)*PLAYER_R)) player.y = ny;
+
+  // Exit
+  if (mapAt(player.x, player.y) === 9) { gameState='win'; showOverlay('win'); return; }
+
+  // Item pickup
+  for (const it of items) {
+    if (it.picked) continue;
+    if (Math.hypot(it.x-player.x, it.y-player.y) < 0.7) {
+      it.picked = true; sndPickup();
+      if (it.type==='health') player.health=Math.min(100,player.health+25);
+      else player.ammo=Math.min(99,player.ammo+20);
+    }
+  }
+
+  // Timers
+  if (shootTimer > 0) shootTimer--;
+  if (hurtTimer  > 0) hurtTimer--;
+
+  // Enemy AI
+  for (const e of enemies) {
+    if (!e.alive) continue;
+    const dx=player.x-e.x, dy=player.y-e.y;
+    const dist = Math.sqrt(dx*dx+dy*dy);
+    e.timer++;
+    if (dist < 11) e.state = 'chase';
+    if (e.state === 'chase') {
+      const spd = 0.012;
+      const enx=e.x+(dx/dist)*spd, eny=e.y+(dy/dist)*spd;
+      if (!isWall(enx, e.y)) e.x=enx;
+      if (!isWall(e.x, eny)) e.y=eny;
+      if (dist < 1.1 && e.timer % 55 === 0) {
+        const dmg = 8+Math.random()*10;
+        player.health -= dmg; hurtTimer = 22; sndHurt();
+        if (player.health <= 0) { player.health=0; gameState='dead'; showOverlay('dead'); }
+      }
+    }
+  }
+}
+
+// ── Render ────────────────────────────────────────────────────────────────────
+function render() {
+  const planeX = -player.dirY * 0.66;
+  const planeY =  player.dirX * 0.66;
+
+  // ── Floor / Ceiling ──
+  const rdx0=player.dirX-planeX, rdy0=player.dirY-planeY;
+  const rdx1=player.dirX+planeX, rdy1=player.dirY+planeY;
+  const floorTex=TEXRGBA[5], ceilTex=TEXRGBA[6];
+  const HALF=VIEW_H>>1;
+
+  for (let y=HALF+1; y<VIEW_H; y++) {
+    const p = y - HALF;
+    const rowDist = HALF / p;
+    const shade = Math.max(0, Math.min(1, 1 - rowDist/13));
+    const sf = (shade*255+0.5)|0;
+    const stepX = rowDist*(rdx1-rdx0)/W, stepY = rowDist*(rdy1-rdy0)/W;
+    let fx=player.x+rowDist*rdx0, fy=player.y+rowDist*rdy0;
+    const rowOff = y*W, ceilOff=(VIEW_H-1-y)*W;
+    for (let x=0; x<W; x++, fx+=stepX, fy+=stepY) {
+      const tx=((Math.floor(fx*TEX)%TEX)+TEX)%TEX;
+      const ty=((Math.floor(fy*TEX)%TEX)+TEX)%TEX;
+      const ti = ty*TEX+tx;
+      const fc = floorTex[ti], cc = ceilTex[ti];
+      buf32[rowOff+x]  = 0xFF000000 | (((fc>>16&0xFF)*sf>>8)<<16) | (((fc>>8&0xFF)*sf>>8)<<8) | ((fc&0xFF)*sf>>8);
+      buf32[ceilOff+x] = 0xFF000000 | (((cc>>16&0xFF)*sf>>8)<<16) | (((cc>>8&0xFF)*sf>>8)<<8) | ((cc&0xFF)*sf>>8);
+    }
+  }
+
+  // ── Walls (DDA) ──
+  for (let x=0; x<W; x++) {
+    const camX = 2*x/W - 1;
+    const rdx = player.dirX + planeX*camX;
+    const rdy = player.dirY + planeY*camX;
+    let mx=player.x|0, my=player.y|0;
+    const ddx=Math.abs(1/(rdx||1e-30)), ddy=Math.abs(1/(rdy||1e-30));
+    let stepX, stepY, sdx, sdy;
+    if (rdx<0) { stepX=-1; sdx=(player.x-mx)*ddx; } else { stepX=1; sdx=(mx+1-player.x)*ddx; }
+    if (rdy<0) { stepY=-1; sdy=(player.y-my)*ddy; } else { stepY=1; sdy=(my+1-player.y)*ddy; }
+    let hit=false, side=0, steps=0;
+    while (!hit && steps++<32) {
+      if (sdx<sdy) { sdx+=ddx; mx+=stepX; side=0; } else { sdy+=ddy; my+=stepY; side=1; }
+      const t=MAP[my]?.[mx];
+      if (t>=1 && t<=5) hit=true;
+    }
+    if (!hit) { zBuf[x]=999; continue; }
+    const dist = side===0 ? sdx-ddx : sdy-ddy;
+    zBuf[x] = dist;
+    const wh = (VIEW_H/dist)|0;
+    const top = Math.max(0, (VIEW_H-wh)>>1);
+    const bot = Math.min(VIEW_H-1, (VIEW_H+wh)>>1);
+    let wx = side===0 ? player.y+dist*rdy : player.x+dist*rdx;
+    wx -= Math.floor(wx);
+    let texX = (wx*TEX)|0;
+    if (side===0&&rdx>0) texX=TEX-1-texX;
+    if (side===1&&rdy<0) texX=TEX-1-texX;
+    texX = Math.max(0,Math.min(TEX-1,texX));
+    const wallTex = TEXRGBA[MAP[my][mx]-1];
+    const bright = Math.max(0.15, (1-dist/12) * (side===1?0.55:1.0));
+    const bf = (bright*255+0.5)|0;
+    const texStep = (TEX / wh);
+    let texPosY = top > (VIEW_H-wh)>>1 ? (top - ((VIEW_H-wh)>>1)) * texStep : 0;
+    for (let y=top; y<=bot; y++, texPosY+=texStep) {
+      const texY = Math.min(TEX-1, texPosY|0);
+      const c = wallTex[texY*TEX+texX];
+      buf32[y*W+x] = 0xFF000000 | (((c>>16&0xFF)*bf>>8)<<16) | (((c>>8&0xFF)*bf>>8)<<8) | ((c&0xFF)*bf>>8);
+    }
+  }
+
+  offCtx.putImageData(imgData, 0, 0);
+  ctx.drawImage(offscreen, 0, 0);
+
+  // ── Sprites ──
+  const sprites = [];
+  for (const e of enemies)
+    sprites.push({x:e.x,y:e.y, img: e.alive?SPR_ENEMY_ALIVE:SPR_ENEMY_DEAD, dist:(e.x-player.x)**2+(e.y-player.y)**2});
+  for (const it of items)
+    if (!it.picked)
+      sprites.push({x:it.x,y:it.y, img: it.type==='health'?SPR_HEALTH:SPR_AMMO, dist:(it.x-player.x)**2+(it.y-player.y)**2});
+  sprites.sort((a,b)=>b.dist-a.dist);
+
+  for (const sp of sprites) {
+    const dx=sp.x-player.x, dy=sp.y-player.y;
+    const invDet = 1/(planeX*player.dirY - player.dirX*planeY);
+    const tx2 = invDet*(player.dirY*dx - player.dirX*dy);
+    const tz  = invDet*(-planeY*dx + planeX*dy);
+    if (tz <= 0.05) continue;
+    const sx = ((W/2)*(1+tx2/tz))|0;
+    const sh = (VIEW_H/tz)|0;
+    const drawTop  = Math.max(0, ((VIEW_H-sh)>>1));
+    const drawLeft = sx - (sh>>1);
+    // Draw column by column checking zbuffer
+    for (let col=0; col<sh; col++) {
+      const sc = drawLeft+col;
+      if (sc<0||sc>=W) continue;
+      if (tz >= zBuf[sc]) continue;
+      const tcol = (col*64/sh)|0;
+      ctx.drawImage(sp.img, tcol,0,1,64, sc,drawTop,1,sh);
+    }
+  }
+
+  // Exit sign
+  renderExitSign(planeX, planeY);
+
+  // ── HUD ──
+  renderHUD();
+  renderWeapon();
+  renderMinimap();
+
+  // Crosshair
+  ctx.strokeStyle = 'rgba(255,255,255,0.75)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(W/2-10, VIEW_H/2); ctx.lineTo(W/2+10, VIEW_H/2);
+  ctx.moveTo(W/2, VIEW_H/2-10); ctx.lineTo(W/2, VIEW_H/2+10);
+  ctx.stroke();
+
+  // Hurt overlay
+  if (hurtTimer > 0) {
+    ctx.fillStyle = `rgba(200,0,0,${hurtTimer/22*0.38})`;
+    ctx.fillRect(0,0,W,VIEW_H);
+  }
+}
+
+function renderExitSign(planeX, planeY) {
+  const ex=15.5, ey=17.5;
+  const dx=ex-player.x, dy=ey-player.y;
+  const invDet = 1/(planeX*player.dirY - player.dirX*planeY);
+  const tx2 = invDet*(player.dirY*dx - player.dirX*dy);
+  const tz  = invDet*(-planeY*dx + planeX*dy);
+  if (tz < 0.2) return;
+  const sx = ((W/2)*(1+tx2/tz))|0;
+  const sz = (VIEW_H/tz*0.4)|0;
+  if (sx < -sz || sx > W+sz) return;
+  const pulse = 0.55+0.45*Math.sin(Date.now()*0.005);
+  ctx.save();
+  ctx.globalAlpha = 0.9;
+  ctx.font = `bold ${Math.max(10,sz)}px "Courier New"`;
+  ctx.textAlign = 'center';
+  ctx.fillStyle = `rgb(0,${(180+pulse*70)|0},0)`;
+  ctx.fillText('EXIT', sx, VIEW_H/2+sz/2+4);
+  ctx.fillText('▼', sx, VIEW_H/2-sz/2);
+  ctx.restore();
+}
+
+function renderWeapon() {
+  ctx.save();
+  ctx.beginPath(); ctx.rect(0, 0, W, VIEW_H); ctx.clip(); // don't bleed into HUD
+
+  const bob  = Math.sin(Date.now() * 0.009) * 2.5;
+  const fire = shootTimer > 0 ? -(shootTimer / 14) * 14 : 0;
+  const base = VIEW_H + bob + fire; // ground line; arms extend upward from here
+
+  const skin  = '#c88848';
+  const darkS = '#9a5e28';
+  const metal = '#505050';
+  const darkM = '#303030';
+
+  // ── Left support arm ──
+  ctx.fillStyle = skin;  ctx.fillRect(W/2-105, base-95,  52, 95);
+  ctx.fillStyle = darkS; ctx.fillRect(W/2-105, base-44,  52, 44);
+
+  // ── Right weapon arm ──
+  ctx.fillStyle = skin;  ctx.fillRect(W/2+28,  base-115, 55, 115);
+  ctx.fillStyle = darkS; ctx.fillRect(W/2+28,  base-52,  55, 52);
+
+  // ── Pistol body ──
+  ctx.fillStyle = metal; ctx.fillRect(W/2-8,  base-130, 64, 30);
+  // barrel
+  ctx.fillStyle = darkM; ctx.fillRect(W/2+16, base-140, 55, 13);
+  // trigger guard
+  ctx.fillStyle = metal; ctx.fillRect(W/2+12, base-108, 26, 20);
+  // grip
+  ctx.fillStyle = '#2a1808'; ctx.fillRect(W/2+10, base-100, 22, 48);
+
+  // ── Muzzle flash ──
+  if (shootTimer > 8) {
+    const a = (shootTimer - 8) / 6;
+    ctx.globalAlpha = a;
+    ctx.fillStyle = '#ffe040';
+    ctx.beginPath(); ctx.arc(W/2+71, base-134, 18, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath(); ctx.arc(W/2+71, base-134,  8, 0, Math.PI*2); ctx.fill();
+  }
+  ctx.restore();
+}
+
+function renderHUD() {
+  const top = VIEW_H;
+
+  // ── Background ──
+  ctx.fillStyle = '#1c1c1c'; ctx.fillRect(0, top, W, HUD_H);
+  ctx.fillStyle = '#aaaaaa'; ctx.fillRect(0, top, W, 2); // top border
+
+  // Section x-positions  (dividers at these x values)
+  // | AMMO 0-78 | HEALTH 80-204 | ARMS 206-296 | FACE 298-362 | ARMOR 364-482 | AMMO TYPES 484-640 |
+  const divX = [78, 204, 296, 362, 482];
+  ctx.fillStyle = '#444444';
+  for (const x of divX) ctx.fillRect(x, top+4, 2, HUD_H-8);
+
+  ctx.textBaseline = 'alphabetic';
+
+  // ── AMMO ──
+  ctx.textAlign = 'right'; ctx.fillStyle = '#cc1111';
+  ctx.font = 'bold 42px "Courier New"';
+  ctx.fillText(String(player.ammo), 73, top+55);
+  ctx.textAlign = 'center'; ctx.fillStyle = '#888888';
+  ctx.font = '11px "Courier New"';
+  ctx.fillText('AMMO', 39, top+73);
+
+  // ── HEALTH ──
+  ctx.textAlign = 'right'; ctx.fillStyle = '#cc1111';
+  ctx.font = 'bold 42px "Courier New"';
+  ctx.fillText(player.health + '%', 199, top+55);
+  ctx.textAlign = 'center'; ctx.fillStyle = '#888888';
+  ctx.font = '11px "Courier New"';
+  ctx.fillText('HEALTH', 142, top+73);
+
+  // ── ARMS grid (weapons 2-7, 3×2) ──
+  ctx.font = 'bold 13px "Courier New"';
+  const aw = [2,3,4,5,6,7], hasWep = [true,false,false,false,false,false];
+  for (let i=0;i<6;i++) {
+    const gx = 212 + (i%3)*28, gy = top + (i<3 ? 8 : 34);
+    ctx.fillStyle = hasWep[i] ? '#cc1111' : '#555555';
+    ctx.textAlign = 'center';
+    ctx.fillText(aw[i], gx+8, gy+16);
+    if (hasWep[i]) {
+      ctx.strokeStyle='#cc1111'; ctx.lineWidth=1;
+      ctx.strokeRect(gx, gy+2, 18, 18);
+    }
+  }
+  ctx.textAlign = 'center'; ctx.fillStyle = '#888888';
+  ctx.font = '11px "Courier New"';
+  ctx.fillText('ARMS', 251, top+73);
+
+  // ── Face portrait ──
+  const fx=330, fy=top+6;
+  const fc = player.health>75 ? '#5aaa44' : player.health>50 ? '#5aaa44' : player.health>25 ? '#aa9944' : '#aa3333';
+  ctx.fillStyle = fc; ctx.fillRect(fx-26, fy, 52, 56);
+  // helmet
+  ctx.fillStyle = '#445544'; ctx.fillRect(fx-26, fy, 52, 10);
+  ctx.fillRect(fx-26, fy+46, 52, 10);
+  // eyes
+  ctx.fillStyle = '#ddd0a0'; ctx.fillRect(fx-17,fy+13,13,10); ctx.fillRect(fx+4,fy+13,13,10);
+  ctx.fillStyle = '#000';    ctx.fillRect(fx-14,fy+15, 8, 6); ctx.fillRect(fx+7, fy+15, 8, 6);
+  // pupils
+  ctx.fillStyle = '#1111cc'; ctx.fillRect(fx-12,fy+17,4,3); ctx.fillRect(fx+9,fy+17,4,3);
+  // nose
+  ctx.fillStyle = '#b07840'; ctx.fillRect(fx-3, fy+25, 6, 9);
+  // mouth
+  ctx.fillStyle = '#000';
+  if (hurtTimer > 0) { // grimace when hurt
+    ctx.fillRect(fx-10,fy+37,8,3); ctx.fillRect(fx+2,fy+37,8,3);
+  } else if (player.health > 50) {
+    ctx.fillRect(fx-9,fy+37,18,3); ctx.fillRect(fx-7,fy+39,14,3); // slight smile
+  } else {
+    ctx.fillRect(fx-9,fy+39,18,3); ctx.fillRect(fx-7,fy+37,14,3); // frown
+  }
+
+  // ── ARMOR ──
+  ctx.textAlign = 'right'; ctx.fillStyle = '#cc1111';
+  ctx.font = 'bold 42px "Courier New"';
+  ctx.fillText('0%', 477, top+55);
+  ctx.textAlign = 'center'; ctx.fillStyle = '#888888';
+  ctx.font = '11px "Courier New"';
+  ctx.fillText('ARMOR', 423, top+73);
+
+  // ── Ammo type table ──
+  const ammoRows = [
+    ['BULL', player.ammo, 200],
+    ['SHEL', 0, 50],
+    ['RCKT', 0, 50],
+    ['CELL', 0, 300],
+  ];
+  ctx.font = '12px "Courier New"';
+  for (let i=0; i<4; i++) {
+    const [label, cur, max] = ammoRows[i];
+    const rowY = top + 14 + i*17;
+    ctx.textAlign = 'left';  ctx.fillStyle = '#aaaaaa'; ctx.fillText(label, 490, rowY);
+    ctx.textAlign = 'right'; ctx.fillStyle = '#ffff00'; ctx.fillText(String(cur).padStart(3), 578, rowY);
+    ctx.fillStyle = '#888888'; ctx.fillText('/'+String(max), 630, rowY);
+  }
+
+  // ── Kills hint ──
+  ctx.textAlign = 'left'; ctx.fillStyle = '#555555';
+  ctx.font = '10px "Courier New"';
+  ctx.fillText(`W/S:Move  A/D:Strafe  ←→:Turn  SPC:Shoot   KILLS:${player.kills}/${enemies.length}`, 6, top+HUD_H-5);
+}
+
+function renderMinimap() {
+  const S=4, OX=W-MAP_W*S-4, OY=4;
+  ctx.save(); ctx.globalAlpha=0.65;
+  for (let y=0;y<MAP_H;y++) for (let x=0;x<MAP_W;x++) {
+    const t=MAP[y][x];
+    ctx.fillStyle = t===0?'#1a1a1a': t===9?'#00aa00': '#707070';
+    ctx.fillRect(OX+x*S, OY+y*S, S, S);
+  }
+  ctx.fillStyle='#00ff00';
+  ctx.fillRect(OX+player.x*S-2, OY+player.y*S-2, 4, 4);
+  ctx.strokeStyle='#00ff00'; ctx.lineWidth=1;
+  ctx.beginPath();
+  ctx.moveTo(OX+player.x*S, OY+player.y*S);
+  ctx.lineTo(OX+(player.x+player.dirX*3)*S, OY+(player.y+player.dirY*3)*S);
+  ctx.stroke();
+  ctx.fillStyle='#ff3333';
+  for (const e of enemies) {
+    if (!e.alive) continue;
+    ctx.fillRect(OX+e.x*S-2, OY+e.y*S-2, 4, 4);
+  }
+  ctx.restore();
+}
+
+// ── Overlay ───────────────────────────────────────────────────────────────────
+const overlay = document.getElementById('overlay');
+
+function showOverlay(type) {
+  overlay.classList.remove('hidden');
+  if (type === 'win') {
+    overlay.innerHTML = `
+      <h1 style="color:#0f0;text-shadow:0 0 24px #0f0">🏆 VICTORY!</h1>
+      <p style="color:#afa">You survived and escaped the demons!</p>
+      <p style="color:#8a8;font-size:.9rem">Kills: ${player.kills}/${enemies.length}</p>
+      <button onclick="restartGame()">▶ PLAY AGAIN</button>
+      <a href="../index.html" style="margin-top:8px;color:#0f0;font-size:.85rem;text-decoration:none">← Back to Hub</a>`;
+  } else {
+    overlay.innerHTML = `
+      <h1>💀 YOU DIED</h1>
+      <p style="color:#faa">The demons tore you apart!</p>
+      <p style="color:#a88;font-size:.9rem">Kills: ${player.kills}/${enemies.length}</p>
+      <button onclick="restartGame()">▶ TRY AGAIN</button>
+      <a href="../index.html" style="margin-top:8px;color:#f00;font-size:.85rem;text-decoration:none">← Back to Hub</a>`;
+  }
+}
+
+window.restartGame = function() {
+  overlay.classList.add('hidden');
+  initGame();
+  requestAnimationFrame(loop);
+};
+
+// ── Game Loop ─────────────────────────────────────────────────────────────────
+let lastT=0;
+function loop(ts) {
+  if (gameState==='dead' || gameState==='win') return;
+  const dt = Math.min((ts-lastT)/1000, 0.05); lastT=ts;
+  update(dt);
+  render();
+  requestAnimationFrame(loop);
+}
+
+document.getElementById('start-btn').addEventListener('click', () => {
+  overlay.classList.add('hidden');
+  getAC().resume();
+  initGame();
+  lastT = performance.now();
+  requestAnimationFrame(loop);
+});
+</script>
+<script src="../shared/arcade-bgm.js"></script>
+</body>
+</html>

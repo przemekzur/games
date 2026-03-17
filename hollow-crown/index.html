@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Echoes of the Hollow Crown</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Inter:wght@400;500;600;700;800&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <main class="shell">
+    <header class="masthead">
+      <div>
+        <div class="kicker">Interactive fantasy RPG</div>
+        <h1>Echoes of the Hollow Crown</h1>
+        <p class="sub">A richer, click-driven version of the Hollow Crown quest: choose a champion, tap glowing landmarks to auto-travel, reclaim the Bloom, Tide, and Star sigils, and face the sovereign hidden inside the crown-rift.</p>
+      </div>
+
+      <div class="hud-strip">
+        <div class="hud-chip"><span>Hero</span><strong id="heroChip">Unchosen</strong></div>
+        <div class="hud-chip"><span>Sigils</span><strong id="sigilChip">0 / 3</strong></div>
+        <div class="hud-chip"><span>Objective</span><strong id="objectiveChip">Meet Oracle</strong></div>
+        <a class="ghost-link" href="../index.html">Back to Hub</a>
+      </div>
+    </header>
+
+    <div class="layout">
+      <section class="panel world-panel">
+        <div class="world-heading">
+          <div>
+            <h2>The Shattered Vale</h2>
+            <p class="section-copy">Click terrain to move, click glowing markers to talk, rest, claim relics, or begin battles. Quest cards on the right are clickable too and will guide your champion to the next objective.</p>
+          </div>
+
+          <div class="control-cluster">
+            <div class="tiny-chip"><span>Region</span><strong id="regionChip">Lantern Court</strong></div>
+            <div class="tiny-chip"><span>Level</span><strong id="levelChip">1</strong></div>
+            <div class="tiny-chip"><span>Gold</span><strong id="goldChip">0</strong></div>
+          </div>
+        </div>
+
+        <div class="world-stage">
+          <canvas id="gameCanvas" width="1152" height="720" aria-label="Echoes of the Hollow Crown playable map"></canvas>
+
+          <div class="location-card floating-card">
+            <div class="eyebrow">Current region</div>
+            <strong id="locationName">Lantern Court</strong>
+            <span id="locationText">The last warm refuge before the cursed road bends toward the crown-rift.</span>
+          </div>
+
+          <div class="action-card floating-card hidden" id="actionCard">
+            <div class="eyebrow">Point of interest</div>
+            <strong id="actionTitle">Click to move</strong>
+            <span id="actionText">Select a destination on the map.</span>
+          </div>
+        </div>
+
+        <div class="controls-row">
+          <div class="control-note">
+            <strong>Mouse-first gameplay</strong>
+            <span>Hover to preview routes, click to auto-travel, then use the battle cards when guardians answer your challenge.</span>
+          </div>
+
+          <div class="cta-row">
+            <button class="btn-dark" id="focusQuestBtn">Quest Hint</button>
+            <button class="btn-danger" id="restartBtn">Restart Run</button>
+          </div>
+        </div>
+      </section>
+
+      <aside class="sidebar">
+        <section class="panel">
+          <div class="card-eyebrow">Quest log</div>
+          <h3 id="questHeading">Meet Oracle Maelin</h3>
+          <p class="section-copy" id="questSummary">Lantern Court still has one clear voice. Find the oracle and learn why the sky is cracking above the vale.</p>
+          <div class="quest-list" id="questList"></div>
+        </section>
+
+        <section class="panel">
+          <div class="card-eyebrow">Champion</div>
+          <div class="hero-card">
+            <div class="hero-summary">
+              <div class="hero-copy">
+                <span class="tag" id="heroClassTag">No class chosen</span>
+                <h3 id="heroName">Awaiting a vessel</h3>
+                <p id="heroBlurb">Choose a champion to begin the campaign.</p>
+              </div>
+              <div class="hero-avatar" id="heroAvatar"></div>
+            </div>
+
+            <div class="hero-meta-row">
+              <div class="tiny-chip"><span>XP</span><strong id="xpChip">0 / 90</strong></div>
+              <div class="tiny-chip"><span>Potions</span><strong id="potionChip">0</strong></div>
+            </div>
+
+            <div class="meter">
+              <div class="meter-row">
+                <strong><span>Vitality</span><span id="hpText">0 / 0</span></strong>
+                <div class="bar"><i id="hpBar"></i></div>
+              </div>
+              <div class="meter-row">
+                <strong><span>Focus</span><span id="mpText">0 / 0</span></strong>
+                <div class="bar mana"><i id="mpBar"></i></div>
+              </div>
+            </div>
+
+            <div class="stat-grid" id="statGrid"></div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="card-eyebrow">Inventory</div>
+          <p class="section-copy">Relics, supplies, and class abilities update as the run unfolds.</p>
+          <div class="inventory-grid" id="inventoryGrid"></div>
+        </section>
+
+        <section class="panel">
+          <div class="card-eyebrow">Chronicle</div>
+          <p class="section-copy">Recent discoveries, level-ups, and warnings from the valley itself.</p>
+          <div class="log-feed" id="logFeed"></div>
+        </section>
+      </aside>
+    </div>
+  </main>
+
+  <div id="toast" class="toast hidden">A whisper crosses the vale.</div>
+
+  <div id="startOverlay" class="overlay">
+    <div class="modal large">
+      <div class="modal-head">
+        <div class="kicker">Choose your vessel</div>
+        <h2>Three champions stand before the broken crown.</h2>
+      </div>
+      <div class="modal-body intro-grid">
+        <div>
+          <p class="dialog-copy">This version of Hollow Crown is built like a polished interactive demo: one richly rendered map, click-to-move exploration, class-driven combat, and a focused quest arc from oracle to final boss.</p>
+          <div class="class-grid" id="classGrid"></div>
+        </div>
+
+        <div class="lore-note">
+          <div>
+            <div class="eyebrow">How it plays</div>
+            <h3>Fast to enter, tactile to explore</h3>
+            <p class="section-copy">Glowing story markers are fully clickable. Quest cards can route you to the next objective. The battle overlay keeps the pace sharp while preserving a complete mini-RPG loop.</p>
+          </div>
+
+          <div class="legend">
+            <div class="eyebrow">Legend</div>
+            <div class="legend-item"><span class="legend-swatch court"></span><span><strong>Lantern Court</strong><br />Oracle, campfire, and your first safe steps.</span></div>
+            <div class="legend-item"><span class="legend-swatch sigil"></span><span><strong>Shrines</strong><br />Recover the three sigils after defeating each guardian.</span></div>
+            <div class="legend-item"><span class="legend-swatch danger"></span><span><strong>Rift Gate</strong><br />The final duel unlocks only when every sigil answers to you.</span></div>
+          </div>
+
+          <button id="startJourneyBtn">Enter the vale</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="dialogOverlay" class="overlay hidden">
+    <div class="modal small">
+      <div class="modal-head">
+        <div class="kicker" id="dialogKicker">Whisper</div>
+        <h3 id="dialogTitle">The vale answers.</h3>
+      </div>
+      <div class="modal-body">
+        <p class="dialog-copy" id="dialogText"></p>
+        <div class="end-actions">
+          <button id="dialogConfirmBtn">Continue</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="battleOverlay" class="overlay hidden">
+    <div class="modal battle-modal">
+      <div class="modal-head">
+        <div class="kicker">Turn battle</div>
+        <h3 id="battleTitle">Guardian Encounter</h3>
+      </div>
+      <div class="modal-body">
+        <div class="battle-grid">
+          <div class="battle-card">
+            <div class="portrait-frame"><div class="portrait hero-portrait" id="battleHeroPortrait"></div></div>
+            <div>
+              <div class="card-eyebrow">Champion</div>
+              <h4 id="battleHeroName">Hero</h4>
+              <p id="battleHeroSummary">Ready stance.</p>
+              <div class="meter compact">
+                <div class="meter-row">
+                  <strong><span>Vitality</span><span id="battleHeroHpText">0 / 0</span></strong>
+                  <div class="bar"><i id="battleHeroHp"></i></div>
+                </div>
+                <div class="meter-row">
+                  <strong><span>Focus</span><span id="battleHeroMpText">0 / 0</span></strong>
+                  <div class="bar mana"><i id="battleHeroMp"></i></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="battle-card enemy-side">
+            <div class="portrait-frame"><div class="portrait enemy-portrait" id="battleEnemyPortrait"></div></div>
+            <div>
+              <div class="card-eyebrow">Enemy</div>
+              <h4 id="battleEnemyName">Guardian</h4>
+              <p id="battleEnemySummary">A hiss cuts through the fog.</p>
+              <div class="meter compact">
+                <div class="meter-row">
+                  <strong><span>Vitality</span><span id="battleEnemyHpText">0 / 0</span></strong>
+                  <div class="bar enemy"><i id="battleEnemyHp"></i></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="battle-actions">
+          <button id="attackBtn">Attack</button>
+          <button id="abilityBtn">Ability</button>
+          <button class="btn-dark" id="guardBtn">Guard</button>
+          <button class="btn-dark" id="potionBtn">Potion</button>
+        </div>
+
+        <div class="battle-log" id="battleLog"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="endOverlay" class="overlay hidden">
+    <div class="modal small">
+      <div class="modal-head">
+        <div class="kicker" id="endKicker">Run complete</div>
+        <h3 id="endTitle">The crown falls silent.</h3>
+      </div>
+      <div class="modal-body">
+        <p class="dialog-copy" id="endText">You have restored the vale.</p>
+        <div class="end-actions">
+          <button id="playAgainBtn">Play Again</button>
+          <a class="ghost-link" href="../index.html">Back to Hub</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="./game.js"></script>
+</body>
+</html>
