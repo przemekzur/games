@@ -78,6 +78,28 @@ export class Engine {
     this.camera.lookAt(this.cameraTarget);
   }
 
+  // Cinematic flyby — orbits around the ship for dramatic warp shots
+  flybyCamera(targetPos, targetQuaternion, elapsed, delta) {
+    const t = elapsed * 0.35;
+    const radius = 28 + Math.sin(t * 0.7) * 12;
+    const height = 6 + Math.sin(t * 0.5) * 10;
+    const angle = t * 0.8;
+
+    // Orbit position in ship-local space, then transform to world
+    const localOffset = new THREE.Vector3(
+      Math.cos(angle) * radius,
+      height,
+      Math.sin(angle) * radius
+    );
+    const worldOffset = localOffset.applyQuaternion(targetQuaternion);
+    const desiredPos = targetPos.clone().add(worldOffset);
+
+    this.camera.position.lerp(desiredPos, Math.min(1, delta * 3));
+    // Always look at the ship center
+    this.cameraTarget.lerp(targetPos, Math.min(1, delta * 5));
+    this.camera.lookAt(this.cameraTarget);
+  }
+
   animate() {
     requestAnimationFrame(() => this.animate());
     if (this.paused) return;

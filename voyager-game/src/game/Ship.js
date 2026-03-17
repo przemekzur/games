@@ -8,7 +8,7 @@ export class Ship {
     this.mesh.add(this.visualGroup);
 
     // Flight state
-    this.keys = { w: false, s: false, a: false, d: false, ArrowUp: false, ArrowDown: false, Shift: false };
+    this.keys = { w: false, s: false, a: false, d: false, ArrowUp: false, ArrowDown: false, Shift: false, Control: false };
     this.isWarping = false;
     this.forcedWarpMode = false;
     this.maxSpeed = 50;

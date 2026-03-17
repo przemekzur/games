@@ -110,7 +110,7 @@ class VoyagerGame {
     // Controls hint
     const hint = document.createElement('div');
     hint.className = 'controls-hint';
-    hint.innerHTML = 'W/S — Thrust &nbsp;|&nbsp; A/D — Yaw &nbsp;|&nbsp; ↑/↓ — Pitch &nbsp;|&nbsp; SHIFT — Warp &nbsp;|&nbsp; M — Map &nbsp;|&nbsp; I — Shipyard';
+    hint.innerHTML = 'W/S — Thrust &nbsp;|&nbsp; A/D — Yaw &nbsp;|&nbsp; ↑/↓ — Pitch &nbsp;|&nbsp; SHIFT — Warp &nbsp;|&nbsp; CTRL — Flyby Cam &nbsp;|&nbsp; M — Map &nbsp;|&nbsp; I — Shipyard';
     document.getElementById('ui-layer').appendChild(hint);
 
     // Main game loop updatable — camera follow, combat tick, warp tunnel, shake
@@ -161,9 +161,14 @@ class VoyagerGame {
           cameraShake.set(0, 0, 0);
         }
 
-        // ── Camera follows ship (smooth third-person) ──
-        const camLerp = jumpPhase !== 'idle' ? 2 : (this.ship.isWarping ? 3 : 4);
-        this.engine.followTarget(this.ship.mesh.position, this.ship.mesh.quaternion, delta, camLerp);
+        // ── Camera follows ship (smooth third-person, or flyby with Ctrl) ──
+        const flyby = this.ship.keys.Control && this.ship.isWarping;
+        if (flyby) {
+          this.engine.flybyCamera(this.ship.mesh.position, this.ship.mesh.quaternion, elapsed, delta);
+        } else {
+          const camLerp = jumpPhase !== 'idle' ? 2 : (this.ship.isWarping ? 3 : 4);
+          this.engine.followTarget(this.ship.mesh.position, this.ship.mesh.quaternion, delta, camLerp);
+        }
 
         // Apply shake on top
         this.engine.camera.position.add(cameraShake);
