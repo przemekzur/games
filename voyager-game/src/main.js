@@ -3,12 +3,15 @@ import { Engine } from './engine/Engine.js';
 import { Starfield } from './engine/Starfield.js';
 import { ParticleSystem } from './engine/ParticleSystem.js';
 import { WarpTunnel } from './engine/WarpTunnel.js';
+import { CollisionSystem } from './engine/CollisionSystem.js';
+import { SoundManager } from './engine/SoundManager.js';
 import { Ship } from './game/Ship.js';
 import { Environment } from './game/Environment.js';
 import { GameState } from './game/GameState.js';
 import { SectorMap } from './game/SectorMap.js';
 import { CombatSystem } from './game/CombatSystem.js';
 import { EventSystem } from './game/EventSystem.js';
+import { InteractionSystem } from './game/InteractionSystem.js';
 import { StoryEngine, CHAPTERS } from './story/StoryEngine.js';
 import { UIManager } from './ui/UIManager.js';
 import * as THREE from 'three';
@@ -67,8 +70,11 @@ class VoyagerGame {
     // Warp tunnel effect
     this.warpTunnel = new WarpTunnel(this.engine.scene);
 
+    // Collision system
+    this.collisionSystem = new CollisionSystem();
+
     // Environment
-    this.environment = new Environment(this.engine.scene);
+    this.environment = new Environment(this.engine.scene, this.collisionSystem);
     this.engine.addUpdatable(this.environment);
 
     // Game state
@@ -86,7 +92,7 @@ class VoyagerGame {
     this.storyEngine = new StoryEngine(this.gameState, onEvent);
 
     // Combat system
-    this.combat = new CombatSystem(this.gameState, this.particles, this.ship, onEvent);
+    this.combat = new CombatSystem(this.gameState, this.particles, this.ship, this.engine.scene, this.engine.camera, onEvent);
 
     // Event system
     this.events = new EventSystem(this.gameState, this.sectorMap, this.combat, onEvent);
@@ -94,13 +100,51 @@ class VoyagerGame {
     // UI
     this.ui = new UIManager(this.gameState, this.sectorMap, this.storyEngine);
 
+    // Sound manager
+    this.sound = new SoundManager();
+    this.ui.soundManager = this.sound;
+
+    // Resume AudioContext on first user interaction
+    const resumeAudio = () => {
+      this.sound.ensureResumed();
+      window.removeEventListener('click', resumeAudio);
+      window.removeEventListener('keydown', resumeAudio);
+    };
+    window.addEventListener('click', resumeAudio);
+    window.addEventListener('keydown', resumeAudio);
+
+    // ESC key for pause
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        this.ui.togglePause();
+      }
+    });
+
+    // Pause toggle callback
+    this.ui.onPauseToggle = (paused) => {
+      if (paused) {
+        this.engine.pause();
+        this.sound.stopAll();
+      } else {
+        this.engine.resume();
+        // Restart engine idle loop
+        this._engineLoopStop = this.sound.loop('engineIdle');
+      }
+    };
+
+    // Interaction system
+    this.interaction = new InteractionSystem(
+      this.collisionSystem, this.gameState, this.ui, this.events,
+      this.particles, this.ship, onEvent
+    );
+
     // Wire up UI callbacks
     this.ui.onWarpRequest = (targetId) => this.warpToSystem(targetId);
-    this.ui.onFirePhasers = () => this.combat.firePhasers();
-    this.ui.onFireTorpedoes = () => this.combat.fireTorpedoes();
-    this.ui.onEvasive = () => this.combat.evasiveManeuvers();
-    this.ui.onRedistributeShields = () => this.combat.redistributeShields();
-    this.ui.onFlee = () => this.combat.flee();
+    this.ui.onFirePhasers = () => { this.sound.play('phaserFire'); this.combat.firePhasers(); };
+    this.ui.onFireTorpedoes = () => { this.sound.play('torpedoLaunch'); this.combat.fireTorpedoes(); };
+    this.ui.onEvasive = () => { this.sound.play('uiClick'); this.combat.evasiveManeuvers(); };
+    this.ui.onRedistributeShields = () => { this.sound.play('shieldHit'); this.combat.redistributeShields(); };
+    this.ui.onFlee = () => { this.sound.play('uiClick'); this.combat.flee(); };
 
     // Camera shake state
     const cameraShake = new THREE.Vector3();
@@ -110,8 +154,17 @@ class VoyagerGame {
     // Controls hint
     const hint = document.createElement('div');
     hint.className = 'controls-hint';
-    hint.innerHTML = 'W/S — Thrust &nbsp;|&nbsp; A/D — Yaw &nbsp;|&nbsp; ↑/↓ — Pitch &nbsp;|&nbsp; SHIFT — Warp &nbsp;|&nbsp; CTRL — Flyby Cam &nbsp;|&nbsp; M — Map &nbsp;|&nbsp; I — Shipyard';
+    hint.innerHTML = 'W/S — Thrust &nbsp;|&nbsp; A/D — Yaw &nbsp;|&nbsp; ↑/↓ — Pitch &nbsp;|&nbsp; SHIFT — Warp &nbsp;|&nbsp; CTRL — Flyby Cam &nbsp;|&nbsp; F — Interact &nbsp;|&nbsp; M — Map &nbsp;|&nbsp; I — Shipyard';
     document.getElementById('ui-layer').appendChild(hint);
+
+    // Sound state tracking
+    this._engineLoopStop = null;
+    this._warpLoopStop = null;
+    this._klaxonLoopStop = null;
+    this._warpAmbientStop = null;
+    this._lastAlertStatus = 'none';
+    this._lastWarpState = false;
+    this._lastJumpPhaseSound = 'idle';
 
     // Main game loop updatable — camera follow, combat tick, warp tunnel, shake
     this.engine.addUpdatable({
@@ -120,6 +173,65 @@ class VoyagerGame {
 
         // Combat tick
         this.combat.update(delta);
+
+        // Interaction system tick
+        this.interaction.update(delta);
+
+        // Collision detection
+        const collisionResults = this.collisionSystem.update(this.ship.mesh.position, 8, delta);
+        for (const result of collisionResults) {
+          if (result.damage > 0) {
+            const s = this.gameState.getState();
+            this.gameState.update({ hull: s.hull - result.damage });
+          }
+          if (result.bounce) {
+            this.ship.mesh.position.add(result.bounce);
+          }
+          if (result.pushBack) {
+            this.ship.mesh.position.add(result.pushBack);
+          }
+          if (result.energyDrain) {
+            const s = this.gameState.getState();
+            this.gameState.update({ energy: s.energy - result.energyDrain });
+          }
+          if (result.sparks && result.sparkPosition) {
+            this.particles.emit({
+              position: result.sparkPosition,
+              count: 20,
+              color: 0xff8833,
+              speed: 8,
+              spread: 2,
+              life: 0.5,
+              size: 1.2,
+            });
+          }
+        }
+
+        // Proximity labels
+        const nearby = this.collisionSystem.getNearbyObjects(this.ship.mesh.position, 150);
+        this.ui.updateProximityLabels(nearby, this.ship.mesh.position, this.engine.camera);
+
+        // ── Sound management ──
+        const currentState = this.gameState.getState();
+
+        // Engine idle / warp sound
+        if (this.ship.isWarping && !this._lastWarpState) {
+          if (this._engineLoopStop) { this._engineLoopStop(); this._engineLoopStop = null; }
+          this._warpLoopStop = this.sound.loop('engineWarp');
+        } else if (!this.ship.isWarping && this._lastWarpState) {
+          if (this._warpLoopStop) { this._warpLoopStop(); this._warpLoopStop = null; }
+          this._engineLoopStop = this.sound.loop('engineIdle');
+        }
+        this._lastWarpState = this.ship.isWarping;
+
+        // Alert klaxon
+        const alertStatus = currentState.alertStatus;
+        if (alertStatus === 'red' && this._lastAlertStatus !== 'red') {
+          this._klaxonLoopStop = this.sound.loop('alertKlaxon');
+        } else if (alertStatus !== 'red' && this._lastAlertStatus === 'red') {
+          if (this._klaxonLoopStop) { this._klaxonLoopStop(); this._klaxonLoopStop = null; }
+        }
+        this._lastAlertStatus = alertStatus;
 
         // Get jump phase from UI
         const jumpPhase = this.ui.getJumpPhase();
@@ -182,6 +294,15 @@ class VoyagerGame {
             this._wasLocked = false;
           }
           this.engine.updateFreeCamera(this.ship.mesh.position);
+
+          // Warp mode: WASD orbits the camera for flyby feel
+          if (this.ship.isWarping) {
+            const orbitSpeed = 1.5;
+            if (this.ship.keys.a) this.engine.controls.rotateLeft(orbitSpeed * delta);
+            if (this.ship.keys.d) this.engine.controls.rotateLeft(-orbitSpeed * delta);
+            if (this.ship.keys.w) this.engine.controls.rotateUp(orbitSpeed * delta);
+            if (this.ship.keys.s) this.engine.controls.rotateUp(-orbitSpeed * delta);
+          }
         }
 
         // Apply shake on top
@@ -196,6 +317,29 @@ class VoyagerGame {
         // ── Bloom during warp ──
         const bloomTarget = this.ship.isWarping ? 1.0 : (jumpPhase !== 'idle' ? 1.2 : 0.6);
         this.engine.bloomPass.strength = THREE.MathUtils.lerp(this.engine.bloomPass.strength, bloomTarget, delta * 3);
+
+        // ── Jump phase sounds ──
+        if (jumpPhase === 'black-alert' && this._lastJumpPhaseSound !== 'black-alert') {
+          this._warpAmbientStop = this.sound.loop('warpTunnelAmbient');
+        } else if (jumpPhase === 'idle' && this._lastJumpPhaseSound !== 'idle') {
+          if (this._warpAmbientStop) { this._warpAmbientStop(); this._warpAmbientStop = null; }
+        }
+        this._lastJumpPhaseSound = jumpPhase;
+
+        // ── Radar update ──
+        const radarObjects = nearby.map(obj => ({
+          position: obj.position || obj.mesh?.position || { x: 0, z: 0 },
+          type: obj.type || 'asteroid',
+        }));
+        const enemyPos = currentState.inCombat
+          ? this.ship.mesh.position.clone().add(new THREE.Vector3(0, 0, -40))
+          : null;
+        this.ui.updateRadar(
+          this.ship.mesh.position,
+          this.ship.mesh.quaternion,
+          radarObjects,
+          enemyPos
+        );
 
         // ── Auto-save periodically ──
         this.saveTimer = (this.saveTimer || 0) + delta;
@@ -231,6 +375,9 @@ class VoyagerGame {
 
     // Position camera behind the ship
     this.engine.camera.position.set(0, 12, 40);
+
+    // Start engine idle sound loop
+    this._engineLoopStop = this.sound.loop('engineIdle');
   }
 
   async warpToSystem(targetId) {
@@ -242,6 +389,7 @@ class VoyagerGame {
 
     const target = this.sectorMap.systems[targetId];
     this.ui.logEvent(`🚀 Engaging spore drive to ${target.name}...`, 'story');
+    this.sound.play('uiClick');
 
     // Force warp visuals on ship
     this.ship.setForcedWarpMode(true);
@@ -286,10 +434,11 @@ class VoyagerGame {
     const shieldRegen = 5 + state.shieldUpgrade * 2;
     this.gameState.update({
       shields: Math.min(state.maxShields, state.shields + shieldRegen),
-      energy: Math.min(state.maxEnergy, state.energy + 15),
+      energy: Math.min(state.maxEnergy, state.energy + 8),
     });
 
     this.ui.showNotification(`Arrived: ${target.name}`);
+    this.sound.play('dockingSound');
   }
 }
 
