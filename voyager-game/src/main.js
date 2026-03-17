@@ -1,3 +1,4 @@
+import './ui/styles.css';
 import { Engine } from './engine/Engine.js';
 import { Starfield } from './engine/Starfield.js';
 import { ParticleSystem } from './engine/ParticleSystem.js';
