@@ -1,8 +1,9 @@
 import * as THREE from 'three';
 
 export class Environment {
-  constructor(scene) {
+  constructor(scene, collisionSystem) {
     this.scene = scene;
+    this.collisionSystem = collisionSystem;
     this.planets = [];
     this.asteroids = [];
     this.anomalies = [];
@@ -23,6 +24,7 @@ export class Environment {
     this.planets = [];
     this.asteroids = [];
     this.anomalies = [];
+    if (this.collisionSystem) this.collisionSystem.clear();
   }
 
   generateSystem(systemData) {
@@ -103,6 +105,13 @@ export class Environment {
     group.userData = { type: type.name, radius, orbitAngle: angle, orbitDist: distance, rotSpeed: 0.1 + rng() * 0.3 };
     this.scene.add(group);
     this.planets.push({ group, mesh: planet, type: type.name, position: group.position.clone() });
+
+    if (this.collisionSystem) {
+      this.collisionSystem.register(group, radius, 'planet', true, {
+        name: `${type.name} Planet`,
+        planetType: type.name,
+      });
+    }
   }
 
   createAsteroidBelt(rng) {
@@ -128,6 +137,12 @@ export class Environment {
       );
       this.scene.add(asteroid);
       this.asteroids.push(asteroid);
+
+      if (this.collisionSystem) {
+        this.collisionSystem.register(asteroid, size, 'asteroid', true, {
+          name: `Asteroid ${i + 1}`,
+        });
+      }
     }
   }
 
@@ -173,6 +188,13 @@ export class Environment {
     group.position.set(Math.cos(angle) * dist, (rng() - 0.5) * 10, Math.sin(angle) * dist);
     this.scene.add(group);
     this.anomalies.push({ mesh: group, type: aType, ring, coreMat, glowMat });
+
+    if (this.collisionSystem) {
+      this.collisionSystem.register(group, 5, 'anomaly', true, {
+        name: aType.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+        anomalyType: aType,
+      });
+    }
   }
 
   createStation(rng) {
@@ -206,6 +228,13 @@ export class Environment {
     group.userData.rotSpeed = 0.1;
     this.scene.add(group);
     this.planets.push({ group, mesh: hub, type: 'Station', position: group.position.clone() });
+
+    if (this.collisionSystem) {
+      this.collisionSystem.register(group, 6, 'station', true, {
+        name: 'Space Station',
+        stationType: 'trading-post',
+      });
+    }
   }
 
   seededRandom(seed) {

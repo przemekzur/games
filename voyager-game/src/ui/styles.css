@@ -183,7 +183,7 @@ body {
 
 /* ── Action Buttons ── */
 .action-bar {
-  position: absolute; bottom: 16px; right: 16px;
+  position: absolute; bottom: 184px; right: 16px;
   display: flex; flex-direction: column; gap: 8px;
   pointer-events: auto;
 }
@@ -917,6 +917,82 @@ body {
   background: var(--lcars-blue);
 }
 
+/* ── Radar ── */
+.radar-container {
+  position: absolute; bottom: 16px; right: 16px;
+  width: 160px; height: 160px;
+  pointer-events: none;
+  z-index: 20;
+  border-radius: 50%;
+  overflow: hidden;
+}
+
+.radar-canvas {
+  width: 160px; height: 160px;
+  display: block;
+}
+
+/* ── Pause Overlay ── */
+.pause-overlay {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0, 4, 12, 0.85);
+  z-index: 200;
+  display: flex; align-items: center; justify-content: center;
+  pointer-events: auto;
+}
+
+.pause-panel {
+  width: 360px;
+  background: var(--panel-bg);
+  border: 2px solid var(--lcars-orange);
+  border-radius: 8px;
+  padding: 28px 24px;
+  display: flex; flex-direction: column; gap: 12px;
+  align-items: stretch;
+}
+
+.pause-panel h2 {
+  font-family: var(--font-display);
+  color: var(--lcars-orange);
+  font-size: 1.4rem;
+  letter-spacing: 0.3em;
+  text-align: center;
+  margin-bottom: 8px;
+}
+
+.pause-btn {
+  width: 100%;
+  text-align: center;
+}
+
+.pause-volume-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 6px 0;
+}
+
+.pause-volume-label {
+  font-family: var(--font-display);
+  font-size: 0.7rem;
+  color: var(--lcars-teal);
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+}
+
+.pause-slider {
+  flex: 1;
+  accent-color: var(--lcars-teal);
+  height: 4px;
+  cursor: pointer;
+}
+
+.pause-volume-val {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--text-primary);
+  min-width: 32px;
+  text-align: right;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .event-log { width: 260px; max-height: 150px; font-size: 0.72rem; }
@@ -924,4 +1000,203 @@ body {
   .hud-stat .value { font-size: 0.85rem; }
   .combat-overlay { width: 260px; }
   .mission-tracker { width: 200px; }
+}
+
+/* ── Proximity Labels ── */
+.proximity-container {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+  z-index: 15;
+}
+
+.proximity-label {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  padding: 4px 10px;
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--text-primary);
+  white-space: nowrap;
+  pointer-events: none;
+  transition: opacity 0.3s, border-color 0.3s, box-shadow 0.3s;
+  text-align: center;
+}
+
+.proximity-label .proximity-dist {
+  font-size: 0.6rem;
+  color: var(--text-dim);
+}
+
+.proximity-label.in-range {
+  border-color: var(--lcars-teal);
+  box-shadow: 0 0 10px rgba(0, 255, 255, 0.3);
+  color: var(--lcars-teal);
+}
+
+.proximity-label.in-range::after {
+  content: '  [F]';
+  font-size: 0.55rem;
+  color: var(--lcars-gold);
+  letter-spacing: 0.05em;
+}
+
+/* ── Dock Menu Overlay ── */
+.dock-menu-overlay {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0, 8, 16, 0.92);
+  z-index: 100;
+  pointer-events: auto;
+  display: flex; align-items: center; justify-content: center;
+}
+
+.dock-menu-panel {
+  width: 500px; max-height: 80vh;
+  background: var(--panel-bg);
+  border: 2px solid var(--lcars-orange);
+  border-radius: 8px;
+  padding: 24px;
+  overflow-y: auto;
+  text-align: center;
+}
+
+.dock-menu-panel h2 {
+  font-family: var(--font-display);
+  color: var(--lcars-orange);
+  font-size: 1.1rem;
+  letter-spacing: 0.2em;
+  margin-bottom: 8px;
+}
+
+.dock-subtitle {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  margin-bottom: 16px;
+}
+
+.dock-resources {
+  display: flex; justify-content: center; gap: 18px;
+  margin-bottom: 20px;
+  font-size: 0.8rem;
+  color: var(--text-primary);
+}
+
+.dock-resources b {
+  color: var(--lcars-teal);
+}
+
+.dock-actions {
+  display: flex; flex-direction: column; gap: 10px;
+  margin-bottom: 16px;
+}
+
+.dock-btn {
+  text-align: center;
+  line-height: 1.5;
+}
+
+.dock-cost {
+  font-size: 0.6rem;
+  color: var(--lcars-gold);
+  font-family: var(--font-mono);
+}
+
+.dock-close {
+  width: 100%;
+  margin-top: 4px;
+}
+
+/* ── Scan Result Overlay ── */
+.scan-result-overlay {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0, 8, 16, 0.92);
+  z-index: 100;
+  pointer-events: auto;
+  display: flex; align-items: center; justify-content: center;
+}
+
+.scan-result-panel {
+  width: 480px; max-height: 80vh;
+  background: var(--panel-bg);
+  border: 2px solid var(--lcars-teal);
+  border-radius: 8px;
+  padding: 24px;
+  overflow-y: auto;
+}
+
+.scan-result-panel h2 {
+  font-family: var(--font-display);
+  color: var(--lcars-teal);
+  font-size: 1rem;
+  letter-spacing: 0.2em;
+  text-align: center;
+  margin-bottom: 12px;
+}
+
+.scan-planet-name {
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  color: var(--lcars-orange);
+  text-align: center;
+  margin-bottom: 16px;
+}
+
+.scan-details {
+  margin-bottom: 16px;
+}
+
+.scan-row {
+  display: flex; justify-content: space-between;
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(0, 100, 150, 0.15);
+  font-size: 0.8rem;
+}
+
+.scan-label {
+  color: var(--text-dim);
+  text-transform: uppercase;
+  font-size: 0.7rem;
+  letter-spacing: 0.05em;
+}
+
+.scan-value {
+  color: var(--lcars-teal);
+}
+
+.scan-section-title {
+  font-family: var(--font-display);
+  font-size: 0.7rem;
+  color: var(--lcars-orange);
+  letter-spacing: 0.15em;
+  margin-bottom: 8px;
+}
+
+.scan-resources {
+  margin-bottom: 16px;
+  padding: 8px;
+  background: rgba(0, 30, 60, 0.5);
+  border: 1px solid rgba(0, 100, 150, 0.2);
+  border-radius: 4px;
+}
+
+.scan-resource-item {
+  font-size: 0.8rem;
+  padding: 3px 0;
+  color: var(--text-primary);
+}
+
+.scan-resource-item b {
+  color: var(--lcars-teal);
+}
+
+.scan-actions {
+  display: flex; gap: 10px;
+}
+
+.scan-actions .ui-btn {
+  flex: 1;
 }

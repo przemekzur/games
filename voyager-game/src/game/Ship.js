@@ -48,7 +48,7 @@ export class Ship {
 
   buildShip() {
     const bodyMat = new THREE.MeshStandardMaterial({
-      color: 0xbbbbcc, metalness: 0.8, roughness: 0.2,
+      color: 0xbbbbcc, metalness: 0.85, roughness: 0.15, emissive: 0x050510,
     });
     const accentMat = new THREE.MeshStandardMaterial({
       color: 0xdd5544, metalness: 0.5, roughness: 0.3, emissive: 0x331111,
@@ -84,11 +84,16 @@ export class Ship {
     // Deflector dish (front of engineering hull)
     const deflector = new THREE.Mesh(
       new THREE.SphereGeometry(1.2, 12, 12, 0, Math.PI * 2, 0, Math.PI / 2),
-      new THREE.MeshBasicMaterial({ color: 0x00ccff, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending })
+      new THREE.MeshBasicMaterial({ color: 0x00ccff, transparent: true, opacity: 1.0, blending: THREE.AdditiveBlending })
     );
     deflector.rotation.x = Math.PI / 2;
     deflector.position.set(0, -2.5, -0.5);
     this.visualGroup.add(deflector);
+
+    // Deflector glow light
+    const deflectorLight = new THREE.PointLight(0x00ccff, 3, 15);
+    deflectorLight.position.set(0, -2.5, -0.5);
+    this.visualGroup.add(deflectorLight);
 
     // Nacelles (behind and above, +Z direction)
     for (const side of [-1, 1]) {
@@ -110,7 +115,7 @@ export class Ship {
 
       // Bussard collectors (front of nacelles, -Z = forward)
       const bussard = new THREE.Mesh(
-        new THREE.SphereGeometry(0.65, 12, 12),
+        new THREE.SphereGeometry(0.75, 12, 12),
         new THREE.MeshBasicMaterial({ color: 0xff4400, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending })
       );
       bussard.position.set(side * 5.5, 1.5, 1);
@@ -129,7 +134,7 @@ export class Ship {
       this.engineMaterials.push(engine.material);
 
       // Point light per engine for glow
-      const glow = new THREE.PointLight(0x4488ff, 2, 20);
+      const glow = new THREE.PointLight(0x4488ff, 4, 25);
       glow.position.set(side * 5.5, 1.5, 9);
       this.visualGroup.add(glow);
     }
@@ -139,6 +144,28 @@ export class Ship {
     stripe.rotation.x = Math.PI / 2;
     stripe.position.set(0, 0.45, -2);
     this.visualGroup.add(stripe);
+
+    // Second accent stripe for detail
+    const stripe2 = new THREE.Mesh(new THREE.TorusGeometry(3.5, 0.08, 4, 32), accentMat);
+    stripe2.rotation.x = Math.PI / 2;
+    stripe2.position.set(0, 0.45, -2);
+    this.visualGroup.add(stripe2);
+
+    // Hull panel line — dark ring simulating panel separation
+    const panelLineMat = new THREE.MeshBasicMaterial({ color: 0x222233 });
+    const panelLine = new THREE.Mesh(new THREE.TorusGeometry(3.0, 0.03, 4, 32), panelLineMat);
+    panelLine.rotation.x = Math.PI / 2;
+    panelLine.position.set(0, 0.45, -2);
+    this.visualGroup.add(panelLine);
+
+    // Window dots along saucer edge
+    const windowMat = new THREE.MeshBasicMaterial({ color: 0xffffcc });
+    for (let i = 0; i < 8; i++) {
+      const angle = (i / 8) * Math.PI * 2;
+      const win = new THREE.Mesh(new THREE.SphereGeometry(0.08, 6, 6), windowMat);
+      win.position.set(Math.cos(angle) * 4.6, 0.45, -2 + Math.sin(angle) * 4.6);
+      this.visualGroup.add(win);
+    }
   }
 
   createShieldShader() {
@@ -221,23 +248,37 @@ export class Ship {
     const maxSpd = (this.isWarping ? this.maxSpeed * 10 : this.maxSpeed) * this.speedMultiplier;
     const accel = (this.isWarping ? this.acceleration * 5 : this.acceleration) * this.speedMultiplier;
 
-    if (this.keys.w) {
+    if (this.isWarping) {
+      // Warp mode: auto-accelerate, WASD reserved for camera orbit
       this.currentSpeed += accel * delta;
-    } else if (this.keys.s) {
-      this.currentSpeed -= accel * delta;
     } else {
-      if (this.currentSpeed > 0)
-        this.currentSpeed = Math.max(0, this.currentSpeed - this.deceleration * (this.isWarping ? 5 : 1) * delta);
-      else if (this.currentSpeed < 0)
-        this.currentSpeed = Math.min(0, this.currentSpeed + this.deceleration * delta);
+      // Normal mode: W/S thrust
+      if (this.keys.w) {
+        this.currentSpeed += accel * delta;
+      } else if (this.keys.s) {
+        this.currentSpeed -= accel * delta;
+      } else {
+        if (this.currentSpeed > 0)
+          this.currentSpeed = Math.max(0, this.currentSpeed - this.deceleration * delta);
+        else if (this.currentSpeed < 0)
+          this.currentSpeed = Math.min(0, this.currentSpeed + this.deceleration * delta);
+      }
     }
-    this.currentSpeed = Math.max(-this.maxSpeed * 0.5 * this.speedMultiplier, Math.min(maxSpd, this.currentSpeed));
 
-    // Yaw (A/D)
-    if (this.keys.a) this.mesh.rotateY(this.yawSpeed * delta);
-    if (this.keys.d) this.mesh.rotateY(-this.yawSpeed * delta);
+    // Smooth speed clamping — decelerate gracefully when above normal max after leaving warp
+    const hardMin = -this.maxSpeed * 0.5 * this.speedMultiplier;
+    if (this.currentSpeed > maxSpd) {
+      this.currentSpeed = Math.max(maxSpd, this.currentSpeed - this.deceleration * 5 * delta);
+    }
+    this.currentSpeed = Math.max(hardMin, Math.min(maxSpd, this.currentSpeed));
 
-    // Pitch (Arrow Up/Down)
+    // Yaw (A/D) — only in normal mode; warp mode uses A/D for camera orbit
+    if (!this.isWarping) {
+      if (this.keys.a) this.mesh.rotateY(this.yawSpeed * delta);
+      if (this.keys.d) this.mesh.rotateY(-this.yawSpeed * delta);
+    }
+
+    // Pitch (Arrow Up/Down) — always available
     if (this.keys.ArrowUp) this.mesh.rotateX(-this.pitchSpeed * delta);
     if (this.keys.ArrowDown) this.mesh.rotateX(this.pitchSpeed * delta);
 
@@ -248,7 +289,7 @@ export class Ship {
     // ── Visual banking ──
     const speedNorm = Math.max(1, maxSpd);
     const speedRatio = Math.max(0, this.currentSpeed) / speedNorm;
-    const yawInput = (this.keys.a ? 1 : 0) + (this.keys.d ? -1 : 0);
+    const yawInput = this.isWarping ? 0 : ((this.keys.a ? 1 : 0) + (this.keys.d ? -1 : 0));
     const pitchInput = (this.keys.ArrowUp ? 1 : 0) + (this.keys.ArrowDown ? -1 : 0);
     const bankZ = yawInput * 0.22;
     const bankX = pitchInput * 0.15;

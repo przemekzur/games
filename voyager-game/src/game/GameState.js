@@ -6,13 +6,13 @@ export class GameState {
       // Ship stats
       hull: 100, maxHull: 100,
       shields: 100, maxShields: 100,
-      energy: 1000, maxEnergy: 1000,
+      energy: 500, maxEnergy: 500,
       crew: 152,
 
       // Resources
-      dilithium: 80,
-      deuterium: 100,
-      torpedoes: 38,
+      dilithium: 25,
+      deuterium: 50,
+      torpedoes: 10,
       replicatorRations: 500,
       bioNeural: 20,
 

@@ -60,18 +60,18 @@ export class EventSystem {
       {
         weight: 3,
         fn: () => {
-          const amount = 5 + Math.floor(Math.random() * 10);
+          const amount = 3 + Math.floor(Math.random() * 6);
           const s = this.gameState.getState();
-          this.gameState.update({ energy: s.energy + amount * 10 });
-          this.onEvent(`⚡ Solar winds boost energy reserves. +${amount * 10} energy.`, 'success');
+          this.gameState.update({ energy: s.energy + amount * 6 });
+          this.onEvent(`⚡ Solar winds boost energy reserves. +${amount * 6} energy.`, 'success');
         },
       },
       {
         weight: 2,
         fn: () => {
           const s = this.gameState.getState();
-          this.gameState.update({ crew: s.crew + 3, morale: Math.min(100, s.morale + 5) });
-          this.onEvent('👥 Rescued survivors from a damaged vessel. Crew +3, morale improved.', 'success');
+          this.gameState.update({ crew: s.crew + 2, morale: Math.min(100, s.morale + 3) });
+          this.onEvent('👥 Rescued survivors from a damaged vessel. Crew +2, morale improved.', 'success');
         },
       },
       {
@@ -79,17 +79,17 @@ export class EventSystem {
         fn: () => {
           const s = this.gameState.getState();
           this.gameState.update({
-            replicatorRations: s.replicatorRations + 20,
-            morale: Math.min(100, s.morale + 3),
+            replicatorRations: s.replicatorRations + 12,
+            morale: Math.min(100, s.morale + 2),
           });
-          this.onEvent('🍽️ Neelix discovered edible plants on a nearby moon. +20 rations.', 'success');
+          this.onEvent('🍽️ Neelix discovered edible plants on a nearby moon. +12 rations.', 'success');
         },
       },
       {
         weight: 2,
         fn: () => {
           const s = this.gameState.getState();
-          const heal = 10 + Math.floor(Math.random() * 10);
+          const heal = 6 + Math.floor(Math.random() * 6);
           this.gameState.update({ hull: Math.min(s.maxHull, s.hull + heal) });
           this.onEvent(`🔧 B'Elanna performed emergency repairs. Hull +${heal}%.`, 'success');
         },
@@ -98,16 +98,16 @@ export class EventSystem {
         weight: 1,
         fn: () => {
           const s = this.gameState.getState();
-          this.gameState.update({ torpedoes: s.torpedoes + 5 });
-          this.onEvent('💥 Found materials to fabricate 5 photon torpedoes.', 'success');
+          this.gameState.update({ torpedoes: s.torpedoes + 3 });
+          this.onEvent('💥 Found materials to fabricate 3 photon torpedoes.', 'success');
         },
       },
       {
         weight: 1,
         fn: () => {
           const s = this.gameState.getState();
-          this.gameState.update({ dilithium: s.dilithium + 15 });
-          this.onEvent('💎 Discovered a dilithium deposit on an asteroid. +15 dilithium.', 'discovery');
+          this.gameState.update({ dilithium: s.dilithium + 9 });
+          this.onEvent('💎 Discovered a dilithium deposit on an asteroid. +9 dilithium.', 'discovery');
         },
       },
 
@@ -148,19 +148,19 @@ export class EventSystem {
           if (s.dilithium >= 10) {
             this.gameState.update({
               dilithium: s.dilithium - 10,
-              deuterium: s.deuterium + 25,
-              replicatorRations: s.replicatorRations + 15,
+              deuterium: s.deuterium + 15,
+              replicatorRations: s.replicatorRations + 9,
             });
-            this.onEvent('💱 Traded 10 dilithium for supplies. +25 deuterium, +15 rations.', 'success');
+            this.onEvent('💱 Traded 10 dilithium for supplies. +15 deuterium, +9 rations.', 'success');
           }
         },
       },
 
-      // Negative events
+      // Negative events (~30% more severe)
       {
         weight: 2,
         fn: () => {
-          const dmg = 5 + Math.floor(Math.random() * 10);
+          const dmg = 7 + Math.floor(Math.random() * 13);
           const s = this.gameState.getState();
           this.gameState.update({ hull: s.hull - dmg });
           this.onEvent(`☄️ Micro-meteorite impact! Hull damaged by ${dmg}%.`, 'combat');
@@ -169,7 +169,7 @@ export class EventSystem {
       {
         weight: 2,
         fn: () => {
-          const loss = 30 + Math.floor(Math.random() * 40);
+          const loss = 40 + Math.floor(Math.random() * 52);
           const s = this.gameState.getState();
           this.gameState.update({ energy: s.energy - loss });
           this.onEvent(`⚡ Energy drain from a subspace anomaly! -${loss} energy.`, 'combat');
@@ -179,23 +179,23 @@ export class EventSystem {
         weight: 1,
         fn: () => {
           const s = this.gameState.getState();
-          this.gameState.update({ crew: Math.max(50, s.crew - 2), morale: s.morale - 5 });
-          this.onEvent('💀 Away team encountered hostile lifeforms. 2 crew lost.', 'combat');
+          this.gameState.update({ crew: Math.max(50, s.crew - 3), morale: s.morale - 7 });
+          this.onEvent('💀 Away team encountered hostile lifeforms. 3 crew lost.', 'combat');
         },
       },
       {
         weight: 1,
         fn: () => {
           const s = this.gameState.getState();
-          this.gameState.update({ bioNeural: Math.max(0, s.bioNeural - 3) });
-          this.onEvent('🧠 Bio-neural gel pack failure! -3 bio-neural packs.', 'combat');
+          this.gameState.update({ bioNeural: Math.max(0, s.bioNeural - 4) });
+          this.onEvent('🧠 Bio-neural gel pack failure! -4 bio-neural packs.', 'combat');
         },
       },
       {
         weight: 1,
         fn: () => {
           const s = this.gameState.getState();
-          this.gameState.update({ morale: Math.max(0, s.morale - 8) });
+          this.gameState.update({ morale: Math.max(0, s.morale - 10) });
           this.onEvent('😔 Crew is feeling the distance from home. Morale drops.', 'story');
         },
       },
@@ -219,8 +219,8 @@ export class EventSystem {
         weight: 1,
         fn: () => {
           const s = this.gameState.getState();
-          this.gameState.update({ shields: Math.min(s.maxShields, s.shields + 20) });
-          this.onEvent('🛡️ Tuvok implemented new shield harmonics. Shields +20.', 'success');
+          this.gameState.update({ shields: Math.min(s.maxShields, s.shields + 12) });
+          this.onEvent('🛡️ Tuvok implemented new shield harmonics. Shields +12.', 'success');
         },
       },
     ];
@@ -233,6 +233,53 @@ export class EventSystem {
       if (roll <= 0) return event.fn;
     }
     return events[0].fn;
+  }
+
+  triggerAnomalyEvent(anomalyData) {
+    const aType = anomalyData.anomalyType || 'spatial-rift';
+    const state = this.gameState.getState();
+
+    switch (aType) {
+      case 'spatial-rift': {
+        const energyLoss = 30 + Math.floor(Math.random() * 50);
+        this.gameState.update({ energy: state.energy - energyLoss });
+        this.onEvent(`🌀 Spatial rift destabilizes warp field! -${energyLoss} energy.`, 'combat');
+        if (Math.random() < 0.3) {
+          this.onEvent('🔬 Seven of Nine detected transwarp signatures in the rift.', 'discovery');
+          this.gameState.update({ morale: Math.min(100, state.morale + 3) });
+        }
+        break;
+      }
+      case 'subspace-tear': {
+        const shieldDmg = 15 + Math.floor(Math.random() * 20);
+        this.gameState.update({ shields: state.shields - shieldDmg });
+        this.onEvent(`🌀 Subspace tear emits radiation burst! Shields -${shieldDmg}.`, 'combat');
+        break;
+      }
+      case 'graviton-surge': {
+        const hullDmg = 5 + Math.floor(Math.random() * 8);
+        this.gameState.update({ hull: state.hull - hullDmg });
+        this.onEvent(`🌀 Graviton surge shakes the hull! -${hullDmg}% hull integrity.`, 'combat');
+        break;
+      }
+      case 'quantum-flux': {
+        // Positive or negative randomly
+        if (Math.random() < 0.5) {
+          const bonus = 10 + Math.floor(Math.random() * 20);
+          this.gameState.update({ energy: state.energy + bonus });
+          this.onEvent(`🌀 Quantum flux harmonic resonance detected! +${bonus} energy.`, 'success');
+        } else {
+          const loss = 5 + Math.floor(Math.random() * 10);
+          this.gameState.update({ deuterium: state.deuterium - loss });
+          this.onEvent(`🌀 Quantum flux destabilized deuterium tanks! -${loss} deuterium.`, 'combat');
+        }
+        break;
+      }
+      default: {
+        this.onEvent(`🌀 Unknown anomaly type: ${aType}. Cataloguing for analysis.`, 'discovery');
+        break;
+      }
+    }
   }
 
   formatResource(key) {

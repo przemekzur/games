@@ -172,16 +172,16 @@ export class SectorMap {
       return { ok: false, reason: 'No warp route to that system.' };
     }
 
-    const warpCost = 20 - state.engineUpgrade * 3;
+    const warpCost = Math.max(15, 35 - state.engineUpgrade * 4);
     if (state.energy < warpCost) {
       return { ok: false, reason: `Insufficient energy for warp. Need ${warpCost}.` };
     }
 
-    if (state.deuterium < 5) {
+    if (state.deuterium < 12) {
       return { ok: false, reason: 'Deuterium reserves critically low!' };
     }
 
-    return { ok: true, cost: { energy: warpCost, deuterium: 5 } };
+    return { ok: true, cost: { energy: warpCost, deuterium: 12 } };
   }
 
   warpTo(targetId) {

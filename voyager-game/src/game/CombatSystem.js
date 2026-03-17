@@ -53,6 +53,7 @@ export class CombatSystem {
     this.combatTimer = 0;
     this.enemyAttackInterval = 3;
     this.lastEnemyAttack = 0;
+    this.soundManager = null;
 
     // 3D spatial state
     this.enemyModel = null;
@@ -452,6 +453,7 @@ export class CombatSystem {
       dmg -= absorbed;
       this.gameState.update({ shields: state.shields - absorbed });
       this.ship.flashShield(0.4);
+      this.soundManager?.play('shieldHit');
       this.onEvent(`🛡️ Shields absorb ${absorbed} damage. ${dmg} bleeds through!`, 'combat');
     }
 
@@ -483,6 +485,7 @@ export class CombatSystem {
     const state = this.gameState.getState();
 
     this.onEvent(`🎯 ${enemy.name} destroyed!`, 'success');
+    this.soundManager?.play('explosion');
 
     const rewards = enemy.reward || {};
     const changes = { enemiesDefeated: state.enemiesDefeated + 1 };

@@ -91,17 +91,18 @@ class VoyagerGame {
     // Story engine
     this.storyEngine = new StoryEngine(this.gameState, onEvent);
 
+    // Sound manager
+    this.sound = new SoundManager();
+
     // Combat system
     this.combat = new CombatSystem(this.gameState, this.particles, this.ship, this.engine.scene, this.engine.camera, onEvent);
+    this.combat.soundManager = this.sound;
 
     // Event system
     this.events = new EventSystem(this.gameState, this.sectorMap, this.combat, onEvent);
 
     // UI
     this.ui = new UIManager(this.gameState, this.sectorMap, this.storyEngine);
-
-    // Sound manager
-    this.sound = new SoundManager();
     this.ui.soundManager = this.sound;
 
     // Resume AudioContext on first user interaction
@@ -154,7 +155,7 @@ class VoyagerGame {
     // Controls hint
     const hint = document.createElement('div');
     hint.className = 'controls-hint';
-    hint.innerHTML = 'W/S — Thrust &nbsp;|&nbsp; A/D — Yaw &nbsp;|&nbsp; ↑/↓ — Pitch &nbsp;|&nbsp; SHIFT — Warp &nbsp;|&nbsp; CTRL — Flyby Cam &nbsp;|&nbsp; F — Interact &nbsp;|&nbsp; M — Map &nbsp;|&nbsp; I — Shipyard';
+    hint.innerHTML = 'W/S — Thrust &nbsp;|&nbsp; A/D — Yaw &nbsp;|&nbsp; ↑/↓ — Pitch &nbsp;|&nbsp; SHIFT — Warp &nbsp;|&nbsp; CTRL — Flyby Cam &nbsp;|&nbsp; F — Interact &nbsp;|&nbsp; M — Map &nbsp;|&nbsp; I — Shipyard &nbsp;|&nbsp; ESC — Pause';
     document.getElementById('ui-layer').appendChild(hint);
 
     // Sound state tracking

@@ -7,6 +7,7 @@ export class UIManager {
     this.layer = document.getElementById('ui-layer');
     this.isMapOpen = false;
     this.isShipyardOpen = false;
+    this.isPaused = false;
     this.eventLogEntries = [];
     this.onWarpRequest = null;
     this.onFirePhasers = null;
@@ -14,6 +15,8 @@ export class UIManager {
     this.onEvasive = null;
     this.onRedistributeShields = null;
     this.onFlee = null;
+    this.onPauseToggle = null;
+    this.soundManager = null;
     this.dialogResolve = null;
 
     this.buildHUD();
@@ -22,6 +25,8 @@ export class UIManager {
     this.buildActionBar();
     this.buildCombatOverlay();
     this.buildMissionTracker();
+    this.buildPauseOverlay();
+    this.buildRadar();
 
     this.gameState.subscribe(s => this.updateHUD(s));
 
@@ -498,7 +503,7 @@ export class UIManager {
         },
       },
       {
-        name: 'Warp Coils', desc: 'Reduce warp energy cost. -3 energy per warp per level.',
+        name: 'Warp Coils', desc: 'Reduce warp energy cost. -4 energy per warp per level.',
         level: state.engineUpgrade, maxLevel: 5,
         cost: { dilithium: 12 + state.engineUpgrade * 8, deuterium: 15 },
         effect: () => {
@@ -791,6 +796,211 @@ export class UIManager {
   getJumpPhase() { return this.jumpPhase || 'idle'; }
   getIsMapJumpInProgress() { return this.isMapJumpInProgress || false; }
 
+  // ── Pause Overlay ──
+  buildPauseOverlay() {
+    this.pauseOverlay = document.createElement('div');
+    this.pauseOverlay.className = 'pause-overlay';
+    this.pauseOverlay.style.display = 'none';
+    this.pauseOverlay.innerHTML = `
+      <div class="pause-panel">
+        <h2>PAUSED</h2>
+        <button class="ui-btn pause-btn" id="pause-resume">▶ RESUME</button>
+        <button class="ui-btn pause-btn" id="pause-save">💾 SAVE GAME</button>
+        <button class="ui-btn pause-btn" id="pause-load">📂 LOAD GAME</button>
+        <div class="pause-volume-row">
+          <span class="pause-volume-label">🔊 VOLUME</span>
+          <input type="range" id="pause-volume" min="0" max="100" value="30" class="pause-slider">
+          <span class="pause-volume-val" id="pause-volume-val">30%</span>
+        </div>
+        <button class="ui-btn pause-btn danger" id="pause-quit">⏻ QUIT TO TITLE</button>
+      </div>
+    `;
+    this.layer.appendChild(this.pauseOverlay);
+
+    this.pauseOverlay.querySelector('#pause-resume').onclick = () => this.togglePause();
+    this.pauseOverlay.querySelector('#pause-save').onclick = () => {
+      this.gameState.save();
+      this.showNotification('Game Saved!');
+    };
+    this.pauseOverlay.querySelector('#pause-load').onclick = () => {
+      if (this.gameState.load()) {
+        this.showNotification('Game Loaded!');
+        this.togglePause();
+      } else {
+        this.showNotification('No save found.');
+      }
+    };
+    this.pauseOverlay.querySelector('#pause-quit').onclick = () => {
+      window.location.reload();
+    };
+    const slider = this.pauseOverlay.querySelector('#pause-volume');
+    const valLabel = this.pauseOverlay.querySelector('#pause-volume-val');
+    slider.oninput = () => {
+      const v = parseInt(slider.value);
+      valLabel.textContent = `${v}%`;
+      if (this.soundManager) this.soundManager.setVolume(v / 100);
+    };
+  }
+
+  togglePause() {
+    this.isPaused = !this.isPaused;
+    this.pauseOverlay.style.display = this.isPaused ? '' : 'none';
+    this.onPauseToggle?.(this.isPaused);
+    if (this.soundManager) this.soundManager.ensureResumed();
+  }
+
+  // ── Radar / Minimap ──
+  buildRadar() {
+    this.radarContainer = document.createElement('div');
+    this.radarContainer.className = 'radar-container';
+    this.radarCanvas = document.createElement('canvas');
+    this.radarCanvas.width = 160;
+    this.radarCanvas.height = 160;
+    this.radarCanvas.className = 'radar-canvas';
+    this.radarContainer.appendChild(this.radarCanvas);
+    this.layer.appendChild(this.radarContainer);
+    this.radarCtx = this.radarCanvas.getContext('2d');
+  }
+
+  updateRadar(shipPosition, shipQuaternion, nearbyObjects, enemyPosition) {
+    const ctx = this.radarCtx;
+    const w = 160, h = 160, cx = w / 2, cy = h / 2;
+    const radarRange = 150; // world units mapped to radar radius
+
+    ctx.clearRect(0, 0, w, h);
+
+    // Background
+    ctx.fillStyle = 'rgba(0, 8, 20, 0.85)';
+    ctx.beginPath();
+    ctx.arc(cx, cy, 78, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Border
+    ctx.strokeStyle = 'rgba(0, 180, 255, 0.4)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 78, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Range rings
+    const ringRadii = [50, 100, 150];
+    ctx.strokeStyle = 'rgba(0, 150, 200, 0.15)';
+    ctx.lineWidth = 0.5;
+    for (const r of ringRadii) {
+      const px = (r / radarRange) * 72;
+      ctx.beginPath();
+      ctx.arc(cx, cy, px, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    // Cross-hairs
+    ctx.strokeStyle = 'rgba(0, 150, 200, 0.1)';
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - 72); ctx.lineTo(cx, cy + 72);
+    ctx.moveTo(cx - 72, cy); ctx.lineTo(cx + 72, cy);
+    ctx.stroke();
+
+    // Compute ship forward angle (yaw from quaternion, projected on xz plane)
+    const fwd = { x: 0, z: -1 };
+    // Apply quaternion to forward vector (simplified for xz plane)
+    const qx = shipQuaternion.x, qy = shipQuaternion.y, qz = shipQuaternion.z, qw = shipQuaternion.w;
+    const fx = 2 * (qx * qz + qw * qy);
+    const fz = 1 - 2 * (qx * qx + qy * qy);
+    const shipAngle = Math.atan2(fx, fz);
+
+    // Helper: project world pos to radar pos (relative to ship, rotated so ship forward = up)
+    const project = (worldPos) => {
+      const dx = worldPos.x - shipPosition.x;
+      const dz = worldPos.z - shipPosition.z;
+      // Rotate so ship forward is up
+      const cos = Math.cos(-shipAngle);
+      const sin = Math.sin(-shipAngle);
+      const rx = dx * cos - dz * sin;
+      const ry = dx * sin + dz * cos;
+      const scale = 72 / radarRange;
+      const px = cx + rx * scale;
+      const py = cy - ry * scale;
+      const dist = Math.sqrt(dx * dx + dz * dz);
+      return { px, py, inRange: dist < radarRange };
+    };
+
+    // Draw nearby objects
+    if (nearbyObjects) {
+      for (const obj of nearbyObjects) {
+        const p = project(obj.position);
+        if (!p.inRange) continue;
+        // Clip to circle
+        const ddx = p.px - cx, ddy = p.py - cy;
+        if (Math.sqrt(ddx * ddx + ddy * ddy) > 74) continue;
+
+        ctx.save();
+        switch (obj.type) {
+          case 'planet':
+            ctx.fillStyle = '#5599ff';
+            ctx.beginPath();
+            ctx.arc(p.px, p.py, 3, 0, Math.PI * 2);
+            ctx.fill();
+            break;
+          case 'station':
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(p.px - 2.5, p.py - 2.5, 5, 5);
+            break;
+          case 'asteroid':
+            ctx.fillStyle = 'rgba(150, 150, 150, 0.6)';
+            ctx.beginPath();
+            ctx.arc(p.px, p.py, 1.5, 0, Math.PI * 2);
+            ctx.fill();
+            break;
+          case 'anomaly':
+            ctx.fillStyle = '#bb66ff';
+            ctx.beginPath();
+            ctx.moveTo(p.px, p.py - 3);
+            ctx.lineTo(p.px + 3, p.py);
+            ctx.lineTo(p.px, p.py + 3);
+            ctx.lineTo(p.px - 3, p.py);
+            ctx.closePath();
+            ctx.fill();
+            break;
+          case 'enemy':
+            ctx.fillStyle = '#ff4444';
+            ctx.beginPath();
+            ctx.moveTo(p.px, p.py - 3.5);
+            ctx.lineTo(p.px + 3, p.py + 2.5);
+            ctx.lineTo(p.px - 3, p.py + 2.5);
+            ctx.closePath();
+            ctx.fill();
+            break;
+        }
+        ctx.restore();
+      }
+    }
+
+    // Enemy marker
+    if (enemyPosition) {
+      const p = project(enemyPosition);
+      const ddx = p.px - cx, ddy = p.py - cy;
+      if (Math.sqrt(ddx * ddx + ddy * ddy) <= 74) {
+        ctx.fillStyle = '#ff4444';
+        ctx.beginPath();
+        ctx.moveTo(p.px, p.py - 3.5);
+        ctx.lineTo(p.px + 3, p.py + 2.5);
+        ctx.lineTo(p.px - 3, p.py + 2.5);
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
+
+    // Ship arrow at center (always pointing up)
+    ctx.fillStyle = '#66ff66';
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - 5);
+    ctx.lineTo(cx + 3, cy + 3);
+    ctx.lineTo(cx - 3, cy + 3);
+    ctx.closePath();
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+
   // ── Notification ──
   showNotification(text) {
     const notif = document.createElement('div');
@@ -798,6 +1008,232 @@ export class UIManager {
     notif.textContent = text;
     this.layer.appendChild(notif);
     setTimeout(() => notif.remove(), 3500);
+  }
+
+  // ── Proximity Labels ──
+  updateProximityLabels(nearbyObjects, shipPosition, camera) {
+    if (!this.proximityContainer) {
+      this.proximityContainer = document.createElement('div');
+      this.proximityContainer.className = 'proximity-container';
+      this.layer.appendChild(this.proximityContainer);
+    }
+
+    // Remove stale labels
+    const existing = this.proximityContainer.children;
+    while (existing.length > nearbyObjects.length) {
+      existing[existing.length - 1].remove();
+    }
+
+    // Ensure enough label elements
+    while (existing.length < nearbyObjects.length) {
+      const label = document.createElement('div');
+      label.className = 'proximity-label';
+      this.proximityContainer.appendChild(label);
+    }
+
+    const typeIcons = {
+      planet: '🪐', asteroid: '☄️', station: '🛰️', anomaly: '🌀',
+    };
+
+    for (let i = 0; i < nearbyObjects.length; i++) {
+      const obj = nearbyObjects[i];
+      const label = existing[i];
+
+      // Project 3D position to screen
+      const pos = obj.worldPosition.clone();
+      pos.project(camera);
+
+      // Off-screen check
+      if (pos.z > 1 || pos.x < -1 || pos.x > 1 || pos.y < -1 || pos.y > 1) {
+        label.style.display = 'none';
+        continue;
+      }
+
+      const x = (pos.x * 0.5 + 0.5) * window.innerWidth;
+      const y = (-pos.y * 0.5 + 0.5) * window.innerHeight;
+
+      label.style.display = '';
+      label.style.left = `${x}px`;
+      label.style.top = `${y}px`;
+
+      const icon = typeIcons[obj.type] || '?';
+      const dist = Math.round(obj.distance);
+      const name = obj.data.name || obj.type;
+      label.innerHTML = `${icon} ${name}<br><span class="proximity-dist">${dist}u</span>`;
+
+      // Fade based on distance: closer = more opaque
+      const maxDist = 150;
+      const opacity = Math.max(0.2, 1 - (obj.distance / maxDist) * 0.7);
+      label.style.opacity = opacity;
+
+      // Highlight when within interaction range (30 units)
+      if (obj.distance <= 30) {
+        label.classList.add('in-range');
+      } else {
+        label.classList.remove('in-range');
+      }
+    }
+  }
+
+  // ── Dock Menu ──
+  showDockMenu(stationData) {
+    if (this.dockOverlay) this.dockOverlay.remove();
+    this.dockOverlay = document.createElement('div');
+    this.dockOverlay.className = 'dock-menu-overlay';
+
+    const state = this.gameState.getState();
+    const panel = document.createElement('div');
+    panel.className = 'dock-menu-panel';
+    panel.innerHTML = `
+      <h2>🛰️ ${stationData.name}</h2>
+      <div class="dock-subtitle">Type: ${stationData.stationType} • Distance: ${Math.round(stationData.distance)}u</div>
+      <div class="dock-resources">
+        <span>💎 Dilithium: <b>${state.dilithium}</b></span>
+        <span>⛽ Deuterium: <b>${Math.round(state.deuterium)}</b></span>
+        <span>🍽️ Rations: <b>${state.replicatorRations}</b></span>
+      </div>
+      <div class="dock-actions">
+        <button class="ui-btn dock-btn" id="dock-repair">🔨 REPAIR HULL<br><span class="dock-cost">5 dilithium per 10%</span></button>
+        <button class="ui-btn dock-btn" id="dock-torpedoes">💥 BUY TORPEDOES<br><span class="dock-cost">8 dilithium each</span></button>
+        <button class="ui-btn dock-btn" id="dock-rations">🍽️ RESUPPLY RATIONS<br><span class="dock-cost">3 dilithium for 20</span></button>
+      </div>
+      <button class="ui-btn dock-close" id="dock-close">✕ UNDOCK</button>
+    `;
+
+    this.dockOverlay.appendChild(panel);
+    this.layer.appendChild(this.dockOverlay);
+
+    panel.querySelector('#dock-repair').onclick = () => {
+      const s = this.gameState.getState();
+      if (s.dilithium < 5) { this.logEvent('Insufficient dilithium for repairs.', 'combat'); return; }
+      if (s.hull >= s.maxHull) { this.logEvent('Hull already at maximum.', ''); return; }
+      this.gameState.spend({ dilithium: 5 });
+      const newHull = Math.min(this.gameState.getState().maxHull, this.gameState.getState().hull + 10);
+      this.gameState.update({ hull: newHull });
+      this.logEvent('🔨 Station repairs: hull +10%.', 'success');
+      this.refreshDockMenu(stationData);
+    };
+
+    panel.querySelector('#dock-torpedoes').onclick = () => {
+      const s = this.gameState.getState();
+      if (s.dilithium < 8) { this.logEvent('Insufficient dilithium for torpedoes.', 'combat'); return; }
+      this.gameState.spend({ dilithium: 8 });
+      this.gameState.update({ torpedoes: this.gameState.getState().torpedoes + 1 });
+      this.logEvent('💥 Purchased 1 photon torpedo.', 'success');
+      this.refreshDockMenu(stationData);
+    };
+
+    panel.querySelector('#dock-rations').onclick = () => {
+      const s = this.gameState.getState();
+      if (s.dilithium < 3) { this.logEvent('Insufficient dilithium for rations.', 'combat'); return; }
+      this.gameState.spend({ dilithium: 3 });
+      this.gameState.update({ replicatorRations: this.gameState.getState().replicatorRations + 20 });
+      this.logEvent('🍽️ Resupplied 20 replicator rations.', 'success');
+      this.refreshDockMenu(stationData);
+    };
+
+    panel.querySelector('#dock-close').onclick = () => {
+      this.hideDockMenu();
+    };
+  }
+
+  refreshDockMenu(stationData) {
+    this.hideDockMenu();
+    this.showDockMenu(stationData);
+  }
+
+  hideDockMenu() {
+    if (this.dockOverlay) {
+      this.dockOverlay.remove();
+      this.dockOverlay = null;
+    }
+  }
+
+  // ── Scan Result ──
+  showScanResult(planetData) {
+    if (this.scanOverlay) this.scanOverlay.remove();
+    this.scanOverlay = document.createElement('div');
+    this.scanOverlay.className = 'scan-result-overlay';
+
+    const resources = this.getRandomPlanetResources(planetData.planetType);
+    const panel = document.createElement('div');
+    panel.className = 'scan-result-panel';
+    panel.innerHTML = `
+      <h2>🔭 PLANETARY SCAN</h2>
+      <div class="scan-planet-name">${planetData.name}</div>
+      <div class="scan-details">
+        <div class="scan-row"><span class="scan-label">Classification</span><span class="scan-value">${planetData.planetType}</span></div>
+        <div class="scan-row"><span class="scan-label">Radius</span><span class="scan-value">${Math.round(planetData.radius)} units</span></div>
+        <div class="scan-row"><span class="scan-label">Distance</span><span class="scan-value">${Math.round(planetData.distance)}u</span></div>
+      </div>
+      <div class="scan-section-title">DETECTED RESOURCES</div>
+      <div class="scan-resources">
+        ${resources.map(r => `<div class="scan-resource-item">${r.icon} ${r.name}: <b>${r.amount}</b></div>`).join('')}
+      </div>
+      <div class="scan-actions">
+        <button class="ui-btn" id="scan-away-team">👥 SEND AWAY TEAM</button>
+        <button class="ui-btn" id="scan-close">✕ CLOSE</button>
+      </div>
+    `;
+
+    this.scanOverlay.appendChild(panel);
+    this.layer.appendChild(this.scanOverlay);
+
+    panel.querySelector('#scan-away-team').onclick = () => {
+      const collected = resources[Math.floor(Math.random() * resources.length)];
+      const amount = Math.floor(collected.amount * (0.3 + Math.random() * 0.7));
+      if (amount > 0 && collected.key) {
+        const s = this.gameState.getState();
+        this.gameState.update({ [collected.key]: (s[collected.key] || 0) + amount });
+        this.logEvent(`👥 Away team returned with ${amount} ${collected.name}.`, 'success');
+      } else {
+        this.logEvent('👥 Away team returned. Nothing of value found.', '');
+      }
+      this.hideScanResult();
+    };
+
+    panel.querySelector('#scan-close').onclick = () => {
+      this.hideScanResult();
+    };
+  }
+
+  getRandomPlanetResources(planetType) {
+    const resources = [];
+    const r = () => Math.floor(Math.random() * 15) + 1;
+    switch (planetType) {
+      case 'Class M':
+        resources.push({ icon: '🍽️', name: 'Rations', key: 'replicatorRations', amount: 10 + r() });
+        resources.push({ icon: '⛽', name: 'Deuterium', key: 'deuterium', amount: 5 + r() });
+        break;
+      case 'Class L':
+        resources.push({ icon: '⛽', name: 'Deuterium', key: 'deuterium', amount: 8 + r() });
+        break;
+      case 'Class H':
+        resources.push({ icon: '💎', name: 'Dilithium', key: 'dilithium', amount: 3 + r() });
+        resources.push({ icon: '🍽️', name: 'Rations', key: 'replicatorRations', amount: 5 + r() });
+        break;
+      case 'Gas Giant':
+        resources.push({ icon: '⛽', name: 'Deuterium', key: 'deuterium', amount: 15 + r() });
+        break;
+      case 'Class Y':
+        resources.push({ icon: '💎', name: 'Dilithium', key: 'dilithium', amount: 8 + r() });
+        break;
+      case 'Class D':
+        resources.push({ icon: '💎', name: 'Dilithium', key: 'dilithium', amount: 5 + r() });
+        resources.push({ icon: '⛽', name: 'Deuterium', key: 'deuterium', amount: 3 + r() });
+        break;
+      default:
+        resources.push({ icon: '⛽', name: 'Deuterium', key: 'deuterium', amount: r() });
+        break;
+    }
+    return resources;
+  }
+
+  hideScanResult() {
+    if (this.scanOverlay) {
+      this.scanOverlay.remove();
+      this.scanOverlay = null;
+    }
   }
 
   // ── Victory Screen ──
