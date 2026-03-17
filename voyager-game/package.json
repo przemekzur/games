@@ -1,0 +1,20 @@
+{
+  "name": "voyager-game",
+  "version": "2.0.0",
+  "description": "Star Trek Voyager — Journey Home: A strategy adventure game",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "keywords": ["game", "star-trek", "voyager", "three.js"],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "three": "^0.183.2"
+  },
+  "devDependencies": {
+    "vite": "^8.0.0"
+  }
+}
