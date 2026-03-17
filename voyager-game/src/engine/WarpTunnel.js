@@ -101,26 +101,28 @@ export class WarpTunnel {
     scene.add(this.mesh);
   }
 
-  update(elapsed, delta, shipPosition, shipQuaternion, jumpPhase = 'idle') {
+  update(elapsed, delta, shipPosition, shipQuaternion, jumpPhase = 'idle', isWarping = false) {
     if (!delta) return;
     this.localTime += delta;
 
     this.mesh.position.copy(shipPosition);
     this.mesh.quaternion.copy(shipQuaternion);
 
-    // Target opacity based on warp/jump state
-    const isActive = jumpPhase !== 'idle';
+    // Active during jump sequence OR when flying at warp speed
+    const isActive = jumpPhase !== 'idle' || isWarping;
     this.targetOpacity = isActive ? 1 : 0;
 
     // Smooth opacity transition
-    const rate = 4;
+    const rate = isActive ? 5 : 3;
     if (this.currentOpacity < this.targetOpacity)
       this.currentOpacity = Math.min(this.targetOpacity, this.currentOpacity + rate * delta);
     else if (this.currentOpacity > this.targetOpacity)
       this.currentOpacity = Math.max(this.targetOpacity, this.currentOpacity - rate * delta);
 
     // Map phase names to shader values
+    // Warp flight = phase 0.8 (partial warp streaks), jump phases go higher
     let phaseVal = 0;
+    if (isWarping && jumpPhase === 'idle') phaseVal = 0.8;
     if (jumpPhase === 'black-alert') phaseVal = 1;
     if (jumpPhase === 'spore') phaseVal = 2;
     if (jumpPhase === 'displace') phaseVal = 3;
@@ -129,6 +131,6 @@ export class WarpTunnel {
     this.material.uniforms.time.value = this.localTime;
     this.material.uniforms.phase.value = phaseVal;
 
-    this.mesh.visible = this.currentOpacity > 0;
+    this.mesh.visible = this.currentOpacity > 0.01;
   }
 }

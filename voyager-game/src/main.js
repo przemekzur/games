@@ -129,7 +129,8 @@ class VoyagerGame {
           elapsed, delta,
           this.ship.mesh.position,
           this.ship.mesh.quaternion,
-          jumpPhase
+          jumpPhase,
+          this.ship.isWarping
         );
 
         // ── Starfield warp mode ──
