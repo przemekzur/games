@@ -140,8 +140,6 @@ class VoyagerGame {
         this.sound.stopAll();
       } else {
         this.engine.resume();
-        // Restart engine idle loop
-        this._engineLoopStop = this.sound.loop('engineIdle');
       }
     };
 
@@ -159,11 +157,9 @@ class VoyagerGame {
     this.ui.onRedistributeShields = () => { this.sound.play('shieldHit'); this.combat.redistributeShields(); };
     this.ui.onFlee = () => { this.sound.play('uiClick'); this.combat.flee(); };
 
-    // Waypoint click on proximity labels
+    // Interact on click for proximity labels
     this.ui.onWaypointClick = (obj) => {
-      const name = obj.data.name || obj.type;
-      this.autoPilot.setWaypoint(obj.worldPosition, name);
-      this.ui.showWaypointSet(name);
+      this.interaction.interactWithTarget(obj);
     };
 
     // Camera shake state
@@ -281,14 +277,7 @@ class VoyagerGame {
         // ── Sound management ──
         const currentState = this.gameState.getState();
 
-        // Engine idle / warp sound
-        if (this.ship.isWarping && !this._lastWarpState) {
-          if (this._engineLoopStop) { this._engineLoopStop(); this._engineLoopStop = null; }
-          this._warpLoopStop = this.sound.loop('engineWarp');
-        } else if (!this.ship.isWarping && this._lastWarpState) {
-          if (this._warpLoopStop) { this._warpLoopStop(); this._warpLoopStop = null; }
-          this._engineLoopStop = this.sound.loop('engineIdle');
-        }
+        // Engine idle / warp sound removed per user request
         this._lastWarpState = this.ship.isWarping;
 
         // Alert klaxon
@@ -443,8 +432,7 @@ class VoyagerGame {
     // Position camera behind the ship
     this.engine.camera.position.set(0, 12, 40);
 
-    // Start engine idle sound loop
-    this._engineLoopStop = this.sound.loop('engineIdle');
+    // Engine idle sound disabled
   }
 
   async warpToSystem(targetId) {

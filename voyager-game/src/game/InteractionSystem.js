@@ -33,6 +33,18 @@ export class InteractionSystem {
       return;
     }
 
+    this.interactWithTarget(target);
+  }
+
+  interactWithTarget(target) {
+    if (this.interactionCooldown > 0) return;
+    
+    const state = this.gameState.getState();
+    if (state.inCombat) {
+      this.onEvent?.('Cannot interact during combat!', 'combat');
+      return;
+    }
+
     this.interactionCooldown = 1.0; // 1-second cooldown
 
     switch (target.type) {
