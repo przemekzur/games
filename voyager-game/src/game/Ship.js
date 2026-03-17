@@ -4,18 +4,47 @@ export class Ship {
   constructor(scene) {
     this.scene = scene;
     this.mesh = new THREE.Group();
+    this.visualGroup = new THREE.Group();
+    this.visualGroup.rotation.y = Math.PI; // Face forward
+    this.mesh.add(this.visualGroup);
+
+    // Flight state
+    this.keys = { w: false, s: false, a: false, d: false, ArrowUp: false, ArrowDown: false, Shift: false };
     this.isWarping = false;
+    this.forcedWarpMode = false;
+    this.maxSpeed = 50;
+    this.acceleration = 40;
+    this.deceleration = 20;
+    this.currentSpeed = 0;
+    this.pitchSpeed = 1.5;
+    this.yawSpeed = 1.5;
+    this.speedMultiplier = 1;
+
+    // Effects state
     this.warpIntensity = 0;
-    this.shieldVisible = false;
-    this.shieldFlash = 0;
-    this.thrusterParticles = [];
-    this.velocity = new THREE.Vector3();
-    this.targetRotation = new THREE.Euler();
+    this.shieldPulseTimer = 0;
+    this.displacementPulseTimer = 0;
+    this.displacementSpinAngle = 0;
+    this.engines = [];
+    this.engineMaterials = [];
 
     this.buildShip();
-    this.createShield();
+    this.createShieldShader();
     this.createEngineGlow();
     scene.add(this.mesh);
+
+    window.addEventListener('keydown', (e) => this.handleKeyDown(e), false);
+    window.addEventListener('keyup', (e) => this.handleKeyUp(e), false);
+  }
+
+  handleKeyDown(e) {
+    if (this.keys.hasOwnProperty(e.key)) this.keys[e.key] = true;
+    else if (this.keys.hasOwnProperty(e.key.toLowerCase())) this.keys[e.key.toLowerCase()] = true;
+  }
+
+  handleKeyUp(e) {
+    if (this.keys.hasOwnProperty(e.key)) this.keys[e.key] = false;
+    else if (this.keys.hasOwnProperty(e.key.toLowerCase())) this.keys[e.key.toLowerCase()] = false;
   }
 
   buildShip() {
@@ -31,115 +60,128 @@ export class Ship {
     });
 
     // Saucer section
-    const saucer = new THREE.Mesh(
-      new THREE.CylinderGeometry(5, 5, 0.8, 32),
-      bodyMat
-    );
-    saucer.rotation.x = 0;
+    const saucer = new THREE.Mesh(new THREE.CylinderGeometry(5, 5, 0.8, 32), bodyMat);
     saucer.position.set(0, 0, -2);
-    this.mesh.add(saucer);
+    this.visualGroup.add(saucer);
 
     // Bridge dome
     const bridge = new THREE.Mesh(
-      new THREE.SphereGeometry(1.5, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2),
-      bodyMat
+      new THREE.SphereGeometry(1.5, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), bodyMat
     );
     bridge.position.set(0, 0.4, -2);
-    this.mesh.add(bridge);
+    this.visualGroup.add(bridge);
 
-    // Engineering hull (secondary hull)
-    const hull = new THREE.Mesh(
-      new THREE.CylinderGeometry(1.8, 2.2, 10, 12),
-      bodyMat
-    );
+    // Engineering hull
+    const hull = new THREE.Mesh(new THREE.CylinderGeometry(1.8, 2.2, 10, 12), bodyMat);
     hull.rotation.x = Math.PI / 2;
     hull.position.set(0, -2, 4);
-    this.mesh.add(hull);
+    this.visualGroup.add(hull);
 
-    // Neck connecting saucer to hull
-    const neck = new THREE.Mesh(
-      new THREE.BoxGeometry(1.2, 2, 3),
-      bodyMat
-    );
+    // Neck
+    const neck = new THREE.Mesh(new THREE.BoxGeometry(1.2, 2, 3), bodyMat);
     neck.position.set(0, -1, 1);
-    this.mesh.add(neck);
+    this.visualGroup.add(neck);
 
     // Deflector dish
     const deflector = new THREE.Mesh(
       new THREE.SphereGeometry(1.2, 12, 12, 0, Math.PI * 2, 0, Math.PI / 2),
-      new THREE.MeshBasicMaterial({
-        color: 0x00aaff, transparent: true, opacity: 0.7,
-        blending: THREE.AdditiveBlending,
-      })
+      new THREE.MeshBasicMaterial({ color: 0x00aaff, transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending })
     );
     deflector.rotation.x = Math.PI / 2;
     deflector.position.set(0, -2.5, -0.5);
-    this.mesh.add(deflector);
+    this.visualGroup.add(deflector);
 
-    // Nacelle pylons
+    // Nacelles
     for (const side of [-1, 1]) {
-      const pylon = new THREE.Mesh(
-        new THREE.BoxGeometry(0.4, 3, 1),
-        bodyMat
-      );
+      const pylon = new THREE.Mesh(new THREE.BoxGeometry(0.4, 3, 1), bodyMat);
       pylon.position.set(side * 3.5, -0.5, 5);
       pylon.rotation.z = side * -0.3;
-      this.mesh.add(pylon);
+      this.visualGroup.add(pylon);
 
-      // Nacelle
-      const nacelle = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.6, 0.6, 8, 8),
-        bodyMat
-      );
+      const nacelle = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 8, 8), bodyMat);
       nacelle.rotation.x = Math.PI / 2;
       nacelle.position.set(side * 5.5, 1.5, 5);
-      this.mesh.add(nacelle);
+      this.visualGroup.add(nacelle);
 
-      // Nacelle glow strip
-      const strip = new THREE.Mesh(
-        new THREE.BoxGeometry(0.15, 0.15, 7.5),
-        glowMat
-      );
+      const strip = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.15, 7.5), glowMat.clone());
       strip.position.set(side * 5.5, 2.15, 5);
-      this.mesh.add(strip);
+      this.visualGroup.add(strip);
+      this.engineMaterials.push(strip.material);
 
-      // Bussard collectors (front of nacelles)
+      // Bussard collectors
       const bussard = new THREE.Mesh(
         new THREE.SphereGeometry(0.65, 12, 12),
-        new THREE.MeshBasicMaterial({
-          color: 0xff3300, transparent: true, opacity: 0.7,
-          blending: THREE.AdditiveBlending,
-        })
+        new THREE.MeshBasicMaterial({ color: 0xff3300, transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending })
       );
       bussard.position.set(side * 5.5, 1.5, 1);
-      this.mesh.add(bussard);
+      this.visualGroup.add(bussard);
       if (side === -1) this.bussardLeft = bussard;
       else this.bussardRight = bussard;
+
+      // Engine glow spheres (back of nacelles)
+      const engine = new THREE.Mesh(
+        new THREE.SphereGeometry(0.5, 8, 8),
+        new THREE.MeshBasicMaterial({ color: 0x4488ff, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending })
+      );
+      engine.position.set(side * 5.5, 1.5, 9);
+      this.visualGroup.add(engine);
+      this.engines.push(engine);
+      this.engineMaterials.push(engine.material);
     }
 
-    // Accent stripe on saucer
-    const stripe = new THREE.Mesh(
-      new THREE.TorusGeometry(4.5, 0.12, 4, 32),
-      accentMat
-    );
+    // Accent stripe
+    const stripe = new THREE.Mesh(new THREE.TorusGeometry(4.5, 0.12, 4, 32), accentMat);
     stripe.rotation.x = Math.PI / 2;
     stripe.position.set(0, 0.45, -2);
-    this.mesh.add(stripe);
+    this.visualGroup.add(stripe);
   }
 
-  createShield() {
-    const geo = new THREE.SphereGeometry(12, 24, 16);
-    const mat = new THREE.MeshBasicMaterial({
-      color: 0x3399ff, transparent: true, opacity: 0,
-      blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
-      wireframe: true,
+  createShieldShader() {
+    this.shieldUniforms = {
+      time: { value: 0 },
+      pulse: { value: 0 },
+      baseGlow: { value: 0.2 },
+      color: { value: new THREE.Color(0x00ffff) },
+    };
+    const mat = new THREE.ShaderMaterial({
+      uniforms: this.shieldUniforms,
+      vertexShader: `
+        varying vec3 vNormal;
+        varying vec3 vPosition;
+        void main() {
+          vNormal = normalize(normalMatrix * normal);
+          vPosition = (modelViewMatrix * vec4(position, 1.0)).xyz;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform float time;
+        uniform float pulse;
+        uniform float baseGlow;
+        uniform vec3 color;
+        varying vec3 vNormal;
+        varying vec3 vPosition;
+        void main() {
+          vec3 viewDir = normalize(-vPosition);
+          float fresnel = dot(viewDir, vNormal);
+          fresnel = clamp(1.0 - fresnel, 0.0, 1.0);
+          fresnel = pow(fresnel, 2.0);
+          float pattern = sin(vPosition.y * 10.0 + time * 5.0) * sin(vPosition.x * 10.0 + time * 5.0);
+          pattern = pattern * 0.5 + 0.5;
+          float intensity = fresnel * (0.3 + 0.7 * pattern) * (pulse + baseGlow);
+          gl_FragColor = vec4(color, intensity);
+        }
+      `,
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.BackSide,
     });
-    this.shieldMesh = new THREE.Mesh(geo, mat);
+    this.shieldMesh = new THREE.Mesh(new THREE.SphereGeometry(22, 32, 32), mat);
     this.mesh.add(this.shieldMesh);
   }
 
   createEngineGlow() {
-    // Impulse engine glow
     const impulseGeo = new THREE.PlaneGeometry(2, 0.6);
     const impulseMat = new THREE.MeshBasicMaterial({
       color: 0xff4400, transparent: true, opacity: 0.6,
@@ -147,56 +189,113 @@ export class Ship {
     });
     this.impulseGlow = new THREE.Mesh(impulseGeo, impulseMat);
     this.impulseGlow.position.set(0, -2, 9.2);
-    this.mesh.add(this.impulseGlow);
-
-    // Warp trail
-    this.warpTrailGeo = new THREE.BufferGeometry();
-    const trailCount = 100;
-    const trailPos = new Float32Array(trailCount * 3);
-    this.warpTrailGeo.setAttribute('position', new THREE.BufferAttribute(trailPos, 3));
-    const trailMat = new THREE.PointsMaterial({
-      color: 0x4488ff, size: 1.5, transparent: true, opacity: 0,
-      blending: THREE.AdditiveBlending, depthWrite: false,
-    });
-    this.warpTrail = new THREE.Points(this.warpTrailGeo, trailMat);
-    this.scene.add(this.warpTrail);
+    this.visualGroup.add(this.impulseGlow);
   }
 
-  flashShield(duration = 0.5) {
-    this.shieldFlash = duration;
+  pulseShield() { this.shieldPulseTimer = 1; }
+  flashShield(duration = 0.5) { this.shieldPulseTimer = duration; }
+
+  setShieldActive(active) {
+    if (this.shieldUniforms) this.shieldUniforms.baseGlow.value = active ? 0.2 : 0;
   }
 
-  setWarp(active) {
-    this.isWarping = active;
+  setForcedWarpMode(active) { this.forcedWarpMode = active; }
+
+  triggerDisplacementPulse(dur = 0.95) {
+    this.displacementPulseTimer = dur;
   }
+
+  setWarp(active) { this.isWarping = active; }
 
   update(elapsed, delta) {
     if (!delta) return;
+    const t = elapsed;
 
-    // Bussard collector pulsing
-    const pulse = 0.5 + Math.sin(elapsed * 3) * 0.3;
-    if (this.bussardLeft) this.bussardLeft.material.opacity = pulse;
-    if (this.bussardRight) this.bussardRight.material.opacity = pulse;
+    // ── Flight physics ──
+    this.isWarping = this.keys.Shift || this.forcedWarpMode;
+    const maxSpd = (this.isWarping ? this.maxSpeed * 10 : this.maxSpeed) * this.speedMultiplier;
+    const accel = (this.isWarping ? this.acceleration * 5 : this.acceleration) * this.speedMultiplier;
 
-    // Impulse engine brightness
-    const impulseBase = this.isWarping ? 1 : 0.6;
-    this.impulseGlow.material.opacity = impulseBase + Math.sin(elapsed * 5) * 0.15;
-
-    // Warp intensity
-    const warpTarget = this.isWarping ? 1 : 0;
-    this.warpIntensity += (warpTarget - this.warpIntensity) * delta * 4;
-
-    // Shield flash
-    if (this.shieldFlash > 0) {
-      this.shieldFlash -= delta;
-      this.shieldMesh.material.opacity = Math.max(0, this.shieldFlash * 0.5);
+    if (this.keys.w) {
+      this.currentSpeed += accel * delta;
+    } else if (this.keys.s) {
+      this.currentSpeed -= accel * delta;
     } else {
-      this.shieldMesh.material.opacity *= 0.9;
+      // Natural deceleration
+      if (this.currentSpeed > 0)
+        this.currentSpeed = Math.max(0, this.currentSpeed - this.deceleration * (this.isWarping ? 5 : 1) * delta);
+      else if (this.currentSpeed < 0)
+        this.currentSpeed = Math.min(0, this.currentSpeed + this.deceleration * delta);
+    }
+    this.currentSpeed = Math.max(-this.maxSpeed * 0.5 * this.speedMultiplier, Math.min(maxSpd, this.currentSpeed));
+
+    // Yaw (A/D)
+    if (this.keys.a) this.mesh.rotateY(this.yawSpeed * delta);
+    if (this.keys.d) this.mesh.rotateY(-this.yawSpeed * delta);
+
+    // Pitch (Arrow Up/Down)
+    if (this.keys.ArrowUp) this.mesh.rotateX(this.pitchSpeed * delta);
+    if (this.keys.ArrowDown) this.mesh.rotateX(-this.pitchSpeed * delta);
+
+    // Move forward
+    this.mesh.translateZ(-this.currentSpeed * delta);
+
+    // ── Visual banking ──
+    const speedNorm = Math.max(1, maxSpd);
+    const speedRatio = Math.max(0, this.currentSpeed) / speedNorm;
+    const yawInput = (this.keys.a ? 1 : 0) + (this.keys.d ? -1 : 0);
+    const pitchInput = (this.keys.ArrowUp ? 1 : 0) + (this.keys.ArrowDown ? -1 : 0);
+    const bankZ = yawInput * 0.16 - speedRatio * 0.05;
+    const bankX = -pitchInput * 0.12 + speedRatio * 0.02;
+
+    this.visualGroup.rotation.z = THREE.MathUtils.lerp(this.visualGroup.rotation.z, bankZ, delta * 4);
+    this.visualGroup.rotation.x = THREE.MathUtils.lerp(this.visualGroup.rotation.x, bankX, delta * 3);
+    this.visualGroup.rotation.y = Math.PI + Math.sin(this.displacementSpinAngle) * 0.65;
+    this.visualGroup.position.y = THREE.MathUtils.lerp(
+      this.visualGroup.position.y,
+      Math.sin(t * 1.6) * 0.18 + speedRatio * 0.08,
+      delta * 2.5
+    );
+
+    // ── Displacement spin ──
+    if (this.displacementPulseTimer > 0) {
+      this.displacementPulseTimer = Math.max(0, this.displacementPulseTimer - delta);
+      this.displacementSpinAngle += delta * 19;
+      for (const mat of this.engineMaterials) mat.opacity = Math.min(1, mat.opacity + 0.9 * delta);
+    } else {
+      this.displacementSpinAngle = THREE.MathUtils.lerp(this.displacementSpinAngle, 0, delta * 5.5);
     }
 
-    // Gentle idle bob
-    this.mesh.position.y = Math.sin(elapsed * 0.5) * 0.3;
-    this.mesh.rotation.z = Math.sin(elapsed * 0.3) * 0.01;
+    // ── Engine glow intensity ──
+    const warpMul = this.isWarping ? 1.3 : 1;
+    const enginePulse = 1 + Math.sin(t * 18) * 0.03 + speedRatio * 0.45 + (this.isWarping ? 0.2 : 0);
+    for (let i = 0; i < this.engines.length; i++) {
+      const eng = this.engines[i];
+      const d = Math.sin(t * (8 + i * 0.7)) * 0.02;
+      const sScale = this.isWarping ? 1.5 + speedRatio * 1.4 : 1;
+      eng.scale.set(enginePulse + d, enginePulse + d, sScale);
+      this.engineMaterials[i * 2 + 1].opacity = (0.6 + speedRatio * 2.1 + d * 6) * warpMul * 0.15;
+    }
+
+    // Bussard collector pulsing
+    const bPulse = 0.5 + Math.sin(t * 3) * 0.3;
+    if (this.bussardLeft) this.bussardLeft.material.opacity = bPulse;
+    if (this.bussardRight) this.bussardRight.material.opacity = bPulse;
+
+    // Impulse engine
+    const impulseBase = this.isWarping ? 1 : 0.6;
+    this.impulseGlow.material.opacity = impulseBase + Math.sin(t * 5) * 0.15;
+
+    // ── Shield shader ──
+    if (this.shieldUniforms) {
+      this.shieldUniforms.time.value = t;
+      if (this.shieldPulseTimer > 0) {
+        this.shieldPulseTimer -= delta;
+        this.shieldUniforms.pulse.value = Math.max(0, this.shieldPulseTimer);
+      } else {
+        this.shieldUniforms.pulse.value = 0;
+      }
+    }
   }
 
   getPosition() { return this.mesh.position.clone(); }

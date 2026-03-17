@@ -698,19 +698,98 @@ export class UIManager {
     });
   }
 
-  // ── Warp Effect ──
+  // ── Warp Effect — Full Black Alert → Spore → Displacement sequence ──
   async showWarpEffect(systemName) {
-    const overlay = document.createElement('div');
-    overlay.className = 'warp-overlay';
-    overlay.innerHTML = `
-      <div class="warp-flash"></div>
-      <div class="warp-streaks"></div>
-    `;
-    document.body.appendChild(overlay);
-
-    await new Promise(r => setTimeout(r, 1200));
-    overlay.remove();
+    return this.playSporeJumpSequence(systemName);
   }
+
+  sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+  async playSporeJumpSequence(targetName) {
+    this.isMapJumpInProgress = true;
+    this.jumpPhase = 'idle';
+
+    // Create jump overlay if not yet built
+    if (!this.jumpOverlay) this.buildJumpOverlay();
+
+    const overlay = this.jumpOverlay;
+    const stage = this.jumpStage;
+    const target = this.jumpTarget;
+    const fill = this.jumpProgressFill;
+
+    overlay.style.display = 'flex';
+    overlay.classList.remove('black-alert-phase', 'spore-phase', 'displace-phase');
+
+    // ── Phase 1: BLACK ALERT ──
+    overlay.classList.add('black-alert-phase');
+    this.jumpPhase = 'black-alert';
+    stage.innerText = 'BLACK ALERT. Condition One. All stations report.';
+    target.innerText = `Destination: ${targetName}`;
+    fill.style.width = '0%';
+    this.logEvent('⚠️ BLACK ALERT: Spore drive jump protocol engaged.', 'combat');
+
+    await this.sleep(800);
+    fill.style.width = '22%';
+    stage.innerText = 'Spore drive chamber pressurizing...';
+
+    await this.sleep(900);
+    fill.style.width = '48%';
+    stage.innerText = 'Mycelial navigation lattice synchronizing...';
+
+    await this.sleep(850);
+    fill.style.width = '72%';
+
+    // ── Phase 2: SPORE NETWORK ──
+    overlay.classList.remove('black-alert-phase');
+    overlay.classList.add('spore-phase');
+    this.jumpPhase = 'spore';
+    stage.innerText = 'Spore hub tunnel formed. Stand by for displacement.';
+    this.logEvent('🌀 Mycelial network engaged. Tunnel stable.', 'discovery');
+
+    await this.sleep(700);
+
+    // ── Phase 3: DISPLACEMENT ──
+    overlay.classList.add('displace-phase');
+    this.jumpPhase = 'displace';
+    fill.style.width = '100%';
+    stage.innerText = 'DISPLACEMENT JUMP.';
+
+    await this.sleep(950);
+
+    // ── Cleanup ──
+    overlay.style.display = 'none';
+    overlay.classList.remove('black-alert-phase', 'spore-phase', 'displace-phase');
+    this.isMapJumpInProgress = false;
+    this.jumpPhase = 'idle';
+    this.logEvent(`✅ Jump complete. Arrived in ${targetName}.`, 'success');
+  }
+
+  buildJumpOverlay() {
+    this.jumpOverlay = document.createElement('div');
+    this.jumpOverlay.className = 'jump-overlay';
+    this.jumpOverlay.style.display = 'none';
+    this.jumpOverlay.innerHTML = `
+      <div class="jump-alert-rail top">
+        ⚠ BLACK ALERT ⚠ BLACK ALERT ⚠ BLACK ALERT ⚠ BLACK ALERT ⚠ BLACK ALERT ⚠ BLACK ALERT ⚠ BLACK ALERT ⚠ BLACK ALERT ⚠
+      </div>
+      <div class="jump-overlay-inner">
+        <div class="jump-alert">⚠ BLACK ALERT ⚠</div>
+        <div class="jump-stage"></div>
+        <div class="jump-target"></div>
+        <div class="jump-progress"><div class="jump-progress-fill"></div></div>
+      </div>
+      <div class="jump-alert-rail bottom">
+        ⚠ BLACK ALERT ⚠ BLACK ALERT ⚠ BLACK ALERT ⚠ BLACK ALERT ⚠ BLACK ALERT ⚠ BLACK ALERT ⚠ BLACK ALERT ⚠ BLACK ALERT ⚠
+      </div>
+    `;
+    this.layer.appendChild(this.jumpOverlay);
+    this.jumpStage = this.jumpOverlay.querySelector('.jump-stage');
+    this.jumpTarget = this.jumpOverlay.querySelector('.jump-target');
+    this.jumpProgressFill = this.jumpOverlay.querySelector('.jump-progress-fill');
+  }
+
+  getJumpPhase() { return this.jumpPhase || 'idle'; }
+  getIsMapJumpInProgress() { return this.isMapJumpInProgress || false; }
 
   // ── Notification ──
   showNotification(text) {
