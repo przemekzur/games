@@ -161,13 +161,27 @@ class VoyagerGame {
           cameraShake.set(0, 0, 0);
         }
 
-        // ── Camera follows ship (smooth third-person, or flyby with Ctrl) ──
+        // ── Camera mode ──
+        // Ctrl during warp = cinematic flyby
+        // During jump sequence = locked follow
+        // Otherwise = free mouse orbit/zoom (OrbitControls)
         const flyby = this.ship.keys.Control && this.ship.isWarping;
+        const jumping = jumpPhase !== 'idle';
+
         if (flyby) {
+          this._wasLocked = true;
           this.engine.flybyCamera(this.ship.mesh.position, this.ship.mesh.quaternion, elapsed, delta);
-        } else {
-          const camLerp = jumpPhase !== 'idle' ? 2 : (this.ship.isWarping ? 3 : 4);
+        } else if (jumping) {
+          this._wasLocked = true;
+          const camLerp = 2;
           this.engine.followTarget(this.ship.mesh.position, this.ship.mesh.quaternion, delta, camLerp);
+        } else {
+          // Free mouse camera — OrbitControls orbits around the ship
+          if (this._wasLocked) {
+            this.engine.resyncControls(this.ship.mesh.position);
+            this._wasLocked = false;
+          }
+          this.engine.updateFreeCamera(this.ship.mesh.position);
         }
 
         // Apply shake on top
