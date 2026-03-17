@@ -37,8 +37,11 @@ export class Environment {
       this.createPlanet(rng, i, numPlanets);
     }
 
-    // Asteroid belt chance
-    if (rng() > 0.5) {
+    // Dense asteroid field for dangerous systems, normal belt otherwise
+    const isDangerous = (systemData.threat >= 0.7) || systemData.type === 'dangerous';
+    if (isDangerous) {
+      this.createDenseAsteroidField(rng);
+    } else if (rng() > 0.5) {
       this.createAsteroidBelt(rng);
     }
 
@@ -135,12 +138,59 @@ export class Environment {
       asteroid.userData.rotSpeed = new THREE.Vector3(
         (rng() - 0.5) * 0.5, (rng() - 0.5) * 0.5, (rng() - 0.5) * 0.5
       );
+      asteroid.userData.driftVelocity = null;
       this.scene.add(asteroid);
       this.asteroids.push(asteroid);
 
       if (this.collisionSystem) {
         this.collisionSystem.register(asteroid, size, 'asteroid', true, {
           name: `Asteroid ${i + 1}`,
+        });
+      }
+    }
+  }
+
+  createDenseAsteroidField(rng) {
+    const count = 40 + Math.floor(rng() * 21); // 40-60
+    const bandCenter = 30 + rng() * 25;
+    const bandWidth = 12;
+    for (let i = 0; i < count; i++) {
+      // Mix of large (radius 6-10) and small (0.5-2.5) asteroids
+      const isLarge = rng() < 0.25;
+      const size = isLarge ? 6 + rng() * 4 : 0.5 + rng() * 2;
+      const geo = new THREE.DodecahedronGeometry(size, isLarge ? 1 : 0);
+      const mat = new THREE.MeshStandardMaterial({
+        color: isLarge ? 0x554433 : 0x666655,
+        roughness: 0.9, metalness: 0.2,
+      });
+      const asteroid = new THREE.Mesh(geo, mat);
+      const angle = rng() * Math.PI * 2;
+      const dist = bandCenter + (rng() - 0.5) * bandWidth;
+      asteroid.position.set(
+        Math.cos(angle) * dist,
+        (rng() - 0.5) * 6,
+        Math.sin(angle) * dist,
+      );
+      asteroid.rotation.set(rng() * Math.PI, rng() * Math.PI, rng() * Math.PI);
+      asteroid.userData.rotSpeed = new THREE.Vector3(
+        (rng() - 0.5) * 0.5, (rng() - 0.5) * 0.5, (rng() - 0.5) * 0.5
+      );
+      // Drift velocity: random direction at 1-3 units/s
+      const driftSpeed = 1 + rng() * 2;
+      const driftAngle = rng() * Math.PI * 2;
+      const driftPitch = (rng() - 0.5) * 0.4;
+      asteroid.userData.driftVelocity = new THREE.Vector3(
+        Math.cos(driftAngle) * driftSpeed * Math.cos(driftPitch),
+        Math.sin(driftPitch) * driftSpeed * 0.3,
+        Math.sin(driftAngle) * driftSpeed * Math.cos(driftPitch),
+      );
+      this.scene.add(asteroid);
+      this.asteroids.push(asteroid);
+
+      if (this.collisionSystem) {
+        this.collisionSystem.register(asteroid, size, 'asteroid', true, {
+          name: `Asteroid ${i + 1}`,
+          dense: true,
         });
       }
     }
@@ -256,6 +306,10 @@ export class Environment {
       const rs = a.userData.rotSpeed;
       a.rotation.x += rs.x * delta;
       a.rotation.y += rs.y * delta;
+      // Drift movement for dense asteroid fields
+      if (a.userData.driftVelocity) {
+        a.position.addScaledVector(a.userData.driftVelocity, delta);
+      }
     }
     for (const a of this.anomalies) {
       a.ring.rotation.x += delta * 0.5;

@@ -16,10 +16,12 @@ export class UIManager {
     this.onRedistributeShields = null;
     this.onFlee = null;
     this.onPauseToggle = null;
+    this.onWaypointClick = null;
     this.soundManager = null;
     this.dialogResolve = null;
 
     this.buildHUD();
+    this.buildWaypointIndicator();
     this.buildEventLog();
     this.buildAlertBanner();
     this.buildActionBar();
@@ -1001,6 +1003,32 @@ export class UIManager {
     ctx.shadowBlur = 0;
   }
 
+  // ── Waypoint Indicator ──
+  buildWaypointIndicator() {
+    this.waypointEl = document.createElement('div');
+    this.waypointEl.className = 'waypoint-indicator';
+    this.waypointEl.style.display = 'none';
+    this.layer.appendChild(this.waypointEl);
+  }
+
+  updateWaypointIndicator(active, name, distance) {
+    if (!this.waypointEl) return;
+    if (!active) {
+      this.waypointEl.style.display = 'none';
+      return;
+    }
+    this.waypointEl.style.display = '';
+    this.waypointEl.textContent = `⊹ NAV: ${name} — ${Math.round(distance)}m`;
+  }
+
+  showWaypointSet(name) {
+    const notif = document.createElement('div');
+    notif.className = 'notification waypoint-set';
+    notif.textContent = `Waypoint set: ${name}`;
+    this.layer.appendChild(notif);
+    setTimeout(() => notif.remove(), 2500);
+  }
+
   // ── Notification ──
   showNotification(text) {
     const notif = document.createElement('div');
@@ -1027,7 +1055,7 @@ export class UIManager {
     // Ensure enough label elements
     while (existing.length < nearbyObjects.length) {
       const label = document.createElement('div');
-      label.className = 'proximity-label';
+      label.className = 'proximity-label proximity-clickable';
       this.proximityContainer.appendChild(label);
     }
 
@@ -1060,6 +1088,11 @@ export class UIManager {
       const dist = Math.round(obj.distance);
       const name = obj.data.name || obj.type;
       label.innerHTML = `${icon} ${name}<br><span class="proximity-dist">${dist}u</span>`;
+
+      // Click to set waypoint
+      label.onclick = () => {
+        if (this.onWaypointClick) this.onWaypointClick(obj);
+      };
 
       // Fade based on distance: closer = more opaque
       const maxDist = 150;
@@ -1257,5 +1290,82 @@ export class UIManager {
       </div>
     `;
     overlay.appendChild(content);
+  }
+
+  // ── Hull Critical State ──
+  updateHullStatus(hull, maxHull) {
+    const pct = hull / maxHull;
+    const container = document.getElementById('game-container');
+    const uiLayer = this.layer;
+
+    if (hull <= 0) {
+      uiLayer.classList.remove('hull-critical', 'hull-emergency');
+      this._removeHullWarning();
+      this.showGameOver();
+      return;
+    }
+
+    if (pct < 0.10) {
+      uiLayer.classList.remove('hull-critical');
+      uiLayer.classList.add('hull-emergency');
+      this._showHullWarning('🚨 EVACUATE — HULL BREACH IMMINENT', true);
+    } else if (pct < 0.25) {
+      uiLayer.classList.remove('hull-emergency');
+      uiLayer.classList.add('hull-critical');
+      this._showHullWarning('⚠ HULL CRITICAL', false);
+    } else {
+      uiLayer.classList.remove('hull-critical', 'hull-emergency');
+      this._removeHullWarning();
+    }
+
+    // Alert sound every 3s when critical
+    if (pct < 0.25 && pct > 0) {
+      const now = performance.now();
+      if (!this._lastHullAlertTime || now - this._lastHullAlertTime > 3000) {
+        this._lastHullAlertTime = now;
+        if (this.soundManager) this.soundManager.play('alertKlaxon');
+      }
+    }
+  }
+
+  _showHullWarning(text, emergency) {
+    if (!this._hullWarning) {
+      this._hullWarning = document.createElement('div');
+      this._hullWarning.className = 'hull-warning-text';
+      this.layer.appendChild(this._hullWarning);
+    }
+    this._hullWarning.textContent = text;
+    this._hullWarning.classList.toggle('emergency', emergency);
+    this._hullWarning.style.display = '';
+  }
+
+  _removeHullWarning() {
+    if (this._hullWarning) {
+      this._hullWarning.style.display = 'none';
+    }
+    this._lastHullAlertTime = 0;
+  }
+
+  showGameOver() {
+    if (this._gameOverShown) return;
+    this._gameOverShown = true;
+
+    const overlay = document.createElement('div');
+    overlay.className = 'game-over-overlay';
+    overlay.innerHTML = `
+      <div class="game-over-content">
+        <div class="game-over-title">USS VOYAGER LOST</div>
+        <div class="game-over-subtitle">ALL HANDS</div>
+        <button class="ui-btn game-over-restart" id="game-over-restart">⟐ RESTART ⟐</button>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    // Fade in
+    requestAnimationFrame(() => overlay.classList.add('visible'));
+
+    overlay.querySelector('#game-over-restart').onclick = () => {
+      window.location.reload();
+    };
   }
 }

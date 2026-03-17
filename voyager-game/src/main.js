@@ -6,6 +6,7 @@ import { WarpTunnel } from './engine/WarpTunnel.js';
 import { CollisionSystem } from './engine/CollisionSystem.js';
 import { SoundManager } from './engine/SoundManager.js';
 import { Ship } from './game/Ship.js';
+import { AutoPilot } from './game/AutoPilot.js';
 import { Environment } from './game/Environment.js';
 import { GameState } from './game/GameState.js';
 import { SectorMap } from './game/SectorMap.js';
@@ -73,6 +74,9 @@ class VoyagerGame {
     // Collision system
     this.collisionSystem = new CollisionSystem();
 
+    // Auto-pilot
+    this.autoPilot = new AutoPilot(this.ship);
+
     // Environment
     this.environment = new Environment(this.engine.scene, this.collisionSystem);
     this.engine.addUpdatable(this.environment);
@@ -114,10 +118,18 @@ class VoyagerGame {
     window.addEventListener('click', resumeAudio);
     window.addEventListener('keydown', resumeAudio);
 
-    // ESC key for pause
+    // ESC key for pause, T key for waypoint
     window.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
         this.ui.togglePause();
+      }
+      if (e.key === 't' || e.key === 'T') {
+        const closest = this.collisionSystem.getClosestInteractable(this.ship.mesh.position, 200);
+        if (closest) {
+          const name = closest.data.name || closest.type;
+          this.autoPilot.setWaypoint(closest.worldPosition, name);
+          this.ui.showWaypointSet(name);
+        }
       }
     });
 
@@ -147,6 +159,13 @@ class VoyagerGame {
     this.ui.onRedistributeShields = () => { this.sound.play('shieldHit'); this.combat.redistributeShields(); };
     this.ui.onFlee = () => { this.sound.play('uiClick'); this.combat.flee(); };
 
+    // Waypoint click on proximity labels
+    this.ui.onWaypointClick = (obj) => {
+      const name = obj.data.name || obj.type;
+      this.autoPilot.setWaypoint(obj.worldPosition, name);
+      this.ui.showWaypointSet(name);
+    };
+
     // Camera shake state
     const cameraShake = new THREE.Vector3();
     const normalFOV = 60;
@@ -155,7 +174,7 @@ class VoyagerGame {
     // Controls hint
     const hint = document.createElement('div');
     hint.className = 'controls-hint';
-    hint.innerHTML = 'W/S — Thrust &nbsp;|&nbsp; A/D — Yaw &nbsp;|&nbsp; ↑/↓ — Pitch &nbsp;|&nbsp; SHIFT — Warp &nbsp;|&nbsp; CTRL — Flyby Cam &nbsp;|&nbsp; F — Interact &nbsp;|&nbsp; M — Map &nbsp;|&nbsp; I — Shipyard &nbsp;|&nbsp; ESC — Pause';
+    hint.innerHTML = 'W/S — Thrust &nbsp;|&nbsp; A/D — Yaw &nbsp;|&nbsp; ↑/↓ — Pitch &nbsp;|&nbsp; SHIFT — Warp &nbsp;|&nbsp; CTRL — Flyby Cam &nbsp;|&nbsp; F — Interact &nbsp;|&nbsp; T — Waypoint &nbsp;|&nbsp; M — Map &nbsp;|&nbsp; I — Shipyard &nbsp;|&nbsp; ESC — Pause';
     document.getElementById('ui-layer').appendChild(hint);
 
     // Sound state tracking
@@ -179,7 +198,8 @@ class VoyagerGame {
         this.interaction.update(delta);
 
         // Collision detection
-        const collisionResults = this.collisionSystem.update(this.ship.mesh.position, 8, delta);
+        const shipSpeed = Math.abs(this.ship.currentSpeed);
+        const collisionResults = this.collisionSystem.update(this.ship.mesh.position, 8, delta, shipSpeed);
         for (const result of collisionResults) {
           if (result.damage > 0) {
             const s = this.gameState.getState();
@@ -195,6 +215,26 @@ class VoyagerGame {
             const s = this.gameState.getState();
             this.gameState.update({ energy: s.energy - result.energyDrain });
           }
+          if (result.energyBoost) {
+            const s = this.gameState.getState();
+            this.gameState.update({ energy: Math.min(s.maxEnergy, s.energy + result.energyBoost) });
+          }
+          if (result.shieldDrain) {
+            const s = this.gameState.getState();
+            if (s.shields > 0) {
+              this.gameState.update({ shields: Math.max(0, s.shields - result.shieldDrain) });
+            } else if (result.hullDrainIfNoShields) {
+              this.gameState.update({ hull: s.hull - result.hullDrainIfNoShields });
+            }
+          }
+          if (result.gravityPull) {
+            const pull = result.gravityPull.clone().multiplyScalar(delta);
+            this.ship.mesh.position.add(pull);
+          }
+          if (result.torque) {
+            this.ship.mesh.rotation.x += result.torque.x * delta;
+            this.ship.mesh.rotation.y += result.torque.y * delta;
+          }
           if (result.sparks && result.sparkPosition) {
             this.particles.emit({
               position: result.sparkPosition,
@@ -206,6 +246,32 @@ class VoyagerGame {
               size: 1.2,
             });
           }
+        }
+
+        // Hull status — critical/emergency/game over
+        const hullState = this.gameState.getState();
+        this.ui.updateHullStatus(hullState.hull, hullState.maxHull);
+        if (hullState.hull <= 0) {
+          // Game over — stop processing
+          return;
+        }
+        if (hullState.hull / hullState.maxHull < 0.10) {
+          this.ship.speedMultiplier = 0.6;
+        } else {
+          this.ship.speedMultiplier = 1.0;
+        }
+
+        // Auto-pilot: cancel on WASD, update, and refresh indicator
+        const keys = this.ship.keys;
+        if (this.autoPilot.active && (keys.w || keys.a || keys.s || keys.d)) {
+          this.autoPilot.cancel();
+        }
+        this.autoPilot.update(delta);
+        if (this.autoPilot.active && this.autoPilot.target) {
+          const dist = this.ship.mesh.position.distanceTo(this.autoPilot.target);
+          this.ui.updateWaypointIndicator(true, this.autoPilot.targetName, dist);
+        } else {
+          this.ui.updateWaypointIndicator(false, '', 0);
         }
 
         // Proximity labels
@@ -391,6 +457,7 @@ class VoyagerGame {
     const target = this.sectorMap.systems[targetId];
     this.ui.logEvent(`🚀 Engaging spore drive to ${target.name}...`, 'story');
     this.sound.play('uiClick');
+    this.autoPilot.cancel();
 
     // Force warp visuals on ship
     this.ship.setForcedWarpMode(true);

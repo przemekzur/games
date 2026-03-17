@@ -1045,6 +1045,40 @@ body {
   letter-spacing: 0.05em;
 }
 
+.proximity-label.proximity-clickable {
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.proximity-label.proximity-clickable:hover {
+  border-color: var(--lcars-gold);
+  box-shadow: 0 0 8px rgba(255, 200, 50, 0.3);
+}
+
+/* ── Waypoint Indicator ── */
+.waypoint-indicator {
+  position: absolute;
+  top: 56px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 8, 20, 0.75);
+  border: 1px solid var(--lcars-teal);
+  padding: 6px 22px;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--lcars-teal);
+  pointer-events: none;
+  z-index: 80;
+  letter-spacing: 0.08em;
+  text-shadow: 0 0 6px rgba(0, 200, 255, 0.4);
+}
+
+.notification.waypoint-set {
+  border-color: var(--lcars-teal);
+  color: var(--lcars-teal);
+}
+
 /* ── Dock Menu Overlay ── */
 .dock-menu-overlay {
   position: fixed; top: 0; left: 0; right: 0; bottom: 0;
@@ -1199,4 +1233,117 @@ body {
 
 .scan-actions .ui-btn {
   flex: 1;
+}
+
+/* ── Hull Critical / Emergency State ── */
+.hull-critical #game-container::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(ellipse at center, transparent 50%, rgba(255,0,0,0.3) 100%);
+  pointer-events: none;
+  animation: hull-pulse 1.5s ease-in-out infinite;
+  z-index: 150;
+}
+
+@keyframes hull-pulse {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 0.8; }
+}
+
+.hull-emergency #game-container::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(ellipse at center, transparent 30%, rgba(255,0,0,0.5) 100%);
+  pointer-events: none;
+  animation: hull-pulse-emergency 0.6s ease-in-out infinite;
+  z-index: 150;
+}
+
+@keyframes hull-pulse-emergency {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.9; }
+}
+
+/* Hull warning text centered */
+.hull-warning-text {
+  position: fixed;
+  top: 40%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-family: var(--font-display);
+  font-size: clamp(1.2rem, 3vw, 2rem);
+  font-weight: 900;
+  color: var(--lcars-red);
+  text-shadow: 0 0 20px rgba(255, 0, 0, 0.8), 0 0 60px rgba(255, 0, 0, 0.4);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  pointer-events: none;
+  z-index: 160;
+  animation: hull-text-flash 1s ease-in-out infinite;
+}
+
+.hull-warning-text.emergency {
+  color: #ff2222;
+  font-size: clamp(1.4rem, 3.5vw, 2.4rem);
+  animation: hull-text-flash 0.5s ease-in-out infinite;
+  text-shadow: 0 0 30px rgba(255, 0, 0, 1), 0 0 80px rgba(255, 0, 0, 0.6);
+}
+
+@keyframes hull-text-flash {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+/* ── Game Over Overlay ── */
+.game-over-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0);
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+  transition: background 2s ease;
+}
+
+.game-over-overlay.visible {
+  background: rgba(0, 0, 0, 0.95);
+}
+
+.game-over-content {
+  text-align: center;
+  opacity: 0;
+  animation: game-over-fade-in 2s ease 1s forwards;
+}
+
+.game-over-title {
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 5vw, 3.5rem);
+  font-weight: 900;
+  color: var(--lcars-red);
+  text-shadow: 0 0 40px rgba(255, 0, 0, 0.6);
+  letter-spacing: 0.2em;
+  margin-bottom: 16px;
+}
+
+.game-over-subtitle {
+  font-family: var(--font-display);
+  font-size: clamp(0.9rem, 2vw, 1.4rem);
+  color: var(--text-dim);
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  margin-bottom: 40px;
+}
+
+.game-over-restart {
+  opacity: 0;
+  animation: game-over-fade-in 1s ease 3s forwards;
+}
+
+@keyframes game-over-fade-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
 }
