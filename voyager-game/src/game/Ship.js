@@ -272,11 +272,9 @@ export class Ship {
     }
     this.currentSpeed = Math.max(hardMin, Math.min(maxSpd, this.currentSpeed));
 
-    // Yaw (A/D) — only in normal mode; warp mode uses A/D for camera orbit
-    if (!this.isWarping) {
-      if (this.keys.a) this.mesh.rotateY(this.yawSpeed * delta);
-      if (this.keys.d) this.mesh.rotateY(-this.yawSpeed * delta);
-    }
+    // Yaw (A/D) — always available to steer the ship
+    if (this.keys.a) this.mesh.rotateY(this.yawSpeed * delta);
+    if (this.keys.d) this.mesh.rotateY(-this.yawSpeed * delta);
 
     // Pitch (Arrow Up/Down) — always available
     if (this.keys.ArrowUp) this.mesh.rotateX(-this.pitchSpeed * delta);

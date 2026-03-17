@@ -45,41 +45,48 @@ export class ParticleSystem {
   }
 
   // Phaser beam effect
-  createPhaserBeam(from, to, color = 0xff6600, duration = 0.5) {
-    const dir = new THREE.Vector3().subVectors(to, from);
+  createPhaserBeam(fromObj, toObj, color = 0xff6600, duration = 0.5) {
+    const fromPos = fromObj.isVector3 ? fromObj : (fromObj.getWorldPosition ? fromObj.getWorldPosition(new THREE.Vector3()) : fromObj.position);
+    const toPos = toObj.isVector3 ? toObj : (toObj.getWorldPosition ? toObj.getWorldPosition(new THREE.Vector3()) : toObj.position);
+    
+    if (!fromPos || !toPos) return;
+
+    const dir = new THREE.Vector3().subVectors(toPos, fromPos);
     const len = dir.length();
-    const geo = new THREE.CylinderGeometry(0.15, 0.15, len, 6);
+    const geo = new THREE.CylinderGeometry(0.15, 0.15, 1, 6);
     geo.rotateX(Math.PI / 2);
-    geo.translate(0, 0, len / 2);
+    geo.translate(0, 0, 0.5);
     const mat = new THREE.MeshBasicMaterial({
       color, transparent: true, opacity: 0.9,
       blending: THREE.AdditiveBlending,
     });
     const mesh = new THREE.Mesh(geo, mat);
-    mesh.position.copy(from);
-    mesh.lookAt(to);
+    mesh.position.copy(fromPos);
+    mesh.lookAt(toPos);
+    mesh.scale.set(1, 1, len);
     this.scene.add(mesh);
 
     // Glow around beam
-    const glowGeo = new THREE.CylinderGeometry(0.5, 0.5, len, 6);
+    const glowGeo = new THREE.CylinderGeometry(0.5, 0.5, 1, 6);
     glowGeo.rotateX(Math.PI / 2);
-    glowGeo.translate(0, 0, len / 2);
+    glowGeo.translate(0, 0, 0.5);
     const glowMat = new THREE.MeshBasicMaterial({
       color, transparent: true, opacity: 0.2,
       blending: THREE.AdditiveBlending,
     });
     const glow = new THREE.Mesh(glowGeo, glowMat);
-    glow.position.copy(from);
-    glow.lookAt(to);
+    glow.position.copy(fromPos);
+    glow.lookAt(toPos);
+    glow.scale.set(1, 1, len);
     this.scene.add(glow);
 
     this.systems.push({
-      type: 'beam', mesh, glow, age: 0, maxLife: duration, mat, glowMat,
+      type: 'beam', mesh, glow, age: 0, maxLife: duration, mat, glowMat, fromObj, toObj
     });
 
     // Impact sparks
     this.emit({
-      position: to, count: 15, color, speed: 8, spread: 0.8, life: 0.4, size: 1.2,
+      position: toPos.clone(), count: 15, color, speed: 8, spread: 0.8, life: 0.4, size: 1.2,
     });
   }
 
@@ -189,6 +196,20 @@ export class ParticleSystem {
         const fade = t < 0.2 ? t / 0.2 : 1 - ((t - 0.2) / 0.8);
         sys.mat.opacity = fade * 0.9;
         sys.glowMat.opacity = fade * 0.2;
+
+        const fromPos = sys.fromObj.isVector3 ? sys.fromObj : (sys.fromObj.getWorldPosition ? sys.fromObj.getWorldPosition(new THREE.Vector3()) : sys.fromObj.position);
+        const toPos = sys.toObj.isVector3 ? sys.toObj : (sys.toObj.getWorldPosition ? sys.toObj.getWorldPosition(new THREE.Vector3()) : sys.toObj.position);
+        
+        if (fromPos && toPos) {
+          const dir = new THREE.Vector3().subVectors(toPos, fromPos);
+          const len = dir.length();
+          sys.mesh.position.copy(fromPos);
+          sys.mesh.lookAt(toPos);
+          sys.mesh.scale.set(1, 1, len);
+          sys.glow.position.copy(fromPos);
+          sys.glow.lookAt(toPos);
+          sys.glow.scale.set(1, 1, len);
+        }
       } else if (sys.type === 'torpedo') {
         const move = delta * sys.speed;
         sys.mesh.position.addScaledVector(sys.dir, move);

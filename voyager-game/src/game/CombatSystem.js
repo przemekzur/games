@@ -326,9 +326,7 @@ export class CombatSystem {
       this.dealDamageToEnemy(dmg);
       this.onEvent(`⚡ Phaser strike! ${dmg} damage dealt.`, 'combat');
 
-      const from = this.ship.getWorldPosition();
-      const to = this.getEnemyWorldPos();
-      this.particles.createPhaserBeam(from, to, 0xff6600);
+      this.particles.createPhaserBeam(this.ship.mesh, this.currentEnemy.mesh, 0xff6600);
     } else {
       this.onEvent('⚡ Phasers missed the target!', 'combat');
     }
@@ -438,7 +436,7 @@ export class CombatSystem {
       // Heavy enemies fire torpedo-like projectiles
       this.particles.createTorpedo(enemyPos, playerPos, weaponColor, 60);
     } else {
-      this.particles.createPhaserBeam(enemyPos, playerPos, weaponColor, 0.4);
+      this.particles.createPhaserBeam(this.enemyModel || enemyPos, this.ship.mesh || playerPos, weaponColor, 0.4);
     }
 
     if (!hit) {
