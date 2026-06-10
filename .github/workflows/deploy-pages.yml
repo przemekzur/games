@@ -1,0 +1,59 @@
+name: Deploy games hub to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Build Voyager (v1)
+        run: |
+          npm ci --prefix voyager-game
+          npm run build --prefix voyager-game
+
+      - name: Build Voyager Definitive Edition (v2)
+        run: |
+          npm ci --prefix voyager-game-v2
+          npm run build --prefix voyager-game-v2
+
+      - name: Assemble site
+        run: |
+          mkdir -p _site
+          cp index.html _site/
+          for d in asteroids breakout doom fintech-heroes hollow-crown mortal-combat-1 pong river-raid shared snake space-invaders; do
+            cp -r "$d" "_site/$d"
+          done
+          cp -r voyager-game/dist _site/voyager-game
+          cp -r voyager-game-v2/dist _site/voyager-game-v2
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
