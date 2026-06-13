@@ -207,23 +207,24 @@ function fbm(n,x,y,oct=4){let v=0,a=.5,f=1;for(let i=0;i<oct;i++){v+=a*n(x*f,y*f
 /* ============================================================= *
  *  CONFIG / BALANCE                                              *
  * ============================================================= */
-const GRID=26;                 // tiles per side
-const WORLD=78;                 // world units across
-const TILE=WORLD/GRID;
+const GRID=26;                 // longitude columns AND latitude rows of the tile grid
+const R=42;                     // planet radius (world units)
+const TILE=3.0;                 // building footprint scale (decoupled from grid cell size)
 const SOL_SECONDS=10;           // real seconds per Sol at 1x
 const STORAGE_BASE={oxygen:200,water:200,food:200,materials:300,science:99999,credits:99999};
+const SAVE_KEY='redfrontier2';  // bumped: planet build uses spherical coords
 
 const noiseH=makeNoise(13577);
+const UP=new THREE.Vector3(0,1,0);
 
-/* terrain height in world units at world x,z */
-function terrainH(x,z){
-  const n=fbm(noiseH,x*0.018+50,z*0.018+50,5);
-  const ridge=Math.abs(fbm(noiseH,x*0.04,z*0.04,3));
-  let h=n*7 - ridge*2.2;
-  // gentle central basin so the colony has flat-ish ground
-  const d=Math.sqrt(x*x+z*z);
-  h*= THREE.MathUtils.clamp(0.35+ d/55,0.35,1.0);
-  return h;
+/* seamless-ish 3D noise built from three 2D lookups (no poles/seam) */
+function noise3(x,y,z){return (fbm(noiseH,x+11,y-7,4)+fbm(noiseH,y+5,z+3,4)+fbm(noiseH,z-9,x+2,4))/3;}
+/* surface elevation (world units) at a unit direction on the sphere */
+function heightAt(dir){
+  const f=2.0;
+  const n=noise3(dir.x*f,dir.y*f,dir.z*f);
+  const ridge=Math.abs(noise3(dir.x*f*2.4+3,dir.y*f*2.4,dir.z*f*2.4));
+  return (n - ridge*0.5)*3.0;
 }
 
 /* ---------- building catalogue ---------- */
@@ -364,9 +365,9 @@ function initScene(){
   document.getElementById('app').appendChild(renderer.domElement);
 
   scene=new THREE.Scene();
-  scene.fog=new THREE.FogExp2(0x2a1208,0.0065);
+  renderer.setClearColor(0x05030a); // deep space
 
-  camera=new THREE.PerspectiveCamera(52,vw()/vh(),0.5,2000);
+  camera=new THREE.PerspectiveCamera(52,vw()/vh(),0.5,3000);
   G._vw=vw;G._vh=vh;
 
   // lights
@@ -380,10 +381,10 @@ function initScene(){
   sun.position.set(60,80,30);
   sun.castShadow=true;
   sun.shadow.mapSize.set(2048,2048);
-  const d=70;
+  const d=R*1.4;
   sun.shadow.camera.left=-d;sun.shadow.camera.right=d;
   sun.shadow.camera.top=d;sun.shadow.camera.bottom=-d;
-  sun.shadow.camera.near=1;sun.shadow.camera.far=260;
+  sun.shadow.camera.near=R*1.5;sun.shadow.camera.far=R*6;
   sun.shadow.bias=-0.0004;
   sunPivot.add(sun);
   // visible sun disk
@@ -401,44 +402,51 @@ function initScene(){
   addEventListeners();
 }
 
-/* ---------- terrain ---------- */
+/* ---------- terrain (the planet) ---------- */
 function buildTerrain(){
-  const seg=GRID*4;
-  const geo=new THREE.PlaneGeometry(WORLD,WORLD,seg,seg);
-  geo.rotateX(-Math.PI/2);
+  const geo=new THREE.SphereGeometry(R,200,150);
   const pos=geo.attributes.position;
   const colors=[];
-  const cLow=new THREE.Color(0x5a2412),cMid=new THREE.Color(0x8a3a18),cHi=new THREE.Color(0xc26a38),cDust=new THREE.Color(0xd98a4a);
+  const cLow=new THREE.Color(0x5a2412),cMid=new THREE.Color(0x8a3a18),cHi=new THREE.Color(0xc26a38),
+        cDust=new THREE.Color(0xd98a4a),cPolar=new THREE.Color(0xe8dcc8);
+  const v=new THREE.Vector3();
   for(let i=0;i<pos.count;i++){
-    const x=pos.getX(i),z=pos.getZ(i);
-    const h=terrainH(x,z);
-    pos.setY(i,h);
-    const t=THREE.MathUtils.clamp((h+6)/14,0,1);
+    v.fromBufferAttribute(pos,i).normalize();
+    const h=heightAt(v);
+    const rr=R+h;
+    pos.setXYZ(i,v.x*rr,v.y*rr,v.z*rr);
+    const t=THREE.MathUtils.clamp((h+5)/10,0,1);
     const c=cLow.clone().lerp(cMid,Math.min(1,t*2)).lerp(cHi,Math.max(0,t*2-1));
-    // speckle
-    const sp=(fbm(noiseH,x*0.3,z*0.3,2)+1)*0.5;
-    c.lerp(cDust,sp*0.18);
+    const sp=(noise3(v.x*8,v.y*8,v.z*8)+1)*0.5;
+    c.lerp(cDust,sp*0.16);
+    // polar ice caps
+    const cap=THREE.MathUtils.smoothstep(Math.abs(v.y),0.84,0.97);
+    c.lerp(cPolar,cap*0.85);
     colors.push(c.r,c.g,c.b);
   }
   geo.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));
   geo.computeVertexNormals();
-  const mat=new THREE.MeshStandardMaterial({vertexColors:true,roughness:0.96,metalness:0.02,flatShading:false});
-  terrain=new THREE.Mesh(geo,mat);
+  terrain=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({vertexColors:true,roughness:0.95,metalness:0.02}));
   terrain.receiveShadow=true;
   scene.add(terrain);
 
-  // grid overlay (subtle)
-  const grid=new THREE.GridHelper(WORLD,GRID,0xff8a4a,0x7a3a18);
-  grid.material.transparent=true;grid.material.opacity=0.12;grid.position.y=0.05;
+  // tile grid overlay (lines align with tile boundaries)
+  const grid=new THREE.Mesh(new THREE.SphereGeometry(R+0.25,GRID,GRID),
+    new THREE.MeshBasicMaterial({color:0xff8a4a,wireframe:true,transparent:true,opacity:0.07}));
   scene.add(grid);
+
+  // atmosphere glow shell
+  const atm=new THREE.Mesh(new THREE.SphereGeometry(R*1.13,64,48),
+    new THREE.MeshBasicMaterial({color:0xff6a2c,transparent:true,opacity:0.12,side:THREE.BackSide,
+      blending:THREE.AdditiveBlending,depthWrite:false}));
+  scene.add(atm);G.atm=atm;
 }
 
 /* ---------- stars + skydome ---------- */
 function buildStars(){
-  const n=1800,geo=new THREE.BufferGeometry(),arr=[];
+  const n=2400,geo=new THREE.BufferGeometry(),arr=[];
   for(let i=0;i<n;i++){
-    const v=new THREE.Vector3().randomDirection().multiplyScalar(700);
-    if(v.y<0)v.y=-v.y;
+    const v=new THREE.Vector3().randomDirection().multiplyScalar(1100);
     arr.push(v.x,v.y,v.z);
   }
   geo.setAttribute('position',new THREE.Float32BufferAttribute(arr,3));
@@ -478,12 +486,13 @@ function buildCursor(){
 
 /* ---------- dust ---------- */
 function initDust(){
-  const n=900,geo=new THREE.BufferGeometry(),arr=[];
+  const n=1400,geo=new THREE.BufferGeometry(),arr=[];
   for(let i=0;i<n;i++){
-    arr.push((Math.random()-0.5)*WORLD*1.4, Math.random()*22, (Math.random()-0.5)*WORLD*1.4);
+    const v=new THREE.Vector3().randomDirection().multiplyScalar(R+0.5+Math.random()*8);
+    arr.push(v.x,v.y,v.z);
   }
   geo.setAttribute('position',new THREE.Float32BufferAttribute(arr,3));
-  const mat=new THREE.PointsMaterial({color:0xd98a4a,size:0.5,transparent:true,opacity:0,depthWrite:false});
+  const mat=new THREE.PointsMaterial({color:0xd98a4a,size:0.6,transparent:true,opacity:0,depthWrite:false});
   const pts=new THREE.Points(geo,mat);
   scene.add(pts);
   dustParticles.push(pts);
@@ -492,39 +501,28 @@ function initDust(){
 /* ============================================================= *
  *  CAMERA CONTROLLER (orbit + pan + zoom)                       *
  * ============================================================= */
-const cam={target:new THREE.Vector3(0,2,0),theta:Math.PI*0.25,phi:0.92,radius:62};
+const cam={theta:Math.PI*0.25,phi:1.0,radius:R*2.0};
 function initCamera(){updateCamera();}
 function updateCamera(){
-  cam.phi=THREE.MathUtils.clamp(cam.phi,0.25,1.45);
-  cam.radius=THREE.MathUtils.clamp(cam.radius,18,140);
-  const x=cam.target.x+cam.radius*Math.sin(cam.phi)*Math.cos(cam.theta);
-  const y=cam.target.y+cam.radius*Math.cos(cam.phi);
-  const z=cam.target.z+cam.radius*Math.sin(cam.phi)*Math.sin(cam.theta);
+  cam.phi=THREE.MathUtils.clamp(cam.phi,0.12,Math.PI-0.12);
+  cam.radius=THREE.MathUtils.clamp(cam.radius,R*1.28,R*4.5);
+  const x=cam.radius*Math.sin(cam.phi)*Math.cos(cam.theta);
+  const y=cam.radius*Math.cos(cam.phi);
+  const z=cam.radius*Math.sin(cam.phi)*Math.sin(cam.theta);
   camera.position.set(x,y,z);
-  camera.lookAt(cam.target);
+  camera.lookAt(0,0,0);
 }
 function addEventListeners(){
   const el=renderer.domElement;
   let drag=null,lx=0,ly=0;
-  el.addEventListener('mousedown',e=>{
-    drag=e.button===2?'pan':(e.button===1?'pan':'orbit');lx=e.clientX;ly=e.clientY;
-  });
+  el.addEventListener('mousedown',e=>{drag='orbit';lx=e.clientX;ly=e.clientY;});
   addEventListener('mouseup',()=>drag=null);
   addEventListener('mousemove',e=>{
     pointer.x=(e.clientX/innerWidth)*2-1;
     pointer.y=-(e.clientY/innerHeight)*2+1;
     if(!drag)return;
     const dx=e.clientX-lx,dy=e.clientY-ly;lx=e.clientX;ly=e.clientY;
-    if(drag==='orbit'){cam.theta-=dx*0.005;cam.phi-=dy*0.005;}
-    else{ // pan
-      const panS=cam.radius*0.0016;
-      const fwd=new THREE.Vector3(Math.cos(cam.theta),0,Math.sin(cam.theta));
-      const right=new THREE.Vector3(-Math.sin(cam.theta),0,Math.cos(cam.theta));
-      cam.target.addScaledVector(right,-dx*panS);
-      cam.target.addScaledVector(fwd,-dy*panS);
-      cam.target.x=THREE.MathUtils.clamp(cam.target.x,-WORLD/2,WORLD/2);
-      cam.target.z=THREE.MathUtils.clamp(cam.target.z,-WORLD/2,WORLD/2);
-    }
+    cam.theta-=dx*0.005;cam.phi-=dy*0.005;
     updateCamera();
   });
   el.addEventListener('wheel',e=>{e.preventDefault();cam.radius*=1+Math.sign(e.deltaY)*0.08;updateCamera();},{passive:false});
@@ -551,14 +549,32 @@ function addEventListeners(){
   });
 }
 
-/* ---------- grid helpers ---------- */
-function gridToWorld(gx,gz){return {x:(gx+0.5)*TILE-WORLD/2, z:(gz+0.5)*TILE-WORLD/2};}
-function worldToGrid(x,z){return {gx:Math.floor((x+WORLD/2)/TILE), gz:Math.floor((z+WORLD/2)/TILE)};}
+/* ---------- spherical grid helpers ---------- */
+// gx = longitude column, gz = latitude row
+function gridToDir(gx,gz){
+  const lon=(gx+0.5)/GRID*Math.PI*2;
+  const lat=-Math.PI/2 + (gz+0.5)/GRID*Math.PI;
+  const cl=Math.cos(lat);
+  return new THREE.Vector3(cl*Math.cos(lon), Math.sin(lat), cl*Math.sin(lon));
+}
+function surfacePos(gx,gz){const d=gridToDir(gx,gz);return d.clone().multiplyScalar(R+heightAt(d));}
+function dirToGrid(dir){
+  const n=dir.clone().normalize();
+  const lat=Math.asin(THREE.MathUtils.clamp(n.y,-1,1));
+  let lon=Math.atan2(n.z,n.x); if(lon<0)lon+=Math.PI*2;
+  let gx=Math.floor(lon/(Math.PI*2)*GRID);
+  let gz=Math.floor((lat+Math.PI/2)/Math.PI*GRID);
+  gx=((gx%GRID)+GRID)%GRID; gz=THREE.MathUtils.clamp(gz,0,GRID-1);
+  return {gx,gz};
+}
 function idx(gx,gz){return gz*GRID+gx;}
 function inGrid(gx,gz){return gx>=0&&gz>=0&&gx<GRID&&gz<GRID;}
+function orientToNormal(obj,dir){obj.quaternion.setFromUnitVectors(UP,dir.clone().normalize());}
 function tileSlope(gx,gz){
-  const w=gridToWorld(gx,gz);
-  const hs=[terrainH(w.x-TILE/2,w.z),terrainH(w.x+TILE/2,w.z),terrainH(w.x,w.z-TILE/2),terrainH(w.x,w.z+TILE/2)];
+  const samples=[gridToDir(gx,gz),
+    gridToDir((gx+1)%GRID,gz), gridToDir((gx-1+GRID)%GRID,gz),
+    gridToDir(gx,Math.min(GRID-1,gz+1)), gridToDir(gx,Math.max(0,gz-1))];
+  const hs=samples.map(heightAt);
   return Math.max(...hs)-Math.min(...hs);
 }
 
@@ -663,16 +679,17 @@ function placeBuilding(key,gx,gz){
   const b=BUILDINGS[key];
   if(!canAfford(b.cost)){toast("Not enough resources",'bad');return false;}
   spend(b.cost);
-  const w=gridToWorld(gx,gz);
-  const y=terrainH(w.x,w.z);
+  const dir=gridToDir(gx,gz);
+  const pos=dir.clone().multiplyScalar(R+heightAt(dir));
   const mesh=makeBuildingMesh(key);
-  mesh.position.set(w.x,y,w.z);
+  mesh.position.copy(pos);
+  orientToNormal(mesh,dir);
   mesh.scale.y=0.01;
   scene.add(mesh);
   const obj={key,gx,gz,mesh,t:0,anim:0};
   G.buildings.push(obj);
   tileOccupied[idx(gx,gz)]=true;
-  spawnPuff(w.x,y,w.z);
+  spawnPuff(pos,dir);
   beep(440,0.08);
   toast(`${b.name} constructed`,'good');
   return true;
@@ -685,7 +702,7 @@ function demolishAt(gx,gz){
   const b=BUILDINGS[o.key];
   // refund 40%
   for(const[k,v]of Object.entries(b.cost))G.res[k]+=Math.floor(v*0.4);
-  const w=gridToWorld(gx,gz);spawnPuff(w.x,terrainH(w.x,w.z),w.z);
+  const dir=gridToDir(gx,gz);spawnPuff(dir.clone().multiplyScalar(R+heightAt(dir)),dir);
   scene.remove(o.mesh);
   G.buildings.splice(i,1);
   tileOccupied[idx(gx,gz)]=false;
@@ -706,12 +723,22 @@ function onClick(e){
 
 /* ---------- dust puff on build ---------- */
 const puffs=[];
-function spawnPuff(x,y,z){
+function spawnPuff(pos,dir){
+  const up=dir.clone().normalize();
+  const t1=new THREE.Vector3().crossVectors(up,Math.abs(up.y)<0.9?UP:new THREE.Vector3(1,0,0)).normalize();
+  const t2=new THREE.Vector3().crossVectors(up,t1).normalize();
   const n=18,geo=new THREE.BufferGeometry(),arr=[],vel=[];
-  for(let i=0;i<n;i++){arr.push(x,y+0.2,z);const a=Math.random()*Math.PI*2,sp=2+Math.random()*3;vel.push(Math.cos(a)*sp,1.5+Math.random()*2,Math.sin(a)*sp);}
+  for(let i=0;i<n;i++){
+    arr.push(pos.x,pos.y,pos.z);
+    const a=Math.random()*Math.PI*2,sp=2+Math.random()*3;
+    const dv=t1.clone().multiplyScalar(Math.cos(a)*sp)
+      .addScaledVector(t2,Math.sin(a)*sp)
+      .addScaledVector(up,1.5+Math.random()*2);
+    vel.push(dv.x,dv.y,dv.z);
+  }
   geo.setAttribute('position',new THREE.Float32BufferAttribute(arr,3));
   const pts=new THREE.Points(geo,new THREE.PointsMaterial({color:0xd98a4a,size:0.6,transparent:true,opacity:0.9,depthWrite:false}));
-  scene.add(pts);puffs.push({pts,vel,life:1});
+  scene.add(pts);puffs.push({pts,vel,up,life:1});
 }
 
 /* ============================================================= *
@@ -839,7 +866,7 @@ function maybeEvent(dtSol){
   else if(roll<0.6){ // meteor — damages a random building
     if(G.buildings.length>2){
       const o=G.buildings[(Math.random()*G.buildings.length)|0];
-      const w=gridToWorld(o.gx,o.gz);spawnPuff(w.x,terrainH(w.x,w.z)+1,w.z);
+      const dir=gridToDir(o.gx,o.gz);spawnPuff(dir.clone().multiplyScalar(R+heightAt(dir)+1),dir);
       const b=BUILDINGS[o.key];
       scene.remove(o.mesh);G.buildings.splice(G.buildings.indexOf(o),1);tileOccupied[idx(o.gx,o.gz)]=false;
       toast(`☄️ Meteor strike destroyed a ${b.name}!`,'bad');
@@ -943,7 +970,7 @@ function refreshDock(){
       if(locked){toast(`Research "${TECHS[b.tech].name}" first`,'warn');return;}
       G.demolish=false;
       G.selected=G.selected===key?null:key;
-      refreshDock();updateTools();showHint(G.selected?`Click a flat tile to build ${b.name}. Esc to cancel.`:'');
+      refreshDock();updateTools();showHint(G.selected?`Click a tile on the planet to build ${b.name}. Esc to cancel.`:'');
     };
     el.onmouseenter=e=>showBuildTip(e,key);
     el.onmousemove=e=>moveTip(e);
@@ -1009,7 +1036,7 @@ function renderInfo(){
   <div class="stat"><span>Sol</span><b>${G.sol}</b></div>
   <div style="margin-top:14px"><button class="btn danger" id="reset">↺ New colony</button></div>`;
   $('#sclose').onclick=closeSide;
-  $('#reset').onclick=()=>{if(confirm('Abandon this colony and start over?')){localStorage.removeItem('redfrontier');location.reload();}};
+  $('#reset').onclick=()=>{if(confirm('Abandon this colony and start over?')){localStorage.removeItem('redfrontier2');location.reload();}};
 }
 function renderTech(){
   let html=`<h3>🧪 Research <span class="close" id="sclose">✕</span></h3>
@@ -1040,12 +1067,12 @@ function renderHelp(){
   <p class="sub">Survive, grow, and terraform Mars.</p>
   <div style="font-size:12.5px;line-height:1.65;color:var(--ink)">
   <p><b>🎯 Goal:</b> Raise Temperature, Atmosphere and Pressure to 100% (see 📊 overview).</p>
-  <p><b>🏗️ Build:</b> Pick a building from the bottom dock, then click a flat tile. Green ring = buildable, red = blocked.</p>
+  <p><b>🏗️ Build:</b> Pick a building from the bottom dock, then click a tile on the planet. Green ring = buildable, red = too steep or occupied.</p>
   <p><b>⚡ Power first:</b> Solar arrays are cheap but die at night & in storms — pair with Power Cells or a Reactor.</p>
   <p><b>🫁 Life support:</b> Habitats house colonists but burn O₂, water, food & power. Keep production positive.</p>
   <p><b>🔬 Research:</b> Build Labs → spend Science in the 🧪 panel to unlock reactors, trade, and terraforming tech.</p>
   <p><b>🌪️ Events:</b> Dust storms, meteors and supply drops keep you on your toes.</p>
-  <p><b>🖱️ Camera:</b> Left-drag orbit · Right-drag pan · Wheel zoom · Keys 1/2/3 speed · Space pause.</p>
+  <p><b>🖱️ Camera:</b> Drag to rotate the globe · Wheel to zoom · Keys 1/2/3 speed · Space pause.</p>
   </div>`;
   $('#sclose').onclick=closeSide;
 }
@@ -1103,9 +1130,9 @@ function gameOver(won){
      <div class="mbtns"><button class="btn" onclick="location.reload()">▶ Play again</button></div>`
    : `<div class="emoji">💀</div><h2>Colony Lost</h2>
      <p>On Sol ${G.sol}, the last colonist perished. Life support failed and the red dust reclaimed the domes. Mars remains unconquered… for now.</p>
-     <div class="mbtns"><button class="btn" onclick="localStorage.removeItem('redfrontier');location.reload()">↺ Try again</button></div>`;
+     <div class="mbtns"><button class="btn" onclick="localStorage.removeItem('redfrontier2');location.reload()">↺ Try again</button></div>`;
   $('#modal').classList.add('show');
-  localStorage.removeItem('redfrontier');
+  localStorage.removeItem('redfrontier2');
 }
 
 /* ============================================================= *
@@ -1114,18 +1141,21 @@ function gameOver(won){
 function save(){
   const data={res:G.res,pop:G.pop,tf:G.tf,sol:G.sol,todFrac:G.todFrac,techDone:G.techDone,
     buildings:G.buildings.map(o=>({key:o.key,gx:o.gx,gz:o.gz}))};
-  localStorage.setItem('redfrontier',JSON.stringify(data));
+  localStorage.setItem(SAVE_KEY,JSON.stringify(data));
   toast('💾 Colony saved','good');
 }
 function load(){
   try{
-    const d=JSON.parse(localStorage.getItem('redfrontier'));
+    const d=JSON.parse(localStorage.getItem(SAVE_KEY));
     if(!d)return false;
     Object.assign(G.res,d.res);G.pop=d.pop;Object.assign(G.tf,d.tf);
     G.sol=d.sol;G.todFrac=d.todFrac;G.techDone=d.techDone||{};
     for(const b of d.buildings){
-      const w=gridToWorld(b.gx,b.gz),y=terrainH(w.x,w.z);
-      const mesh=makeBuildingMesh(b.key);mesh.position.set(w.x,y,w.z);scene.add(mesh);
+      if(!inGrid(b.gx,b.gz))continue;
+      const dir=gridToDir(b.gx,b.gz);
+      const mesh=makeBuildingMesh(b.key);
+      mesh.position.copy(dir.clone().multiplyScalar(R+heightAt(dir)));
+      orientToNormal(mesh,dir);scene.add(mesh);
       G.buildings.push({key:b.key,gx:b.gx,gz:b.gz,mesh,t:0,anim:1});
       tileOccupied[idx(b.gx,b.gz)]=true;
     }
@@ -1154,39 +1184,29 @@ function animate(){
     if(saveAccum>20){saveAccum=0;save();}
   }
 
-  // sun orbit
+  // sun orbits the planet, lighting one hemisphere; the terminator sweeps as the Sol advances
   const ang=G.todFrac*Math.PI*2 - Math.PI/2;
-  sunPivot.rotation.z=0;
-  sun.position.set(Math.cos(ang)*120, Math.sin(ang)*120+5, 40);
-  const dl=Math.max(0,Math.sin(G.todFrac*Math.PI*2-Math.PI/2));
-  sun.intensity=0.3+dl*2.1*(dustStormActive?0.45:1);
-  ambient.intensity=0.12+dl*0.22;
-  hemi.intensity=0.25+dl*0.5;
-  // sky color by time of day
-  const night=new THREE.Color(0x1a0a06), day=new THREE.Color(0x3a1608), dusk=new THREE.Color(0x55180a);
-  const skyT=dl;
-  const sky=night.clone().lerp(day,skyT);
-  if(G.todFrac<0.25||G.todFrac>0.75)sky.lerp(dusk,0.4);
-  scene.fog.color.copy(sky);
-  renderer.setClearColor(sky);
-  sunMesh.material.color.setHSL(0.07,0.7,0.6+dl*0.2);
+  sun.position.set(Math.cos(ang)*R*4, R*1.0, Math.sin(ang)*R*4);
+  const dl=dayFactor(); // local-colony daylight, drives solar economy & window lights
+  sun.intensity=2.4*(dustStormActive?0.5:1);
+  ambient.intensity=0.18;
+  hemi.intensity=0.4;
+  sunMesh.material.color.setHSL(0.07,0.7,0.7);
 
-  // moons orbit
+  // moons orbit the planet
   const t=performance.now()*0.001;
-  phobos.position.set(Math.cos(t*0.25)*180,90+Math.sin(t*0.25)*20,Math.sin(t*0.25)*120);
-  deimos.position.set(Math.cos(-t*0.12+2)*220,120,Math.sin(-t*0.12+2)*160);
+  phobos.position.set(Math.cos(t*0.18)*R*2.4, Math.sin(t*0.18)*R*0.5, Math.sin(t*0.18)*R*2.4);
+  deimos.position.set(Math.cos(-t*0.1+2)*R*3.0, R*0.9, Math.sin(-t*0.1+2)*R*2.7);
   phobos.rotation.y=t*0.3;deimos.rotation.y=-t*0.2;
 
-  // dust storm visuals
+  // dust storm visuals — a swirling shell + brightened atmosphere
   if(dustStormActive){
     dustStormT+=dt;
     const intensity=Math.min(1,dustStormT/3)*(dustStormT>14?Math.max(0,1-(dustStormT-14)/4):1);
     dustParticles[0].material.opacity=intensity*0.5;
-    const p=dustParticles[0].geometry.attributes.position;
-    for(let i=0;i<p.count;i++){let x=p.getX(i)+dt*14;if(x>WORLD*0.7)x-=WORLD*1.4;p.setX(i,x);p.setY(i,p.getY(i)+Math.sin(t*3+i)*0.02);}
-    p.needsUpdate=true;
-    scene.fog.density=0.0065+intensity*0.02;
-    if(dustStormT>18){dustStormActive=false;scene.fog.density=0.0065;dustParticles[0].material.opacity=0;toast('🌤️ The dust storm has passed','good');}
+    dustParticles[0].rotation.y+=dt*0.3;
+    if(G.atm)G.atm.material.opacity=0.12+intensity*0.28;
+    if(dustStormT>18){dustStormActive=false;dustParticles[0].material.opacity=0;if(G.atm)G.atm.material.opacity=0.12;toast('🌤️ The dust storm has passed','good');}
   }
 
   // building animations: rise-up + spinners + glow pulse
@@ -1205,7 +1225,8 @@ function animate(){
     const p=pf.pts.geometry.attributes.position;
     for(let j=0;j<p.count;j++){
       p.setXYZ(j,p.getX(j)+pf.vel[j*3]*dt,p.getY(j)+pf.vel[j*3+1]*dt,p.getZ(j)+pf.vel[j*3+2]*dt);
-      pf.vel[j*3+1]-=dt*4;
+      // gravity pulls toward planet centre (along -up)
+      pf.vel[j*3]-=pf.up.x*dt*4;pf.vel[j*3+1]-=pf.up.y*dt*4;pf.vel[j*3+2]-=pf.up.z*dt*4;
     }
     p.needsUpdate=true;pf.pts.material.opacity=Math.max(0,pf.life);
     if(pf.life<=0){scene.remove(pf.pts);puffs.splice(i,1);}
@@ -1214,7 +1235,7 @@ function animate(){
   // cursor raycast (only when placing/demolishing)
   updateCursor();
 
-  starField.material.opacity=Math.max(0.15,1-dl);
+  starField.rotation.y=t*0.005;
 
   renderer.render(scene,camera);
 }
@@ -1224,11 +1245,12 @@ function updateCursor(){
   raycaster.setFromCamera(pointer,camera);
   const hit=raycaster.intersectObject(terrain)[0];
   if(!hit){cursor.visible=false;hoveredTile=null;return;}
-  const {gx,gz}=worldToGrid(hit.point.x,hit.point.z);
+  const {gx,gz}=dirToGrid(hit.point);
   if(!inGrid(gx,gz)){cursor.visible=false;hoveredTile=null;return;}
   hoveredTile={gx,gz};
-  const w=gridToWorld(gx,gz),y=terrainH(w.x,w.z);
-  cursor.position.set(w.x,y+0.1,w.z);cursor.visible=true;
+  const cdir=gridToDir(gx,gz);
+  cursor.position.copy(cdir.clone().multiplyScalar(R+heightAt(cdir)+0.15));
+  orientToNormal(cursor,cdir);cursor.visible=true;
   let ok;
   if(G.demolish)ok=tileOccupied[idx(gx,gz)];
   else ok=!tileOccupied[idx(gx,gz)] && tileSlope(gx,gz)<=2.6 && canAfford(BUILDINGS[G.selected].cost);
@@ -1266,6 +1288,11 @@ function start(){
     G.res.materials=260;G.pop=3;
     toast('Welcome, Commander. Build power & life support to grow.','good');
   }
+  // point the camera at the colony (first building) so it's framed on load
+  const aim=G.buildings[0]?gridToDir(G.buildings[0].gx,G.buildings[0].gz):gridToDir(0,13);
+  cam.phi=Math.acos(THREE.MathUtils.clamp(aim.y,-1,1));
+  cam.theta=Math.atan2(aim.z,aim.x);
+  updateCamera();
   refreshDock();computeRates();updateResBar();
   setTimeout(()=>{const l=$('#loader');l.style.opacity=0;setTimeout(()=>l.remove(),600);
     $('#hud').style.display='flex';$('#leftcol').style.display='flex';},250);
@@ -1273,7 +1300,7 @@ function start(){
   setInterval(()=>{if(!G.over){updateResBar();if(sidePanel==='info')renderInfo();
     dock.querySelectorAll('.bcard').forEach(el=>{const b=BUILDINGS[el.dataset.key];const locked=b.tech&&!G.techDone[b.tech];el.classList.toggle('unaff',!locked&&!canAfford(b.cost));el.classList.toggle('locked',locked);});}},400);
   animate();
-  if(!loaded)setTimeout(()=>showHint('Pick a building below, then click a flat tile to build. Press ❔ for help.'),900);
+  if(!loaded)setTimeout(()=>showHint('Pick a building below, then click a tile on the planet. Drag to spin the globe. Press ❔ for help.'),900);
 }
 
 boot();
