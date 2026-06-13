@@ -1,0 +1,1282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Red Frontier — Mars Colony</title>
+<style>
+  :root{
+    --bg:#0a0604;
+    --panel:rgba(24,14,10,0.86);
+    --panel-2:rgba(34,20,14,0.92);
+    --line:rgba(255,150,90,0.22);
+    --ink:#ffe9da;
+    --muted:#c99c83;
+    --rust:#ff7a3c;
+    --rust-2:#ffb066;
+    --good:#7fe08a;
+    --warn:#ffd166;
+    --bad:#ff6b6b;
+    --sci:#8fd4ff;
+    --shadow:0 18px 50px rgba(0,0,0,.55);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--ink);
+    font-family:"Inter","Segoe UI",system-ui,Arial,sans-serif;-webkit-font-smoothing:antialiased;}
+  canvas{display:block}
+  #app{position:fixed;inset:0}
+
+  /* ===== Loading ===== */
+  #loader{position:fixed;inset:0;z-index:50;display:grid;place-items:center;
+    background:radial-gradient(circle at 50% 30%,#3a1606,#0a0604 70%);transition:opacity .6s;}
+  #loader .lwrap{text-align:center}
+  #loader h1{font-size:clamp(28px,6vw,64px);margin:0;letter-spacing:.18em;
+    background:linear-gradient(90deg,var(--rust),var(--rust-2));-webkit-background-clip:text;background-clip:text;color:transparent;
+    text-shadow:0 0 40px rgba(255,120,60,.35);font-weight:800;}
+  #loader p{color:var(--muted);letter-spacing:.35em;margin:.4em 0 1.4em;font-size:13px;text-transform:uppercase}
+  .bar{width:min(360px,70vw);height:6px;border-radius:6px;background:rgba(255,255,255,.08);overflow:hidden;margin:0 auto}
+  .bar>i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--rust),var(--rust-2));transition:width .3s}
+
+  /* ===== HUD ===== */
+  #hud{position:fixed;inset:0;pointer-events:none;z-index:10;display:flex;flex-direction:column;justify-content:space-between}
+  .topbar{pointer-events:auto;display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:10px 12px;
+    background:linear-gradient(180deg,rgba(10,6,4,.85),rgba(10,6,4,0));}
+  .res{display:flex;align-items:center;gap:7px;padding:6px 11px;border:1px solid var(--line);border-radius:11px;
+    background:var(--panel);backdrop-filter:blur(8px);font-variant-numeric:tabular-nums;min-width:0}
+  .res .ic{width:18px;height:18px;flex:0 0 auto}
+  .res .v{font-weight:700;font-size:14px}
+  .res .r{font-size:11px;color:var(--muted)}
+  .res .r.pos{color:var(--good)}.res .r.neg{color:var(--bad)}
+  .res.alert{animation:pulseBad 1s infinite}
+  @keyframes pulseBad{0%,100%{border-color:var(--line)}50%{border-color:var(--bad)}}
+
+  .spacer{flex:1}
+  .clock{display:flex;align-items:center;gap:10px;padding:6px 12px;border:1px solid var(--line);border-radius:11px;background:var(--panel);backdrop-filter:blur(8px)}
+  .clock .sol{font-weight:800;font-size:15px}
+  .clock .tod{font-size:11px;color:var(--muted);width:64px}
+  .speed{display:flex;gap:4px}
+  .speed button{pointer-events:auto;border:1px solid var(--line);background:var(--panel-2);color:var(--ink);
+    width:30px;height:30px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:700;transition:.15s}
+  .speed button:hover{border-color:var(--rust)}
+  .speed button.on{background:var(--rust);color:#1a0a04;border-color:var(--rust)}
+
+  /* ===== Build dock ===== */
+  .dock{pointer-events:auto;align-self:center;margin-bottom:14px;display:flex;gap:8px;padding:10px;
+    border:1px solid var(--line);border-radius:16px;background:var(--panel);backdrop-filter:blur(10px);box-shadow:var(--shadow);
+    max-width:min(96vw,1180px);overflow-x:auto;scrollbar-width:thin}
+  .bcard{position:relative;width:78px;flex:0 0 auto;border:1px solid transparent;border-radius:12px;padding:8px 6px 7px;
+    background:rgba(255,255,255,.03);cursor:pointer;text-align:center;transition:.16s;user-select:none}
+  .bcard:hover{background:rgba(255,150,90,.12);border-color:var(--line);transform:translateY(-3px)}
+  .bcard.sel{border-color:var(--rust);background:rgba(255,122,60,.18);box-shadow:0 0 0 1px var(--rust) inset}
+  .bcard.locked{opacity:.4;cursor:not-allowed;filter:grayscale(.6)}
+  .bcard.unaff{opacity:.62}
+  .bcard .bi{width:36px;height:36px;margin:0 auto 4px;display:block}
+  .bcard .bn{font-size:10.5px;line-height:1.15;color:var(--ink);font-weight:600}
+  .bcard .bc{font-size:9.5px;color:var(--muted);margin-top:2px}
+  .bcard .lk{position:absolute;top:4px;right:5px;font-size:11px}
+
+  .leftcol{position:fixed;left:12px;top:64px;display:flex;flex-direction:column;gap:8px;pointer-events:none}
+  .tool{pointer-events:auto;width:42px;height:42px;border:1px solid var(--line);border-radius:11px;background:var(--panel);
+    color:var(--ink);cursor:pointer;display:grid;place-items:center;backdrop-filter:blur(8px);transition:.15s;font-size:18px}
+  .tool:hover{border-color:var(--rust);background:var(--panel-2)}
+  .tool.on{background:var(--rust);color:#1a0a04}
+
+  /* ===== Side panel (info/research) ===== */
+  .side{position:fixed;right:12px;top:64px;width:min(330px,86vw);max-height:calc(100vh - 180px);overflow:auto;
+    border:1px solid var(--line);border-radius:14px;background:var(--panel);backdrop-filter:blur(10px);box-shadow:var(--shadow);
+    pointer-events:auto;padding:14px;transform:translateX(120%);transition:transform .35s cubic-bezier(.2,.8,.2,1);scrollbar-width:thin}
+  .side.open{transform:none}
+  .side h3{margin:0 0 4px;font-size:16px;display:flex;align-items:center;gap:8px}
+  .side .close{margin-left:auto;cursor:pointer;color:var(--muted);font-size:18px;line-height:1}
+  .side .sub{color:var(--muted);font-size:12px;margin:0 0 12px}
+  .stat{display:flex;justify-content:space-between;font-size:12.5px;padding:5px 0;border-bottom:1px dashed rgba(255,255,255,.07)}
+  .stat b{font-weight:700}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid var(--line);background:var(--panel-2);
+    color:var(--ink);border-radius:10px;padding:8px 12px;cursor:pointer;font-size:13px;font-weight:600;transition:.15s;width:100%}
+  .btn:hover{border-color:var(--rust)}
+  .btn.danger:hover{border-color:var(--bad);color:var(--bad)}
+  .btn:disabled{opacity:.4;cursor:not-allowed}
+
+  .tech{border:1px solid var(--line);border-radius:11px;padding:10px;margin-bottom:9px;background:rgba(255,255,255,.02)}
+  .tech.done{border-color:rgba(127,224,138,.4);background:rgba(127,224,138,.06)}
+  .tech h4{margin:0 0 3px;font-size:13.5px}
+  .tech p{margin:0 0 8px;font-size:11.5px;color:var(--muted);line-height:1.4}
+  .tech .cost{font-size:11px;color:var(--sci);font-weight:700}
+
+  /* ===== Tooltip ===== */
+  #tip{position:fixed;z-index:30;max-width:230px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;
+    background:var(--panel-2);backdrop-filter:blur(8px);font-size:12px;pointer-events:none;opacity:0;transition:opacity .12s;box-shadow:var(--shadow)}
+  #tip h5{margin:0 0 4px;font-size:13px;color:var(--rust-2)}
+  #tip .row{display:flex;justify-content:space-between;gap:14px;color:var(--muted);line-height:1.5}
+  #tip .row b{color:var(--ink)}
+  #tip .desc{color:var(--muted);margin-top:6px;font-style:italic;line-height:1.4}
+
+  /* ===== Log ===== */
+  #log{position:fixed;left:12px;bottom:14px;width:min(320px,70vw);pointer-events:none;display:flex;flex-direction:column;gap:5px}
+  .logitem{font-size:12px;padding:7px 11px;border-radius:9px;background:var(--panel);border:1px solid var(--line);
+    backdrop-filter:blur(6px);animation:slideIn .35s;opacity:.96}
+  .logitem.good{border-color:rgba(127,224,138,.35)}
+  .logitem.warn{border-color:rgba(255,209,102,.4)}
+  .logitem.bad{border-color:rgba(255,107,107,.45)}
+  @keyframes slideIn{from{transform:translateX(-30px);opacity:0}to{transform:translateX(0);opacity:.96}}
+
+  /* ===== Modal ===== */
+  #modal{position:fixed;inset:0;z-index:40;display:none;place-items:center;background:rgba(5,3,2,.72);backdrop-filter:blur(4px)}
+  #modal.show{display:grid}
+  .mcard{width:min(480px,92vw);border:1px solid var(--line);border-radius:18px;background:var(--panel-2);
+    box-shadow:var(--shadow);padding:26px;text-align:center;animation:pop .35s}
+  @keyframes pop{from{transform:scale(.9);opacity:0}to{transform:scale(1);opacity:1}}
+  .mcard .emoji{font-size:46px}
+  .mcard h2{margin:8px 0 6px;font-size:24px}
+  .mcard p{color:var(--muted);font-size:13.5px;line-height:1.6;margin:0 0 18px}
+  .mcard .mbtns{display:flex;gap:10px}
+
+  .hint{position:fixed;bottom:78px;left:50%;transform:translateX(-50%);pointer-events:none;
+    font-size:12px;color:var(--muted);background:var(--panel);border:1px solid var(--line);
+    padding:6px 14px;border-radius:20px;backdrop-filter:blur(6px);opacity:0;transition:opacity .3s}
+  .hint.show{opacity:1}
+  ::-webkit-scrollbar{width:8px;height:8px}::-webkit-scrollbar-thumb{background:rgba(255,150,90,.3);border-radius:8px}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<div id="loader">
+  <div class="lwrap">
+    <h1>RED FRONTIER</h1>
+    <p>Mars Colony</p>
+    <div class="bar"><i id="lbar"></i></div>
+  </div>
+</div>
+
+<div id="hud" style="display:none">
+  <div class="topbar" id="resbar"></div>
+  <div class="spacer"></div>
+  <div class="dock" id="dock"></div>
+</div>
+
+<div class="leftcol" id="leftcol" style="display:none">
+  <button class="tool" id="tInfo" title="Colony overview">📊</button>
+  <button class="tool" id="tTech" title="Research lab">🧪</button>
+  <button class="tool" id="tDemo" title="Demolish (toggle)">⛏️</button>
+  <button class="tool" id="tSave" title="Save colony">💾</button>
+  <button class="tool" id="tHelp" title="How to play">❔</button>
+</div>
+
+<div class="side" id="side"></div>
+<div id="tip"></div>
+<div id="log"></div>
+<div class="hint" id="hint"></div>
+
+<div id="modal"><div class="mcard" id="mcard"></div></div>
+
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+
+/* ============================================================= *
+ *  RED FRONTIER — a 3D Mars colonization strategy game           *
+ *  Single-file, fully procedural (no external assets).           *
+ * ============================================================= */
+
+/* ---------- tiny deterministic value noise ---------- */
+function makeNoise(seed){
+  const p=new Uint8Array(512);
+  let s=seed>>>0;
+  const rnd=()=>{s=(s*1664525+1013904223)>>>0;return s/4294967296;};
+  const perm=[...Array(256).keys()];
+  for(let i=255;i>0;i--){const j=(rnd()*(i+1))|0;[perm[i],perm[j]]=[perm[j],perm[i]];}
+  for(let i=0;i<512;i++)p[i]=perm[i&255];
+  const fade=t=>t*t*t*(t*(t*6-15)+10);
+  const lerp=(a,b,t)=>a+(b-a)*t;
+  const grad=(h,x,y)=>{const u=(h&1)?x:-x,v=(h&2)?y:-y;return u+v;};
+  return (x,y)=>{
+    const X=Math.floor(x)&255,Y=Math.floor(y)&255;
+    x-=Math.floor(x);y-=Math.floor(y);
+    const u=fade(x),v=fade(y);
+    const A=p[X]+Y,B=p[X+1]+Y;
+    return lerp(lerp(grad(p[A],x,y),grad(p[B],x-1,y),u),
+                lerp(grad(p[A+1],x,y-1),grad(p[B+1],x-1,y-1),u),v);
+  };
+}
+function fbm(n,x,y,oct=4){let v=0,a=.5,f=1;for(let i=0;i<oct;i++){v+=a*n(x*f,y*f);f*=2;a*=.5;}return v;}
+
+/* ============================================================= *
+ *  CONFIG / BALANCE                                              *
+ * ============================================================= */
+const GRID=26;                 // tiles per side
+const WORLD=78;                 // world units across
+const TILE=WORLD/GRID;
+const SOL_SECONDS=10;           // real seconds per Sol at 1x
+const STORAGE_BASE={oxygen:200,water:200,food:200,materials:300,science:99999,credits:99999};
+
+const noiseH=makeNoise(13577);
+
+/* terrain height in world units at world x,z */
+function terrainH(x,z){
+  const n=fbm(noiseH,x*0.018+50,z*0.018+50,5);
+  const ridge=Math.abs(fbm(noiseH,x*0.04,z*0.04,3));
+  let h=n*7 - ridge*2.2;
+  // gentle central basin so the colony has flat-ish ground
+  const d=Math.sqrt(x*x+z*z);
+  h*= THREE.MathUtils.clamp(0.35+ d/55,0.35,1.0);
+  return h;
+}
+
+/* ---------- building catalogue ---------- */
+// prod/use are PER SOL. cap = storage bonus. tf = terraform contribution/sol.
+const BUILDINGS = {
+  solar:{name:"Solar Array",icon:"solar",cat:"power",cost:{materials:30},
+    desc:"Cheap power from sunlight. Output drops at night and during dust storms.",
+    power:{day:14,night:0},color:0x2a6fb0,h:1.4},
+  wind:{name:"Wind Turbine",icon:"wind",cost:{materials:45},
+    desc:"Modest but constant power, day and night. Spins faster in storms.",
+    power:{flat:7},color:0xdddddd,h:5},
+  reactor:{name:"Fission Reactor",icon:"reactor",cost:{materials:220,credits:120},tech:"nuclear",
+    desc:"Massive, reliable power. Unlocked by research.",
+    power:{flat:60},use:{water:4},color:0x9be07f,h:3},
+  battery:{name:"Power Cell",icon:"battery",cost:{materials:40},
+    desc:"Stores surplus power for the night. +120 power capacity.",
+    powerCap:120,color:0xffc24d,h:1.6},
+  habitat:{name:"Habitat Dome",icon:"habitat",cost:{materials:80},
+    desc:"Pressurised housing. +6 colonist capacity. Needs life support.",
+    pop:6,use:{oxygen:3,water:2,food:3,power:5},color:0xffae74,h:2.4},
+  extractor:{name:"Ice Extractor",icon:"water",cost:{materials:55},
+    desc:"Mines subsurface ice for water.",
+    prod:{water:10},use:{power:6},color:0x66c8ff,h:2.2},
+  moxie:{name:"Oxygenator",icon:"oxygen",cost:{materials:70},
+    desc:"Splits CO₂ and water into breathable oxygen.",
+    prod:{oxygen:9},use:{power:7,water:3},color:0x8fe3ff,h:2.6},
+  greenhouse:{name:"Hydro Farm",icon:"food",cost:{materials:65},
+    desc:"Hydroponic crops under glass. Produces food.",
+    prod:{food:11},use:{power:5,water:4},color:0x86e08a,h:1.8},
+  mine:{name:"Ore Excavator",icon:"materials",cost:{materials:50},
+    desc:"Strip-mines regolith for construction materials.",
+    prod:{materials:9},use:{power:6},color:0xc98a5a,h:2.2},
+  lab:{name:"Research Lab",icon:"science",cost:{materials:90},
+    desc:"Colonists generate Science for the tech tree.",
+    prod:{science:4},use:{power:6,oxygen:1},color:0xb98fff,h:2.6},
+  depot:{name:"Storage Depot",icon:"depot",cost:{materials:45},
+    desc:"+150 storage capacity for O₂, water, food & materials.",
+    storage:150,color:0xa0a0a8,h:1.6},
+  market:{name:"Trade Beacon",icon:"market",cost:{materials:70},tech:"comms",
+    desc:"Auto-sells surplus materials to Earth orbit for Credits.",
+    prod:{credits:5},use:{materials:4,power:3},color:0xffd166,h:4.5},
+  // terraforming tier
+  algae:{name:"Algae Pools",icon:"algae",cost:{materials:120,credits:60},tech:"bio",
+    desc:"Cyanobacteria pump oxygen into the thin atmosphere.",
+    use:{water:3,power:4},tf:{oxygen:0.9},prod:{oxygen:4},color:0x4fd17a,h:0.8},
+  heater:{name:"Atmos. Heater",icon:"heat",cost:{materials:150,credits:80},tech:"thermal",
+    desc:"Halocarbon factory warms the planet. Raises Temperature.",
+    use:{power:14},tf:{temp:1.0},color:0xff7a3c,h:3.4},
+  mirror:{name:"Orbital Mirror",icon:"mirror",cost:{materials:180,credits:140},tech:"orbital",
+    desc:"Reflects sunlight to the surface. Big Temperature gains.",
+    use:{power:6},tf:{temp:1.6},color:0xeaf6ff,h:4},
+  processor:{name:"Atmos. Processor",icon:"processor",cost:{materials:260,credits:180},tech:"atmo",
+    desc:"Industrial-scale pressurisation. Raises Air Pressure hard.",
+    use:{power:20,materials:2},tf:{pressure:1.8,oxygen:0.4},color:0xff9d5c,h:5.2},
+};
+
+/* ---------- research tree ---------- */
+const TECHS = {
+  nuclear:{name:"Fission Power",cost:120,desc:"Unlocks the Fission Reactor for huge, stable power.",req:[]},
+  comms:{name:"Deep-Space Comms",cost:80,desc:"Unlocks the Trade Beacon to earn Credits.",req:[]},
+  efficiency:{name:"Life-Support Mk.II",cost:140,desc:"Habitats use 25% less oxygen, water & food.",req:[]},
+  bio:{name:"Astro-Biology",cost:160,desc:"Unlocks Algae Pools — begin oxygenating Mars.",req:["nuclear"]},
+  thermal:{name:"Thermal Engineering",cost:200,desc:"Unlocks the Atmospheric Heater to warm the planet.",req:["nuclear"]},
+  orbital:{name:"Orbital Logistics",cost:260,desc:"Unlocks Orbital Mirrors for rapid warming.",req:["thermal"]},
+  atmo:{name:"Atmospherics",cost:320,desc:"Unlocks the Atmospheric Processor for air pressure.",req:["bio","thermal"]},
+  drones:{name:"Drone Swarms",cost:120,desc:"All extraction (water, ore) buildings +30% output.",req:["comms"]},
+};
+
+const BUILD_ORDER=["solar","wind","reactor","battery","habitat","extractor","moxie","greenhouse","mine","lab","depot","market","algae","heater","mirror","processor"];
+
+/* ============================================================= *
+ *  ICONS (inline SVG strings)                                   *
+ * ============================================================= */
+const ICONS={
+  power:'<svg viewBox="0 0 24 24" class="ic"><path d="M13 2 4 14h6l-1 8 9-12h-6z" fill="#ffd166"/></svg>',
+  oxygen:'<svg viewBox="0 0 24 24" class="ic"><circle cx="12" cy="12" r="8" fill="none" stroke="#8fe3ff" stroke-width="2.4"/><text x="12" y="16" font-size="9" fill="#8fe3ff" text-anchor="middle" font-family="Arial">O₂</text></svg>',
+  water:'<svg viewBox="0 0 24 24" class="ic"><path d="M12 3c4 6 6 9 6 12a6 6 0 0 1-12 0c0-3 2-6 6-12z" fill="#66c8ff"/></svg>',
+  food:'<svg viewBox="0 0 24 24" class="ic"><path d="M12 3c-3 0-5 4-5 8 0 5 2 10 5 10s5-5 5-10c0-4-2-8-5-8z" fill="#86e08a"/></svg>',
+  materials:'<svg viewBox="0 0 24 24" class="ic"><path d="M4 9 12 4l8 5-8 5z" fill="#c98a5a"/><path d="M4 9v6l8 5v-6z" fill="#a8703f"/><path d="M20 9v6l-8 5v-6z" fill="#8a5a30"/></svg>',
+  science:'<svg viewBox="0 0 24 24" class="ic"><path d="M9 3h6v5l5 11a2 2 0 0 1-2 3H6a2 2 0 0 1-2-3l5-11z" fill="none" stroke="#b98fff" stroke-width="2"/></svg>',
+  credits:'<svg viewBox="0 0 24 24" class="ic"><circle cx="12" cy="12" r="9" fill="none" stroke="#ffd166" stroke-width="2"/><text x="12" y="16" font-size="11" fill="#ffd166" text-anchor="middle" font-family="Arial">$</text></svg>',
+  pop:'<svg viewBox="0 0 24 24" class="ic"><circle cx="12" cy="8" r="4" fill="#ffae74"/><path d="M4 21c0-5 4-7 8-7s8 2 8 7z" fill="#ffae74"/></svg>',
+  solar:'<svg viewBox="0 0 24 24" class="bi"><rect x="3" y="6" width="18" height="9" rx="1" fill="#2a6fb0"/><path d="M3 9h18M3 12h18M9 6v9M15 6v9" stroke="#0a0604" stroke-width=".8"/><rect x="11" y="15" width="2" height="5" fill="#888"/></svg>',
+  wind:'<svg viewBox="0 0 24 24" class="bi"><rect x="11" y="9" width="2" height="11" fill="#ccc"/><g fill="#eee"><path d="M12 9 12 2 14 9z"/><path d="M12 9 18 6 13 11z"/><path d="M12 9 6 13 11 11z"/></g><circle cx="12" cy="9" r="1.5" fill="#888"/></svg>',
+  reactor:'<svg viewBox="0 0 24 24" class="bi"><path d="M5 20 8 8h8l3 12z" fill="#9be07f"/><circle cx="12" cy="13" r="3" fill="none" stroke="#1a3a14" stroke-width="1.4"/><circle cx="12" cy="13" r="1" fill="#1a3a14"/></svg>',
+  battery:'<svg viewBox="0 0 24 24" class="bi"><rect x="6" y="5" width="12" height="16" rx="2" fill="#ffc24d"/><rect x="9" y="3" width="6" height="3" fill="#aa7a00"/><path d="M12 8 10 13h3l-2 5" stroke="#1a0a04" stroke-width="1.4" fill="none"/></svg>',
+  habitat:'<svg viewBox="0 0 24 24" class="bi"><path d="M3 18a9 9 0 0 1 18 0z" fill="#ffae74"/><path d="M3 18h18" stroke="#7a4a28" stroke-width="1.5"/><circle cx="9" cy="14" r="1.6" fill="#fff7"/><circle cx="15" cy="14" r="1.6" fill="#fff7"/></svg>',
+  depot:'<svg viewBox="0 0 24 24" class="bi"><rect x="4" y="9" width="16" height="11" fill="#a0a0a8"/><path d="M3 9 12 4l9 5z" fill="#c0c0c8"/><rect x="9" y="13" width="6" height="7" fill="#7a7a82"/></svg>',
+  market:'<svg viewBox="0 0 24 24" class="bi"><rect x="11" y="4" width="2" height="16" fill="#ffd166"/><circle cx="12" cy="4" r="2.4" fill="#ffd166"/><path d="M7 20h10" stroke="#ffd166" stroke-width="2"/><path d="M12 8 16 6M12 11 8 9" stroke="#ffd166" stroke-width="1.2"/></svg>',
+  algae:'<svg viewBox="0 0 24 24" class="bi"><ellipse cx="12" cy="17" rx="9" ry="4" fill="#4fd17a"/><path d="M9 17c0-4-1-6 0-9M12 17c0-5 1-7 2-10M15 17c0-3 1-5 1-7" stroke="#1a5a30" stroke-width="1.3" fill="none"/></svg>',
+  heat:'<svg viewBox="0 0 24 24" class="bi"><path d="M12 3c2 4-2 5 0 9a4 4 0 1 1-5 1c0-4 3-6 5-10z" fill="#ff7a3c"/></svg>',
+  mirror:'<svg viewBox="0 0 24 24" class="bi"><circle cx="12" cy="11" r="7" fill="none" stroke="#eaf6ff" stroke-width="2"/><path d="M8 11h8M12 7v8" stroke="#bcd" stroke-width="1"/><rect x="11" y="18" width="2" height="3" fill="#888"/></svg>',
+  processor:'<svg viewBox="0 0 24 24" class="bi"><rect x="5" y="8" width="14" height="12" fill="#ff9d5c"/><rect x="8" y="3" width="3" height="5" fill="#c96a2c"/><rect x="13" y="3" width="3" height="5" fill="#c96a2c"/><path d="M5 13h14" stroke="#7a3a14" stroke-width="1"/></svg>',
+};
+
+/* ============================================================= *
+ *  GAME STATE                                                   *
+ * ============================================================= */
+const G = {
+  res:{power:0,oxygen:120,water:120,food:120,materials:200,science:0,credits:200},
+  pop:3, popCap:0,
+  tf:{temp:0,oxygen:0,pressure:0},
+  sol:1, todFrac:0,           // time of day 0..1
+  speed:1, paused:false,
+  buildings:[],               // {key,gx,gz,mesh,t}
+  techDone:{},
+  selected:null,              // building key to place
+  demolish:false,
+  rates:{},                   // computed net per-sol rates
+  blackoutSols:0,
+  over:false,
+  msgTimers:{},
+};
+
+/* ============================================================= *
+ *  THREE.JS SCENE                                               *
+ * ============================================================= */
+let renderer,scene,camera,sun,sunPivot,ambient,hemi,terrain,cursor,starField;
+let phobos,deimos,sunMesh;
+const clock=new THREE.Clock();
+const tileOccupied=new Array(GRID*GRID).fill(false);
+const dustParticles=[];
+let dustStormActive=false, dustStormT=0;
+const raycaster=new THREE.Raycaster();
+const pointer=new THREE.Vector2(-2,-2);
+let hoveredTile=null;
+
+function initScene(){
+  renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:"high-performance"});
+  const vw=()=>innerWidth||document.documentElement.clientWidth||1280;
+  const vh=()=>innerHeight||document.documentElement.clientHeight||720;
+  renderer.setSize(vw(),vh());
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  renderer.shadowMap.enabled=true;
+  renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+  renderer.toneMapping=THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure=1.05;
+  document.getElementById('app').appendChild(renderer.domElement);
+
+  scene=new THREE.Scene();
+  scene.fog=new THREE.FogExp2(0x2a1208,0.0065);
+
+  camera=new THREE.PerspectiveCamera(52,vw()/vh(),0.5,2000);
+  G._vw=vw;G._vh=vh;
+
+  // lights
+  hemi=new THREE.HemisphereLight(0xffb070,0x2a0f06,0.6);
+  scene.add(hemi);
+  ambient=new THREE.AmbientLight(0xff8855,0.25);
+  scene.add(ambient);
+
+  sunPivot=new THREE.Object3D(); scene.add(sunPivot);
+  sun=new THREE.DirectionalLight(0xfff0e0,2.2);
+  sun.position.set(60,80,30);
+  sun.castShadow=true;
+  sun.shadow.mapSize.set(2048,2048);
+  const d=70;
+  sun.shadow.camera.left=-d;sun.shadow.camera.right=d;
+  sun.shadow.camera.top=d;sun.shadow.camera.bottom=-d;
+  sun.shadow.camera.near=1;sun.shadow.camera.far=260;
+  sun.shadow.bias=-0.0004;
+  sunPivot.add(sun);
+  // visible sun disk
+  sunMesh=new THREE.Mesh(new THREE.SphereGeometry(6,24,24),
+    new THREE.MeshBasicMaterial({color:0xfff3e0,fog:false}));
+  sun.add(sunMesh); sunMesh.position.set(0,0,0);
+
+  buildTerrain();
+  buildStars();
+  buildMoons();
+  buildCursor();
+  initDust();
+  initCamera();
+
+  addEventListeners();
+}
+
+/* ---------- terrain ---------- */
+function buildTerrain(){
+  const seg=GRID*4;
+  const geo=new THREE.PlaneGeometry(WORLD,WORLD,seg,seg);
+  geo.rotateX(-Math.PI/2);
+  const pos=geo.attributes.position;
+  const colors=[];
+  const cLow=new THREE.Color(0x5a2412),cMid=new THREE.Color(0x8a3a18),cHi=new THREE.Color(0xc26a38),cDust=new THREE.Color(0xd98a4a);
+  for(let i=0;i<pos.count;i++){
+    const x=pos.getX(i),z=pos.getZ(i);
+    const h=terrainH(x,z);
+    pos.setY(i,h);
+    const t=THREE.MathUtils.clamp((h+6)/14,0,1);
+    const c=cLow.clone().lerp(cMid,Math.min(1,t*2)).lerp(cHi,Math.max(0,t*2-1));
+    // speckle
+    const sp=(fbm(noiseH,x*0.3,z*0.3,2)+1)*0.5;
+    c.lerp(cDust,sp*0.18);
+    colors.push(c.r,c.g,c.b);
+  }
+  geo.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));
+  geo.computeVertexNormals();
+  const mat=new THREE.MeshStandardMaterial({vertexColors:true,roughness:0.96,metalness:0.02,flatShading:false});
+  terrain=new THREE.Mesh(geo,mat);
+  terrain.receiveShadow=true;
+  scene.add(terrain);
+
+  // grid overlay (subtle)
+  const grid=new THREE.GridHelper(WORLD,GRID,0xff8a4a,0x7a3a18);
+  grid.material.transparent=true;grid.material.opacity=0.12;grid.position.y=0.05;
+  scene.add(grid);
+}
+
+/* ---------- stars + skydome ---------- */
+function buildStars(){
+  const n=1800,geo=new THREE.BufferGeometry(),arr=[];
+  for(let i=0;i<n;i++){
+    const v=new THREE.Vector3().randomDirection().multiplyScalar(700);
+    if(v.y<0)v.y=-v.y;
+    arr.push(v.x,v.y,v.z);
+  }
+  geo.setAttribute('position',new THREE.Float32BufferAttribute(arr,3));
+  starField=new THREE.Points(geo,new THREE.PointsMaterial({color:0xfff0e0,size:1.7,sizeAttenuation:false,transparent:true,opacity:0.9,fog:false}));
+  scene.add(starField);
+}
+
+/* ---------- moons ---------- */
+function moonMesh(r,color){
+  const geo=new THREE.IcosahedronGeometry(r,2);
+  const p=geo.attributes.position;
+  for(let i=0;i<p.count;i++){
+    const v=new THREE.Vector3().fromBufferAttribute(p,i);
+    v.multiplyScalar(1+fbm(noiseH,v.x*2,v.y*2,3)*0.12);
+    p.setXYZ(i,v.x,v.y,v.z);
+  }
+  geo.computeVertexNormals();
+  return new THREE.Mesh(geo,new THREE.MeshStandardMaterial({color,roughness:1,flatShading:true,fog:false}));
+}
+function buildMoons(){
+  phobos=moonMesh(3,0x9a8a7a); scene.add(phobos);
+  deimos=moonMesh(1.8,0x8a7a6a); scene.add(deimos);
+}
+
+/* ---------- build cursor ---------- */
+function buildCursor(){
+  const g=new THREE.Group();
+  const ring=new THREE.Mesh(new THREE.RingGeometry(TILE*0.34,TILE*0.46,32),
+    new THREE.MeshBasicMaterial({color:0x7fe08a,transparent:true,opacity:0.9,side:THREE.DoubleSide}));
+  ring.rotation.x=-Math.PI/2;
+  const box=new THREE.Mesh(new THREE.BoxGeometry(TILE*0.9,0.2,TILE*0.9),
+    new THREE.MeshBasicMaterial({color:0x7fe08a,transparent:true,opacity:0.18}));
+  g.add(ring);g.add(box);g.visible=false;
+  cursor=g;cursor.userData={ring,box};
+  scene.add(g);
+}
+
+/* ---------- dust ---------- */
+function initDust(){
+  const n=900,geo=new THREE.BufferGeometry(),arr=[];
+  for(let i=0;i<n;i++){
+    arr.push((Math.random()-0.5)*WORLD*1.4, Math.random()*22, (Math.random()-0.5)*WORLD*1.4);
+  }
+  geo.setAttribute('position',new THREE.Float32BufferAttribute(arr,3));
+  const mat=new THREE.PointsMaterial({color:0xd98a4a,size:0.5,transparent:true,opacity:0,depthWrite:false});
+  const pts=new THREE.Points(geo,mat);
+  scene.add(pts);
+  dustParticles.push(pts);
+}
+
+/* ============================================================= *
+ *  CAMERA CONTROLLER (orbit + pan + zoom)                       *
+ * ============================================================= */
+const cam={target:new THREE.Vector3(0,2,0),theta:Math.PI*0.25,phi:0.92,radius:62};
+function initCamera(){updateCamera();}
+function updateCamera(){
+  cam.phi=THREE.MathUtils.clamp(cam.phi,0.25,1.45);
+  cam.radius=THREE.MathUtils.clamp(cam.radius,18,140);
+  const x=cam.target.x+cam.radius*Math.sin(cam.phi)*Math.cos(cam.theta);
+  const y=cam.target.y+cam.radius*Math.cos(cam.phi);
+  const z=cam.target.z+cam.radius*Math.sin(cam.phi)*Math.sin(cam.theta);
+  camera.position.set(x,y,z);
+  camera.lookAt(cam.target);
+}
+function addEventListeners(){
+  const el=renderer.domElement;
+  let drag=null,lx=0,ly=0;
+  el.addEventListener('mousedown',e=>{
+    drag=e.button===2?'pan':(e.button===1?'pan':'orbit');lx=e.clientX;ly=e.clientY;
+  });
+  addEventListener('mouseup',()=>drag=null);
+  addEventListener('mousemove',e=>{
+    pointer.x=(e.clientX/innerWidth)*2-1;
+    pointer.y=-(e.clientY/innerHeight)*2+1;
+    if(!drag)return;
+    const dx=e.clientX-lx,dy=e.clientY-ly;lx=e.clientX;ly=e.clientY;
+    if(drag==='orbit'){cam.theta-=dx*0.005;cam.phi-=dy*0.005;}
+    else{ // pan
+      const panS=cam.radius*0.0016;
+      const fwd=new THREE.Vector3(Math.cos(cam.theta),0,Math.sin(cam.theta));
+      const right=new THREE.Vector3(-Math.sin(cam.theta),0,Math.cos(cam.theta));
+      cam.target.addScaledVector(right,-dx*panS);
+      cam.target.addScaledVector(fwd,-dy*panS);
+      cam.target.x=THREE.MathUtils.clamp(cam.target.x,-WORLD/2,WORLD/2);
+      cam.target.z=THREE.MathUtils.clamp(cam.target.z,-WORLD/2,WORLD/2);
+    }
+    updateCamera();
+  });
+  el.addEventListener('wheel',e=>{e.preventDefault();cam.radius*=1+Math.sign(e.deltaY)*0.08;updateCamera();},{passive:false});
+  el.addEventListener('contextmenu',e=>e.preventDefault());
+  el.addEventListener('click',onClick);
+  // touch (single finger orbit, pinch zoom)
+  let pinch=0;
+  el.addEventListener('touchstart',e=>{if(e.touches.length===1){drag='orbit';lx=e.touches[0].clientX;ly=e.touches[0].clientY;}
+    else if(e.touches.length===2){pinch=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);}},{passive:true});
+  el.addEventListener('touchmove',e=>{
+    if(e.touches.length===1&&drag){const dx=e.touches[0].clientX-lx,dy=e.touches[0].clientY-ly;lx=e.touches[0].clientX;ly=e.touches[0].clientY;cam.theta-=dx*0.006;cam.phi-=dy*0.006;updateCamera();}
+    else if(e.touches.length===2){const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);cam.radius*=pinch/d;pinch=d;updateCamera();}
+  },{passive:true});
+  el.addEventListener('touchend',()=>drag=null);
+  const onResize=()=>{const w=G._vw(),h=G._vh();camera.aspect=w/h;camera.updateProjectionMatrix();renderer.setSize(w,h);};
+  addEventListener('resize',onResize);
+  // self-heal a zero-size init (e.g. page loaded in a backgrounded tab)
+  requestAnimationFrame(onResize);
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')onResize();});
+  addEventListener('keydown',e=>{
+    if(e.key==='Escape'){G.selected=null;G.demolish=false;refreshDock();updateTools();}
+    if(e.key>='1'&&e.key<='3')setSpeed(+e.key);
+    if(e.key===' '){e.preventDefault();togglePause();}
+  });
+}
+
+/* ---------- grid helpers ---------- */
+function gridToWorld(gx,gz){return {x:(gx+0.5)*TILE-WORLD/2, z:(gz+0.5)*TILE-WORLD/2};}
+function worldToGrid(x,z){return {gx:Math.floor((x+WORLD/2)/TILE), gz:Math.floor((z+WORLD/2)/TILE)};}
+function idx(gx,gz){return gz*GRID+gx;}
+function inGrid(gx,gz){return gx>=0&&gz>=0&&gx<GRID&&gz<GRID;}
+function tileSlope(gx,gz){
+  const w=gridToWorld(gx,gz);
+  const hs=[terrainH(w.x-TILE/2,w.z),terrainH(w.x+TILE/2,w.z),terrainH(w.x,w.z-TILE/2),terrainH(w.x,w.z+TILE/2)];
+  return Math.max(...hs)-Math.min(...hs);
+}
+
+/* ============================================================= *
+ *  BUILDING MESH FACTORY (procedural)                           *
+ * ============================================================= */
+function makeBuildingMesh(key){
+  const b=BUILDINGS[key];
+  const g=new THREE.Group();
+  const mat=(c,rough=0.6,metal=0.3,emissive=0)=>new THREE.MeshStandardMaterial({color:c,roughness:rough,metalness:metal,emissive,emissiveIntensity:emissive?0.6:0});
+  const pad=()=>{const p=new THREE.Mesh(new THREE.CylinderGeometry(TILE*0.46,TILE*0.5,0.25,16),mat(0x3a2418,0.95,0.05));p.castShadow=p.receiveShadow=true;return p;};
+  g.add(pad());
+
+  const add=(m,x=0,y=0,z=0)=>{m.castShadow=true;m.receiveShadow=true;m.position.set(x,y,z);g.add(m);return m;};
+
+  switch(key){
+    case'solar':{
+      const post=add(new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.12,1,8),mat(0x555)),0,0.6);
+      const panel=add(new THREE.Mesh(new THREE.BoxGeometry(2.4,0.1,1.4),mat(0x1c4f88,0.3,0.6,0x0a2540)),0,1.15);
+      panel.rotation.x=-0.5;
+      // grid lines
+      break;}
+    case'wind':{
+      add(new THREE.Mesh(new THREE.CylinderGeometry(0.14,0.24,4.6,10),mat(0xdddddd,0.5,0.3)),0,2.3);
+      const hub=new THREE.Group();hub.position.y=4.6;g.add(hub);
+      const nac=new THREE.Mesh(new THREE.CapsuleGeometry(0.3,0.6,4,8),mat(0xcccccc));nac.rotation.z=Math.PI/2;hub.add(nac);
+      const blades=new THREE.Group();hub.add(blades);
+      for(let i=0;i<3;i++){const bl=new THREE.Mesh(new THREE.BoxGeometry(0.12,2.4,0.4),mat(0xffffff));bl.position.y=1.2;bl.rotation.z=i*Math.PI*2/3;const wrap=new THREE.Group();wrap.rotation.z=i*Math.PI*2/3;wrap.add(bl);bl.position.set(0,1.2,0);blades.add(wrap);}
+      g.userData.spin=blades;blades.castShadow=true;
+      break;}
+    case'reactor':{
+      add(new THREE.Mesh(new THREE.CylinderGeometry(1.0,1.3,2.4,16),mat(0xcfd8c8,0.7,0.2)),0,1.2);
+      const dome=add(new THREE.Mesh(new THREE.SphereGeometry(1.0,16,12,0,Math.PI*2,0,Math.PI/2),mat(0x9be07f,0.5,0.3,0x2a5018)),0,2.4);
+      g.userData.glow=dome;break;}
+    case'battery':{
+      for(let i=0;i<3;i++)add(new THREE.Mesh(new THREE.BoxGeometry(0.7,1.6,0.7),mat(0xffc24d,0.4,0.4,0x553300)),(i-1)*0.85,0.95);
+      break;}
+    case'habitat':{
+      const dome=add(new THREE.Mesh(new THREE.SphereGeometry(1.7,24,16,0,Math.PI*2,0,Math.PI/2),mat(0xffb888,0.55,0.1)),0,0.15);
+      const glass=new THREE.Mesh(new THREE.SphereGeometry(1.55,24,16,0,Math.PI*2,0,Math.PI*0.45),new THREE.MeshPhysicalMaterial({color:0x88ccff,transmission:0.6,roughness:0.1,metalness:0,transparent:true,opacity:0.6,emissive:0x224466,emissiveIntensity:0.3}));
+      glass.position.y=0.18;g.add(glass);
+      // little annex
+      add(new THREE.Mesh(new THREE.CylinderGeometry(0.5,0.5,0.8,8),mat(0xcc9070)),1.6,0.4);
+      g.userData.win=glass;break;}
+    case'extractor':{
+      add(new THREE.Mesh(new THREE.BoxGeometry(1.6,1.0,1.6),mat(0x5a8fb0,0.6,0.3)),0,0.6);
+      const drill=add(new THREE.Mesh(new THREE.ConeGeometry(0.35,1.6,8),mat(0x88c8ff,0.3,0.6)),0,1.0);drill.rotation.x=Math.PI;
+      g.userData.spin=drill;break;}
+    case'moxie':{
+      add(new THREE.Mesh(new THREE.CylinderGeometry(0.9,0.9,2.0,16),mat(0xcfe8f0,0.5,0.4)),0,1.1);
+      const ring=add(new THREE.Mesh(new THREE.TorusGeometry(1.0,0.16,10,24),mat(0x8fe3ff,0.3,0.5,0x2a6a88)),0,1.4);ring.rotation.x=Math.PI/2;
+      add(new THREE.Mesh(new THREE.SphereGeometry(0.5,12,10),mat(0xaaf0ff,0.3,0.4,0x336688)),0,2.3);break;}
+    case'greenhouse':{
+      const base=add(new THREE.Mesh(new THREE.BoxGeometry(2.4,0.5,1.5),mat(0x6a4a30)),0,0.25);
+      const glass=new THREE.Mesh(new THREE.CylinderGeometry(0.9,0.9,2.3,16,1,false,0,Math.PI),new THREE.MeshPhysicalMaterial({color:0x9affb0,transmission:0.5,roughness:0.1,transparent:true,opacity:0.55,emissive:0x115522,emissiveIntensity:0.35}));
+      glass.rotation.z=Math.PI/2;glass.position.y=0.9;g.add(glass);g.userData.glow=glass;break;}
+    case'mine':{
+      add(new THREE.Mesh(new THREE.BoxGeometry(1.8,1.0,1.4),mat(0xb07a4a,0.8,0.1)),0,0.6);
+      const arm=add(new THREE.Mesh(new THREE.BoxGeometry(0.3,0.3,2.2),mat(0x888)),0.4,1.4,0.6);arm.rotation.x=-0.6;
+      g.userData.arm=arm;break;}
+    case'lab':{
+      add(new THREE.Mesh(new THREE.CylinderGeometry(0.9,1.1,1.8,8),mat(0xc0b0e0,0.5,0.3)),0,0.9);
+      const orb=add(new THREE.Mesh(new THREE.SphereGeometry(0.7,16,12),mat(0xb98fff,0.2,0.4,0x6a2aaa)),0,2.2);
+      g.userData.glow=orb;break;}
+    case'depot':{
+      for(let i=0;i<2;i++)add(new THREE.Mesh(new THREE.CylinderGeometry(0.7,0.7,1.4,12),mat(0xa0a0a8,0.6,0.4)),(i-0.5)*1.0,0.8);
+      add(new THREE.Mesh(new THREE.BoxGeometry(2.2,0.4,1.4),mat(0x808088)),0,1.6);break;}
+    case'market':{
+      add(new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.2,4.2,8),mat(0xaaa)),0,2.1);
+      const dish=add(new THREE.Mesh(new THREE.SphereGeometry(1.0,16,8,0,Math.PI*2,0,Math.PI/2.4),mat(0xffe0a0,0.4,0.5,0x554400)),0,4.0);dish.rotation.x=-0.8;
+      g.userData.spin=dish;dish.userData.axis='y';break;}
+    case'algae':{
+      const pool=add(new THREE.Mesh(new THREE.CylinderGeometry(1.6,1.6,0.5,20),mat(0x2a6a40,0.3,0.1,0x0a3a1a)),0,0.3);
+      const water=add(new THREE.Mesh(new THREE.CylinderGeometry(1.5,1.5,0.1,20),new THREE.MeshStandardMaterial({color:0x4fd17a,emissive:0x1a6a3a,emissiveIntensity:0.5,roughness:0.2})),0,0.55);
+      g.userData.glow=water;break;}
+    case'heater':{
+      add(new THREE.Mesh(new THREE.CylinderGeometry(0.9,1.2,2.4,12),mat(0xaa5530,0.7,0.3)),0,1.2);
+      const stack=add(new THREE.Mesh(new THREE.CylinderGeometry(0.4,0.5,1.6,10),mat(0x884422)),0.3,2.8);
+      const flame=add(new THREE.Mesh(new THREE.ConeGeometry(0.4,1.0,10),new THREE.MeshBasicMaterial({color:0xff7a3c})),0.3,3.9);
+      g.userData.glow=flame;break;}
+    case'mirror':{
+      add(new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.12,3,8),mat(0x888)),0,1.5);
+      const disc=add(new THREE.Mesh(new THREE.CircleGeometry(1.6,32),new THREE.MeshStandardMaterial({color:0xffffff,metalness:1,roughness:0.05,side:THREE.DoubleSide})),0,3.2);disc.rotation.x=-0.7;
+      g.userData.spin=disc;break;}
+    case'processor':{
+      add(new THREE.Mesh(new THREE.BoxGeometry(2.2,2.6,2.2),mat(0xcc7a44,0.7,0.3)),0,1.3);
+      for(let i=0;i<2;i++)add(new THREE.Mesh(new THREE.CylinderGeometry(0.45,0.45,2.4,10),mat(0xaa5a2a)),(i-0.5)*1.0,2.8);
+      const cap=add(new THREE.Mesh(new THREE.SphereGeometry(0.5,12,8),new THREE.MeshBasicMaterial({color:0xffaa55})),0.5,4.2);
+      g.userData.glow=cap;break;}
+  }
+  g.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});
+  return g;
+}
+
+/* ============================================================= *
+ *  PLACEMENT / DEMOLITION                                       *
+ * ============================================================= */
+function canAfford(cost){return Object.entries(cost).every(([k,v])=>G.res[k]>=v);}
+function spend(cost){for(const[k,v]of Object.entries(cost))G.res[k]-=v;}
+
+function placeBuilding(key,gx,gz){
+  const b=BUILDINGS[key];
+  if(!canAfford(b.cost)){toast("Not enough resources",'bad');return false;}
+  spend(b.cost);
+  const w=gridToWorld(gx,gz);
+  const y=terrainH(w.x,w.z);
+  const mesh=makeBuildingMesh(key);
+  mesh.position.set(w.x,y,w.z);
+  mesh.scale.y=0.01;
+  scene.add(mesh);
+  const obj={key,gx,gz,mesh,t:0,anim:0};
+  G.buildings.push(obj);
+  tileOccupied[idx(gx,gz)]=true;
+  spawnPuff(w.x,y,w.z);
+  beep(440,0.08);
+  toast(`${b.name} constructed`,'good');
+  return true;
+}
+
+function demolishAt(gx,gz){
+  const i=G.buildings.findIndex(o=>o.gx===gx&&o.gz===gz);
+  if(i<0)return;
+  const o=G.buildings[i];
+  const b=BUILDINGS[o.key];
+  // refund 40%
+  for(const[k,v]of Object.entries(b.cost))G.res[k]+=Math.floor(v*0.4);
+  const w=gridToWorld(gx,gz);spawnPuff(w.x,terrainH(w.x,w.z),w.z);
+  scene.remove(o.mesh);
+  G.buildings.splice(i,1);
+  tileOccupied[idx(gx,gz)]=false;
+  beep(220,0.1);
+  toast(`${b.name} demolished (40% refunded)`,'warn');
+}
+
+function onClick(e){
+  if(G.over)return;
+  if(!hoveredTile)return;
+  const {gx,gz}=hoveredTile;
+  if(G.demolish){demolishAt(gx,gz);return;}
+  if(!G.selected)return;
+  if(tileOccupied[idx(gx,gz)]){toast("Tile occupied",'bad');return;}
+  if(tileSlope(gx,gz)>2.6){toast("Ground too steep here",'bad');return;}
+  placeBuilding(G.selected,gx,gz);
+}
+
+/* ---------- dust puff on build ---------- */
+const puffs=[];
+function spawnPuff(x,y,z){
+  const n=18,geo=new THREE.BufferGeometry(),arr=[],vel=[];
+  for(let i=0;i<n;i++){arr.push(x,y+0.2,z);const a=Math.random()*Math.PI*2,sp=2+Math.random()*3;vel.push(Math.cos(a)*sp,1.5+Math.random()*2,Math.sin(a)*sp);}
+  geo.setAttribute('position',new THREE.Float32BufferAttribute(arr,3));
+  const pts=new THREE.Points(geo,new THREE.PointsMaterial({color:0xd98a4a,size:0.6,transparent:true,opacity:0.9,depthWrite:false}));
+  scene.add(pts);puffs.push({pts,vel,life:1});
+}
+
+/* ============================================================= *
+ *  ECONOMY                                                      *
+ * ============================================================= */
+function dayFactor(){ // 1 at noon, ~0 at night, smooth
+  return Math.max(0, Math.sin(G.todFrac*Math.PI*2 - Math.PI/2));
+}
+function computeRates(){
+  const r={power:0,oxygen:0,water:0,food:0,materials:0,science:0,credits:0};
+  let powerCap=100, storeBonus=0, popCap=0;
+  let tfRate={temp:0,oxygen:0,pressure:0};
+  const df=dayFactor();
+  const storm=dustStormActive?1:0;
+  const effMult=G.techDone.efficiency?0.75:1;
+  const droneMult=G.techDone.drones?1.3:1;
+
+  // potential production vs consumption — but production gated by power availability later
+  let prodPower=0, usePower=0;
+  for(const o of G.buildings){
+    const b=BUILDINGS[o.key];
+    if(b.powerCap)powerCap+=b.powerCap;
+    if(b.storage)storeBonus+=b.storage;
+    if(b.pop)popCap+=b.pop;
+    if(b.power){
+      if(b.power.day!==undefined)prodPower+=b.power.day*df*(storm?0.25:1);
+      if(b.power.flat!==undefined)prodPower+=b.power.flat*(storm?1.3:1);
+    }
+  }
+  // gather power demand
+  for(const o of G.buildings){
+    const b=BUILDINGS[o.key];
+    if(b.use&&b.use.power)usePower+=b.use.power;
+  }
+  // habitat life support scales with pop housed (approx: full when occupied)
+  // we treat habitat consumption at full rate; efficiency tech reduces
+  const powerOK = (prodPower + Math.min(G.res.power,9999)) >= usePower; // have we got juice this tick?
+  r.power = prodPower - usePower;
+
+  // production of goods only runs if there's net power available (brownout reduces output)
+  const powerRatio = usePower>0 ? THREE.MathUtils.clamp((prodPower+ (G.res.power>0?G.res.power*0.0:0))/usePower,0,1) : 1;
+  const opMult = (prodPower>=usePower)?1:Math.max(0.15,powerRatio);
+
+  for(const o of G.buildings){
+    const b=BUILDINGS[o.key];
+    if(b.prod)for(const[k,v]of Object.entries(b.prod)){
+      let amt=v*opMult;
+      if((o.key==='extractor'||o.key==='mine'))amt*=droneMult;
+      r[k]+=amt;
+    }
+    if(b.use)for(const[k,v]of Object.entries(b.use)){
+      if(k==='power')continue;
+      let amt=v;
+      if(b.pop)amt*=effMult; // life-support efficiency
+      r[k]-=amt;
+    }
+    if(b.tf)for(const[k,v]of Object.entries(b.tf))tfRate[k]+=v*opMult;
+  }
+
+  // population consumption (colonists breathe/eat/drink beyond habitat base)
+  r.oxygen-=G.pop*0.4;
+  r.water-=G.pop*0.3;
+  r.food-=G.pop*0.5;
+
+  G.rates=r;G.powerCap=powerCap;G.popCap=popCap;
+  G.storeBonus=storeBonus;G.tfRate=tfRate;G.opMult=opMult;G.prodPower=prodPower;G.usePower=usePower;
+  return r;
+}
+
+function caps(){
+  const b=G.storeBonus||0;
+  return {
+    power:G.powerCap||100,
+    oxygen:STORAGE_BASE.oxygen+b, water:STORAGE_BASE.water+b,
+    food:STORAGE_BASE.food+b, materials:STORAGE_BASE.materials+b,
+    science:Infinity, credits:Infinity,
+  };
+}
+
+function tickEconomy(dtSol){
+  computeRates();
+  const c=caps();
+  for(const k of Object.keys(G.res)){
+    G.res[k]+=G.rates[k]*dtSol;
+    G.res[k]=Math.min(G.res[k],c[k]);
+    if(k!=='power')G.res[k]=Math.max(0,G.res[k]); // power can show deficit handled below
+  }
+  // power is a flow with battery storage; clamp 0..cap
+  G.res.power=THREE.MathUtils.clamp(G.res.power,0,c.power);
+
+  // terraforming
+  for(const k of Object.keys(G.tf)){
+    G.tf[k]=THREE.MathUtils.clamp(G.tf[k]+(G.tfRate[k]||0)*dtSol,0,100);
+  }
+
+  // population dynamics
+  const lifeOK = G.res.oxygen>0 && G.res.water>0 && G.res.food>0;
+  if(lifeOK && G.pop<G.popCap){
+    G.pop+=0.6*dtSol; // immigration/growth
+  }else if(!lifeOK){
+    G.pop-=1.2*dtSol; // people die/leave
+    if(Math.random()<0.4*dtSol)toast("Colonists are suffering — fix life support!",'bad');
+  }
+  G.pop=Math.max(0,Math.min(G.pop,G.popCap));
+
+  // lose condition: had people, now gone
+  if(G.pop<0.5 && G.popCap>0 && !G.over){ gameOver(false); }
+
+  // win condition
+  if(G.tf.temp>=100&&G.tf.oxygen>=100&&G.tf.pressure>=100&&!G.over){ gameOver(true); }
+
+  maybeEvent(dtSol);
+}
+
+/* ============================================================= *
+ *  EVENTS                                                       *
+ * ============================================================= */
+let eventCooldown=6;
+function maybeEvent(dtSol){
+  eventCooldown-=dtSol;
+  if(eventCooldown>0)return;
+  eventCooldown=8+Math.random()*8;
+  const roll=Math.random();
+  if(roll<0.4){startDustStorm();}
+  else if(roll<0.6){ // meteor — damages a random building
+    if(G.buildings.length>2){
+      const o=G.buildings[(Math.random()*G.buildings.length)|0];
+      const w=gridToWorld(o.gx,o.gz);spawnPuff(w.x,terrainH(w.x,w.z)+1,w.z);
+      const b=BUILDINGS[o.key];
+      scene.remove(o.mesh);G.buildings.splice(G.buildings.indexOf(o),1);tileOccupied[idx(o.gx,o.gz)]=false;
+      toast(`☄️ Meteor strike destroyed a ${b.name}!`,'bad');
+      beep(120,0.25);
+    }
+  }
+  else if(roll<0.75){ // supply drop
+    const m=80+Math.floor(Math.random()*80);G.res.materials+=m;
+    toast(`🚀 Supply drop from Earth: +${m} materials`,'good');
+  }
+  else if(roll<0.88){ // solar flare boosts science
+    G.res.science+=40;toast("☀️ Solar flare — sensors gathered +40 Science",'good');
+  }
+  // else quiet sol
+}
+function startDustStorm(){
+  if(dustStormActive)return;
+  dustStormActive=true;dustStormT=0;
+  toast("🌪️ Dust storm incoming — solar power will drop!",'warn');
+}
+
+/* ============================================================= *
+ *  UI                                                           *
+ * ============================================================= */
+const $=s=>document.querySelector(s);
+const resbar=$('#resbar'),dock=$('#dock'),side=$('#side'),tip=$('#tip'),logEl=$('#log'),hint=$('#hint');
+
+const RES_DEF=[
+  ['power','Power','power'],['oxygen','Oxygen','oxygen'],['water','Water','water'],
+  ['food','Food','food'],['materials','Materials','materials'],['science','Science','science'],
+  ['credits','Credits','credits'],
+];
+function buildResBar(){
+  let html='';
+  for(const[k,label,ic]of RES_DEF){
+    html+=`<div class="res" id="res-${k}" data-k="${k}">${ICONS[ic]}<div><div class="v" id="resv-${k}">0</div><div class="r" id="resr-${k}"></div></div></div>`;
+  }
+  html+=`<div class="res" id="res-pop">${ICONS.pop}<div><div class="v" id="resv-pop">0</div><div class="r" id="resr-pop">cap 0</div></div></div>`;
+  html+=`<div class="spacer"></div>`;
+  html+=`<div class="clock"><div><div class="sol" id="solnum">Sol 1</div><div class="tod" id="todtxt">Dawn</div></div>
+    <div class="speed">
+      <button id="sp0" title="Pause (space)">❚❚</button>
+      <button id="sp1" class="on">1×</button>
+      <button id="sp2">2×</button>
+      <button id="sp3">3×</button>
+    </div></div>`;
+  resbar.innerHTML=html;
+  $('#sp0').onclick=togglePause;
+  $('#sp1').onclick=()=>setSpeed(1);
+  $('#sp2').onclick=()=>setSpeed(2);
+  $('#sp3').onclick=()=>setSpeed(3);
+}
+function fmt(n){return n>=1000?(n/1000).toFixed(1)+'k':Math.floor(n);}
+function updateResBar(){
+  const c=caps();
+  for(const[k]of RES_DEF){
+    $('#resv-'+k).textContent=fmt(G.res[k])+(c[k]!==Infinity?` / ${fmt(c[k])}`:'');
+    const rate=G.rates[k]||0;
+    const rel=$('#resr-'+k);
+    if(k==='power'){
+      rel.textContent=`${G.prodPower?Math.round(G.prodPower):0}/${Math.round(G.usePower||0)} ⚡`;
+      rel.className='r '+(G.prodPower>=G.usePower?'pos':'neg');
+    }else{
+      rel.textContent=(rate>=0?'+':'')+rate.toFixed(1)+'/sol';
+      rel.className='r '+(rate>0?'pos':rate<0?'neg':'');
+    }
+    const box=$('#res-'+k);
+    const low = k!=='science'&&k!=='credits'&&k!=='materials' && G.res[k]<15 && rate<0;
+    box.classList.toggle('alert',low);
+  }
+  $('#resv-pop').textContent=Math.floor(G.pop);
+  $('#resr-pop').textContent='cap '+Math.floor(G.popCap||0);
+  $('#solnum').textContent='Sol '+G.sol;
+  const f=G.todFrac;
+  const tod=f<0.22?'Dawn':f<0.3?'Morning':f<0.5?'Midday':f<0.72?'Afternoon':f<0.82?'Dusk':'Night';
+  $('#todtxt').textContent=(dustStormActive?'🌪️ ':'')+tod;
+}
+
+/* ---------- build dock ---------- */
+function refreshDock(){
+  let html='';
+  for(const key of BUILD_ORDER){
+    const b=BUILDINGS[key];
+    const locked=b.tech&&!G.techDone[b.tech];
+    const aff=canAfford(b.cost);
+    const cls=['bcard'];
+    if(G.selected===key)cls.push('sel');
+    if(locked)cls.push('locked');else if(!aff)cls.push('unaff');
+    const costStr=Object.entries(b.cost).map(([k,v])=>`${v}${k[0].toUpperCase()}`).join(' ');
+    html+=`<div class="${cls.join(' ')}" data-key="${key}">
+      ${locked?'<span class="lk">🔒</span>':''}
+      ${ICONS[b.icon]||ICONS.materials}
+      <div class="bn">${b.name}</div>
+      <div class="bc">${costStr}</div>
+    </div>`;
+  }
+  dock.innerHTML=html;
+  dock.querySelectorAll('.bcard').forEach(el=>{
+    const key=el.dataset.key;const b=BUILDINGS[key];const locked=b.tech&&!G.techDone[b.tech];
+    el.onclick=()=>{
+      if(locked){toast(`Research "${TECHS[b.tech].name}" first`,'warn');return;}
+      G.demolish=false;
+      G.selected=G.selected===key?null:key;
+      refreshDock();updateTools();showHint(G.selected?`Click a flat tile to build ${b.name}. Esc to cancel.`:'');
+    };
+    el.onmouseenter=e=>showBuildTip(e,key);
+    el.onmousemove=e=>moveTip(e);
+    el.onmouseleave=hideTip;
+  });
+}
+
+function showBuildTip(e,key){
+  const b=BUILDINGS[key];
+  let rows='';
+  const fmtSet=(o,sign)=>Object.entries(o).map(([k,v])=>`<div class="row"><span>${k}</span><b>${sign}${typeof v==='object'?(v.day||v.flat):v}/sol</b></div>`).join('');
+  if(b.cost)rows+=`<div class="row"><span>Cost</span><b>${Object.entries(b.cost).map(([k,v])=>v+' '+k).join(', ')}</b></div>`;
+  if(b.power)rows+=`<div class="row"><span>Power</span><b>+${b.power.day??b.power.flat}${b.power.day!==undefined?' (sun)':''}</b></div>`;
+  if(b.prod)rows+=fmtSet(b.prod,'+');
+  if(b.use)rows+=fmtSet(b.use,'−');
+  if(b.pop)rows+=`<div class="row"><span>Housing</span><b>+${b.pop}</b></div>`;
+  if(b.tf)rows+=Object.entries(b.tf).map(([k,v])=>`<div class="row"><span>Terraform ${k}</span><b>+${v}/sol</b></div>`).join('');
+  if(b.powerCap)rows+=`<div class="row"><span>Power storage</span><b>+${b.powerCap}</b></div>`;
+  if(b.storage)rows+=`<div class="row"><span>Storage</span><b>+${b.storage}</b></div>`;
+  tip.innerHTML=`<h5>${b.name}</h5>${rows}<div class="desc">${b.desc}</div>`;
+  tip.style.opacity=1;moveTip(e);
+}
+function moveTip(e){
+  const r=tip.getBoundingClientRect();
+  let x=e.clientX+16,y=e.clientY-r.height-12;
+  if(x+r.width>innerWidth)x=e.clientX-r.width-16;
+  if(y<8)y=e.clientY+18;
+  tip.style.left=x+'px';tip.style.top=y+'px';
+}
+function hideTip(){tip.style.opacity=0;}
+
+/* ---------- tools / side panels ---------- */
+function updateTools(){
+  $('#tDemo').classList.toggle('on',G.demolish);
+}
+let sidePanel=null;
+function openSide(which){
+  if(sidePanel===which){closeSide();return;}
+  sidePanel=which;side.classList.add('open');
+  if(which==='info')renderInfo();
+  else if(which==='tech')renderTech();
+  else if(which==='help')renderHelp();
+}
+function closeSide(){side.classList.remove('open');sidePanel=null;}
+
+function bar(label,val,color){
+  return `<div style="margin:8px 0 4px;font-size:12px;display:flex;justify-content:space-between"><span>${label}</span><b>${val.toFixed(0)}%</b></div>
+  <div style="height:9px;border-radius:6px;background:rgba(255,255,255,.08);overflow:hidden"><i style="display:block;height:100%;width:${val}%;background:${color};transition:width .4s"></i></div>`;
+}
+function renderInfo(){
+  const avg=(G.tf.temp+G.tf.oxygen+G.tf.pressure)/3;
+  side.innerHTML=`<h3>🌍 Colony Overview <span class="close" id="sclose">✕</span></h3>
+  <p class="sub">Terraform all three indices to 100% to make Mars habitable and win.</p>
+  ${bar('🌡️ Temperature',G.tf.temp,'linear-gradient(90deg,#ff7a3c,#ffd166)')}
+  ${bar('🫁 Atmosphere O₂',G.tf.oxygen,'linear-gradient(90deg,#4fd17a,#8fe3ff)')}
+  ${bar('🎈 Air Pressure',G.tf.pressure,'linear-gradient(90deg,#b98fff,#ff9d5c)')}
+  ${bar('✦ Overall',avg,'linear-gradient(90deg,#ff7a3c,#7fe08a)')}
+  <div style="margin-top:14px"></div>
+  <div class="stat"><span>Population</span><b>${Math.floor(G.pop)} / ${Math.floor(G.popCap)}</b></div>
+  <div class="stat"><span>Buildings</span><b>${G.buildings.length}</b></div>
+  <div class="stat"><span>Power balance</span><b style="color:${G.prodPower>=G.usePower?'var(--good)':'var(--bad)'}">${Math.round(G.prodPower)} / ${Math.round(G.usePower)} ⚡</b></div>
+  <div class="stat"><span>Operating efficiency</span><b>${Math.round((G.opMult||1)*100)}%</b></div>
+  <div class="stat"><span>Sol</span><b>${G.sol}</b></div>
+  <div style="margin-top:14px"><button class="btn danger" id="reset">↺ New colony</button></div>`;
+  $('#sclose').onclick=closeSide;
+  $('#reset').onclick=()=>{if(confirm('Abandon this colony and start over?')){localStorage.removeItem('redfrontier');location.reload();}};
+}
+function renderTech(){
+  let html=`<h3>🧪 Research <span class="close" id="sclose">✕</span></h3>
+  <p class="sub">Build Research Labs to generate Science: <b style="color:var(--sci)">${Math.floor(G.res.science)}</b> available.</p>`;
+  for(const[id,t]of Object.entries(TECHS)){
+    const done=G.techDone[id];
+    const reqOK=t.req.every(r=>G.techDone[r]);
+    const can=!done&&reqOK&&G.res.science>=t.cost;
+    html+=`<div class="tech ${done?'done':''}">
+      <h4>${t.name} ${done?'✓':''}</h4>
+      <p>${t.desc}${t.req.length?'<br><i>Requires: '+t.req.map(r=>TECHS[r].name).join(', ')+'</i>':''}</p>
+      ${done?'<div class="cost">Researched</div>':
+        `<button class="btn" data-tech="${id}" ${can?'':'disabled'}>${reqOK?'':'🔒 '}Research — ${t.cost} 🔬</button>`}
+    </div>`;
+  }
+  side.innerHTML=html;
+  $('#sclose').onclick=closeSide;
+  side.querySelectorAll('[data-tech]').forEach(b=>b.onclick=()=>{
+    const id=b.dataset.tech,t=TECHS[id];
+    if(G.res.science<t.cost)return;
+    G.res.science-=t.cost;G.techDone[id]=true;
+    toast(`🔬 Researched ${t.name}!`,'good');beep(660,0.12);
+    renderTech();refreshDock();
+  });
+}
+function renderHelp(){
+  side.innerHTML=`<h3>❔ How to play <span class="close" id="sclose">✕</span></h3>
+  <p class="sub">Survive, grow, and terraform Mars.</p>
+  <div style="font-size:12.5px;line-height:1.65;color:var(--ink)">
+  <p><b>🎯 Goal:</b> Raise Temperature, Atmosphere and Pressure to 100% (see 📊 overview).</p>
+  <p><b>🏗️ Build:</b> Pick a building from the bottom dock, then click a flat tile. Green ring = buildable, red = blocked.</p>
+  <p><b>⚡ Power first:</b> Solar arrays are cheap but die at night & in storms — pair with Power Cells or a Reactor.</p>
+  <p><b>🫁 Life support:</b> Habitats house colonists but burn O₂, water, food & power. Keep production positive.</p>
+  <p><b>🔬 Research:</b> Build Labs → spend Science in the 🧪 panel to unlock reactors, trade, and terraforming tech.</p>
+  <p><b>🌪️ Events:</b> Dust storms, meteors and supply drops keep you on your toes.</p>
+  <p><b>🖱️ Camera:</b> Left-drag orbit · Right-drag pan · Wheel zoom · Keys 1/2/3 speed · Space pause.</p>
+  </div>`;
+  $('#sclose').onclick=closeSide;
+}
+
+/* ---------- toasts / log ---------- */
+function toast(msg,kind=''){
+  const el=document.createElement('div');
+  el.className='logitem '+kind;el.textContent=msg;
+  logEl.prepend(el);
+  while(logEl.children.length>5)logEl.lastChild.remove();
+  setTimeout(()=>{el.style.transition='opacity .5s';el.style.opacity=0;setTimeout(()=>el.remove(),500);},4200);
+}
+let hintT=null;
+function showHint(txt){
+  if(!txt){hint.classList.remove('show');return;}
+  hint.textContent=txt;hint.classList.add('show');
+  clearTimeout(hintT);hintT=setTimeout(()=>hint.classList.remove('show'),3500);
+}
+
+/* ---------- speed / pause ---------- */
+function setSpeed(s){
+  G.speed=s;G.paused=false;
+  for(const id of['sp0','sp1','sp2','sp3'])$('#'+id)?.classList.remove('on');
+  $('#sp'+s)?.classList.add('on');
+}
+function togglePause(){
+  G.paused=!G.paused;
+  for(const id of['sp0','sp1','sp2','sp3'])$('#'+id)?.classList.remove('on');
+  if(G.paused)$('#sp0').classList.add('on');else $('#sp'+G.speed).classList.add('on');
+}
+
+/* ============================================================= *
+ *  AUDIO (tiny WebAudio blips)                                  *
+ * ============================================================= */
+let actx;
+function beep(freq=440,dur=0.1){
+  try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();
+    const o=actx.createOscillator(),g=actx.createGain();
+    o.frequency.value=freq;o.type='triangle';
+    g.gain.setValueAtTime(0.06,actx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.0001,actx.currentTime+dur);
+    o.connect(g).connect(actx.destination);o.start();o.stop(actx.currentTime+dur);
+  }catch{}
+}
+
+/* ============================================================= *
+ *  WIN / LOSE                                                   *
+ * ============================================================= */
+function gameOver(won){
+  G.over=true;G.paused=true;
+  const mc=$('#mcard');
+  mc.innerHTML=won?
+    `<div class="emoji">🌍</div><h2>Mars is Home</h2>
+     <p>After ${G.sol} sols, your atmosphere is breathable, the ice has melted into rivers, and ${Math.floor(G.pop)} colonists walk under an open sky. You terraformed a planet.</p>
+     <div class="mbtns"><button class="btn" onclick="location.reload()">▶ Play again</button></div>`
+   : `<div class="emoji">💀</div><h2>Colony Lost</h2>
+     <p>On Sol ${G.sol}, the last colonist perished. Life support failed and the red dust reclaimed the domes. Mars remains unconquered… for now.</p>
+     <div class="mbtns"><button class="btn" onclick="localStorage.removeItem('redfrontier');location.reload()">↺ Try again</button></div>`;
+  $('#modal').classList.add('show');
+  localStorage.removeItem('redfrontier');
+}
+
+/* ============================================================= *
+ *  SAVE / LOAD                                                  *
+ * ============================================================= */
+function save(){
+  const data={res:G.res,pop:G.pop,tf:G.tf,sol:G.sol,todFrac:G.todFrac,techDone:G.techDone,
+    buildings:G.buildings.map(o=>({key:o.key,gx:o.gx,gz:o.gz}))};
+  localStorage.setItem('redfrontier',JSON.stringify(data));
+  toast('💾 Colony saved','good');
+}
+function load(){
+  try{
+    const d=JSON.parse(localStorage.getItem('redfrontier'));
+    if(!d)return false;
+    Object.assign(G.res,d.res);G.pop=d.pop;Object.assign(G.tf,d.tf);
+    G.sol=d.sol;G.todFrac=d.todFrac;G.techDone=d.techDone||{};
+    for(const b of d.buildings){
+      const w=gridToWorld(b.gx,b.gz),y=terrainH(w.x,w.z);
+      const mesh=makeBuildingMesh(b.key);mesh.position.set(w.x,y,w.z);scene.add(mesh);
+      G.buildings.push({key:b.key,gx:b.gx,gz:b.gz,mesh,t:0,anim:1});
+      tileOccupied[idx(b.gx,b.gz)]=true;
+    }
+    return true;
+  }catch{return false;}
+}
+
+/* ============================================================= *
+ *  MAIN LOOP                                                    *
+ * ============================================================= */
+let solAccum=0, saveAccum=0;
+function animate(){
+  requestAnimationFrame(animate);
+  const dt=Math.min(clock.getDelta(),0.05);
+  const speed=G.paused?0:G.speed;
+  const dtGame=dt*speed;
+
+  // time of day & sol
+  if(dtGame>0){
+    G.todFrac+=dtGame/SOL_SECONDS;
+    while(G.todFrac>=1){G.todFrac-=1;G.sol++;toast(`☀️ Sol ${G.sol} begins`,'');}
+    // economy in sol units
+    tickEconomy(dtGame/SOL_SECONDS);
+    solAccum+=dt;
+    saveAccum+=dt;
+    if(saveAccum>20){saveAccum=0;save();}
+  }
+
+  // sun orbit
+  const ang=G.todFrac*Math.PI*2 - Math.PI/2;
+  sunPivot.rotation.z=0;
+  sun.position.set(Math.cos(ang)*120, Math.sin(ang)*120+5, 40);
+  const dl=Math.max(0,Math.sin(G.todFrac*Math.PI*2-Math.PI/2));
+  sun.intensity=0.3+dl*2.1*(dustStormActive?0.45:1);
+  ambient.intensity=0.12+dl*0.22;
+  hemi.intensity=0.25+dl*0.5;
+  // sky color by time of day
+  const night=new THREE.Color(0x1a0a06), day=new THREE.Color(0x3a1608), dusk=new THREE.Color(0x55180a);
+  const skyT=dl;
+  const sky=night.clone().lerp(day,skyT);
+  if(G.todFrac<0.25||G.todFrac>0.75)sky.lerp(dusk,0.4);
+  scene.fog.color.copy(sky);
+  renderer.setClearColor(sky);
+  sunMesh.material.color.setHSL(0.07,0.7,0.6+dl*0.2);
+
+  // moons orbit
+  const t=performance.now()*0.001;
+  phobos.position.set(Math.cos(t*0.25)*180,90+Math.sin(t*0.25)*20,Math.sin(t*0.25)*120);
+  deimos.position.set(Math.cos(-t*0.12+2)*220,120,Math.sin(-t*0.12+2)*160);
+  phobos.rotation.y=t*0.3;deimos.rotation.y=-t*0.2;
+
+  // dust storm visuals
+  if(dustStormActive){
+    dustStormT+=dt;
+    const intensity=Math.min(1,dustStormT/3)*(dustStormT>14?Math.max(0,1-(dustStormT-14)/4):1);
+    dustParticles[0].material.opacity=intensity*0.5;
+    const p=dustParticles[0].geometry.attributes.position;
+    for(let i=0;i<p.count;i++){let x=p.getX(i)+dt*14;if(x>WORLD*0.7)x-=WORLD*1.4;p.setX(i,x);p.setY(i,p.getY(i)+Math.sin(t*3+i)*0.02);}
+    p.needsUpdate=true;
+    scene.fog.density=0.0065+intensity*0.02;
+    if(dustStormT>18){dustStormActive=false;scene.fog.density=0.0065;dustParticles[0].material.opacity=0;toast('🌤️ The dust storm has passed','good');}
+  }
+
+  // building animations: rise-up + spinners + glow pulse
+  for(const o of G.buildings){
+    if(o.anim<1){o.anim=Math.min(1,o.anim+dt*2.2);const e=1-Math.pow(1-o.anim,3);o.mesh.scale.y=e;}
+    const ud=o.mesh.userData;
+    if(ud.spin){const sp=(dustStormActive&&o.key==='wind')?6:1.6;ud.spin.rotation[ud.spin.userData?.axis==='y'?'y':'z']+=dt*sp;}
+    if(ud.arm){ud.arm.rotation.x=-0.6+Math.sin(t*2+o.gx)*0.25;}
+    if(ud.glow){const i=0.4+Math.sin(t*3+o.gz)*0.25;if(ud.glow.material.emissive)ud.glow.material.emissiveIntensity=i;}
+    if(ud.win){ud.win.material.emissiveIntensity=(G.todFrac>0.72||G.todFrac<0.22)?0.7:0.15;}
+  }
+
+  // build puffs
+  for(let i=puffs.length-1;i>=0;i--){
+    const pf=puffs[i];pf.life-=dt*1.3;
+    const p=pf.pts.geometry.attributes.position;
+    for(let j=0;j<p.count;j++){
+      p.setXYZ(j,p.getX(j)+pf.vel[j*3]*dt,p.getY(j)+pf.vel[j*3+1]*dt,p.getZ(j)+pf.vel[j*3+2]*dt);
+      pf.vel[j*3+1]-=dt*4;
+    }
+    p.needsUpdate=true;pf.pts.material.opacity=Math.max(0,pf.life);
+    if(pf.life<=0){scene.remove(pf.pts);puffs.splice(i,1);}
+  }
+
+  // cursor raycast (only when placing/demolishing)
+  updateCursor();
+
+  starField.material.opacity=Math.max(0.15,1-dl);
+
+  renderer.render(scene,camera);
+}
+
+function updateCursor(){
+  if(!G.selected&&!G.demolish){cursor.visible=false;hoveredTile=null;return;}
+  raycaster.setFromCamera(pointer,camera);
+  const hit=raycaster.intersectObject(terrain)[0];
+  if(!hit){cursor.visible=false;hoveredTile=null;return;}
+  const {gx,gz}=worldToGrid(hit.point.x,hit.point.z);
+  if(!inGrid(gx,gz)){cursor.visible=false;hoveredTile=null;return;}
+  hoveredTile={gx,gz};
+  const w=gridToWorld(gx,gz),y=terrainH(w.x,w.z);
+  cursor.position.set(w.x,y+0.1,w.z);cursor.visible=true;
+  let ok;
+  if(G.demolish)ok=tileOccupied[idx(gx,gz)];
+  else ok=!tileOccupied[idx(gx,gz)] && tileSlope(gx,gz)<=2.6 && canAfford(BUILDINGS[G.selected].cost);
+  const col=G.demolish?(ok?0xff6b6b:0x888888):(ok?0x7fe08a:0xff6b6b);
+  cursor.userData.ring.material.color.setHex(col);
+  cursor.userData.box.material.color.setHex(col);
+}
+
+/* ============================================================= *
+ *  BOOT                                                         *
+ * ============================================================= */
+function bindTools(){
+  $('#tInfo').onclick=()=>openSide('info');
+  $('#tTech').onclick=()=>openSide('tech');
+  $('#tHelp').onclick=()=>openSide('help');
+  $('#tSave').onclick=save;
+  $('#tDemo').onclick=()=>{G.demolish=!G.demolish;if(G.demolish)G.selected=null;refreshDock();updateTools();showHint(G.demolish?'Demolish mode: click a building to remove it (40% refund).':'');};
+}
+
+function boot(){
+  // fake-load progress for polish, then init
+  let pct=0;const lbar=$('#lbar');
+  const iv=setInterval(()=>{pct=Math.min(100,pct+12+Math.random()*18);lbar.style.width=pct+'%';
+    if(pct>=100){clearInterval(iv);start();}},90);
+}
+function start(){
+  initScene();
+  buildResBar();bindTools();
+  const loaded=load();
+  if(!loaded){
+    // starter kit
+    G.res={power:60,oxygen:120,water:120,food:120,materials:260,science:0,credits:200};
+    // pre-place a couple of buildings so the colony isn't empty
+    placeBuilding('solar',12,13);placeBuilding('habitat',13,13);
+    G.res.materials=260;G.pop=3;
+    toast('Welcome, Commander. Build power & life support to grow.','good');
+  }
+  refreshDock();computeRates();updateResBar();
+  setTimeout(()=>{const l=$('#loader');l.style.opacity=0;setTimeout(()=>l.remove(),600);
+    $('#hud').style.display='flex';$('#leftcol').style.display='flex';},250);
+  // periodic UI refresh (cheaper than every frame)
+  setInterval(()=>{if(!G.over){updateResBar();if(sidePanel==='info')renderInfo();
+    dock.querySelectorAll('.bcard').forEach(el=>{const b=BUILDINGS[el.dataset.key];const locked=b.tech&&!G.techDone[b.tech];el.classList.toggle('unaff',!locked&&!canAfford(b.cost));el.classList.toggle('locked',locked);});}},400);
+  animate();
+  if(!loaded)setTimeout(()=>showHint('Pick a building below, then click a flat tile to build. Press ❔ for help.'),900);
+}
+
+boot();
+</script>
+</body>
+</html>
