@@ -217,7 +217,7 @@ function biomeAt(gx,gz){
   const absLat=Math.abs(Math.asin(THREE.MathUtils.clamp(d.y,-1,1)));
   const h=heightAt(d);
   if(absLat>1.15) return 'polar';
-  if(h>3.2) return 'highland';
+  if(h>2.4) return 'highland';
   if(h<-2.2) return 'lowland';
   return 'plains';
 }
@@ -244,8 +244,8 @@ const BUILDINGS = {
     desc:"Splits CO₂ & water into breathable oxygen.",prod:{oxygen:9},use:{power:7,water:3}},
   greenhouse:{name:"Hydro Farm",icon:"food",cost:{materials:68},biomes:['plains','lowland'],
     desc:"Hydroponic crops. Produces food & a little morale.",prod:{food:12},morale:2,use:{power:5,water:4}},
-  mine:{name:"Ore Excavator",icon:"materials",cost:{materials:52},biomes:['highland'],
-    desc:"Strip-mines ore — must sit on highland terrain.",prod:{materials:10},use:{power:6}},
+  mine:{name:"Ore Excavator",icon:"materials",cost:{materials:52},biomes:['highland','plains'],
+    desc:"Strip-mines ore from highlands or rocky plains (not ice or basins).",prod:{materials:10},use:{power:6}},
   lab:{name:"Research Lab",icon:"science",cost:{materials:92},
     desc:"Colonists generate Science for research.",prod:{science:5},use:{power:6,oxygen:1}},
   park:{name:"Bio-Dome Park",icon:"park",cost:{materials:80,credits:30},biomes:['plains','lowland'],
@@ -1034,7 +1034,7 @@ function renderHelp(){
   side.innerHTML=`<h3>❔ How to play <span class="close" id="sclose">✕</span></h3>
   <p class="sub">Survive, grow, terraform — and decide what your civilization becomes.</p>
   <div style="font-size:12.5px;line-height:1.6;color:var(--ink)">
-  <p><b>🏗️ Build:</b> Pick a facility from the dock, then click a tile. Some buildings need a specific terrain — Ice Extractors near poles/basins, Ore Excavators on highlands, domes on plains. The tooltip shows where.</p>
+  <p><b>🏗️ Build:</b> Pick a facility from the dock, then click a tile. Some buildings need a specific terrain — Ice Extractors near poles/basins, Ore Excavators on highlands or plains, domes on plains. The tooltip shows where.</p>
   <p><b>⚡ Power & life support:</b> Keep power positive and habitats fed with O₂/water/food. Watch morale — happy colonists work harder and multiply faster.</p>
   <p><b>🧪 Research:</b> Labs make Science; spend it on inventions across five branches (Power, Logistics, Biotech, Society, Frontier).</p>
   <p><b>📦 Earth trade:</b> Build a Spaceport to order supplies or recruit colonists with Credits.</p>
