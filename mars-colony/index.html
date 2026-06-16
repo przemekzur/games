@@ -130,6 +130,28 @@
     font-size:12px;color:var(--muted);background:var(--panel);border:1px solid var(--line);
     padding:6px 14px;border-radius:20px;backdrop-filter:blur(6px);opacity:0;transition:opacity .3s;text-align:center;max-width:90vw}
   .hint.show{opacity:1}
+
+  /* ===== Tutorial ===== */
+  #tut{position:fixed;left:50%;bottom:120px;transform:translateX(-50%);z-index:46;width:min(400px,93vw);
+    border:1px solid var(--rust);border-radius:14px;background:var(--panel-2);box-shadow:var(--shadow);
+    padding:16px 18px;display:none;pointer-events:auto;backdrop-filter:blur(10px)}
+  #tut.show{display:block;animation:pop .3s}
+  #tut h4{margin:0 0 6px;font-size:15px;color:var(--rust-2)}
+  #tut p{margin:0 0 13px;font-size:12.5px;color:var(--ink);line-height:1.55}
+  #tut .tb{display:flex;justify-content:space-between;align-items:center;gap:10px}
+  #tut .dots{display:flex;gap:5px}
+  #tut .dots i{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.22);transition:.2s}
+  #tut .dots i.on{background:var(--rust);transform:scale(1.2)}
+  #tut .tbtns{display:flex;gap:8px}
+  #tut button{border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:9px;
+    padding:7px 14px;cursor:pointer;font-size:12.5px;font-weight:700;transition:.15s}
+  #tut button.skip{color:var(--muted);font-weight:600}
+  #tut button.next{background:var(--rust);color:#1a0a04;border-color:var(--rust)}
+  #tut button:hover{filter:brightness(1.08)}
+  .tut-hl{outline:3px solid var(--rust)!important;outline-offset:4px;border-radius:14px;
+    animation:tutPulse 1.2s infinite;position:relative;z-index:20}
+  @keyframes tutPulse{0%,100%{outline-color:rgba(255,122,60,.95)}50%{outline-color:rgba(255,122,60,.28)}}
+
   ::-webkit-scrollbar{width:8px;height:8px}::-webkit-scrollbar-thumb{background:rgba(255,150,90,.3);border-radius:8px}
 </style>
 </head>
@@ -161,6 +183,7 @@
 <div id="tip"></div>
 <div id="log"></div>
 <div class="hint" id="hint"></div>
+<div id="tut"></div>
 <div id="modal"><div class="mcard" id="mcard"></div></div>
 
 <script type="importmap">
@@ -903,21 +926,36 @@ function updateResBar(){
   $('#todtxt').textContent=(dustStormActive?'🌪️ ':'')+tod;
 }
 
-function refreshDock(){
+// Build the dock DOM once, with persistent handlers (no rebuild on click → no flicker)
+function buildDock(){
   let html='';
   for(const key of BUILD_ORDER){
-    const b=BUILDINGS[key];const locked=b.tech&&!G.techDone[b.tech];const aff=canAfford(effCost(b));
-    const cls=['bcard'];if(G.selected===key)cls.push('sel');if(locked)cls.push('locked');else if(!aff)cls.push('unaff');
+    const b=BUILDINGS[key];
     const cost=Object.entries(effCost(b)).map(([k,v])=>`${v}${k[0].toUpperCase()}`).join(' ');
-    html+=`<div class="${cls.join(' ')}" data-key="${key}">${locked?'<span class="lk">🔒</span>':''}${ICONS[b.icon]||ICONS.materials}<div class="bn">${b.name}</div><div class="bc">${cost}</div></div>`;
+    html+=`<div class="bcard" data-key="${key}"><span class="lk">🔒</span>${ICONS[b.icon]||ICONS.materials}<div class="bn">${b.name}</div><div class="bc">${cost}</div></div>`;
   }
   dock.innerHTML=html;
   dock.querySelectorAll('.bcard').forEach(el=>{
-    const key=el.dataset.key,b=BUILDINGS[key],locked=b.tech&&!G.techDone[b.tech];
-    el.onclick=()=>{if(locked){toast(`Research "${TECHS[b.tech].name}" first`,'warn');return;}
+    const key=el.dataset.key,b=BUILDINGS[key];
+    el.onclick=()=>{
+      const locked=b.tech&&!G.techDone[b.tech];
+      if(locked){toast(`Research "${TECHS[b.tech].name}" first`,'warn');return;}
       G.demolish=false;G.selected=G.selected===key?null:key;refreshDock();updateTools();
-      showHint(G.selected?`Click a tile on the planet to build ${b.name}. Esc to cancel.`:'');};
+      showHint(G.selected?`Click a tile on the planet to build ${b.name}. Esc to cancel.`:'');
+    };
     el.onmouseenter=e=>showBuildTip(e,key);el.onmousemove=moveTip;el.onmouseleave=hideTip;
+  });
+  refreshDock();
+}
+// Lightweight state sync — only toggles classes on existing cards
+function refreshDock(){
+  dock.querySelectorAll('.bcard').forEach(el=>{
+    const key=el.dataset.key,b=BUILDINGS[key];
+    const locked=b.tech&&!G.techDone[b.tech];
+    el.classList.toggle('sel',G.selected===key);
+    el.classList.toggle('locked',locked);
+    el.classList.toggle('unaff',!locked&&!canAfford(effCost(b)));
+    const lk=el.querySelector('.lk');if(lk)lk.style.display=locked?'':'none';
   });
 }
 function showBuildTip(e,key){
@@ -1040,8 +1078,10 @@ function renderHelp(){
   <p><b>📦 Earth trade:</b> Build a Spaceport to order supplies or recruit colonists with Credits.</p>
   <p><b>🪐 Evolution:</b> Hit milestones, then launch colony ships and — eventually — a warp-drive interstellar mission. Terraforming to 100% is another way to win.</p>
   <p><b>🖱️ Camera:</b> Drag to rotate the globe · Wheel to zoom · 1/2/3 speed · Space pause.</p>
-  </div>`;
+  </div>
+  <div style="margin-top:14px"><button class="btn" id="replayTut">▶ Replay tutorial</button></div>`;
   $('#sclose').onclick=closeSide;
+  $('#replayTut').onclick=()=>{closeSide();startTutorial();};
 }
 
 /* ---------- milestones ---------- */
@@ -1061,6 +1101,33 @@ function checkMilestones(){
     if(m.done&&!G.milestones[m.id]){G.milestones[m.id]=true;toast(`🏆 Milestone: ${m.title}!`,'disc');beep(880,0.14);}
   }
 }
+
+/* ---------- tutorial ---------- */
+const TUT=[
+  {t:'Welcome to Mars, Commander 🚀',d:"Your mission: keep your colonists alive and grow the settlement. The long game is to terraform Mars — or evolve your civilization all the way to the stars. Here's a 30-second tour."},
+  {sel:'#resbar',t:'① Your resources',d:'Up top you track Power, O₂, Water, Food, Materials, Science & Credits — plus population & morale. Watch the small per-sol numbers: keep them positive. A pulsing red chip means you are about to run out.'},
+  {sel:'#dock',t:'② Build facilities',d:'Pick a building down here, then click a tile on the planet. Some need specific terrain (the tooltip shows where). Begin with power (Solar) + a Habitat for housing, then an Oxygenator, Ice Extractor and Hydro Farm. Drag anywhere to spin the globe.'},
+  {sel:'#leftcol',t:'③ Manage your colony',d:'📊 overview & goals · 🧪 research inventions · 🪐 evolution, colony ships & warp drive · 📦 order supplies from Earth (needs a Spaceport) · ⛏️ demolish · ❔ help any time.'},
+  {t:"You're ready! 🌅",d:'Keep everyone breathing, watered and fed — happy colonists grow faster and work harder. Build a Research Lab to unlock inventions, then choose your path: terraform the planet, or reach for the stars. Good luck, Commander!'},
+];
+let tutI=0;
+function startTutorial(){tutI=0;G.paused=true;for(const id of['sp1','sp2','sp3'])$('#'+id)?.classList.remove('on');$('#sp0')?.classList.add('on');showTutStep();}
+function clearTutHl(){document.querySelectorAll('.tut-hl').forEach(e=>e.classList.remove('tut-hl'));}
+function showTutStep(){
+  clearTutHl();
+  const s=TUT[tutI],el=$('#tut');
+  if(s.sel){const tg=document.querySelector(s.sel);if(tg)tg.classList.add('tut-hl');}
+  const dots=TUT.map((_,i)=>`<i class="${i===tutI?'on':''}"></i>`).join('');
+  const last=tutI===TUT.length-1;
+  el.innerHTML=`<h4>${s.t}</h4><p>${s.d}</p>
+    <div class="tb"><div class="dots">${dots}</div>
+    <div class="tbtns">${last?'':'<button class="skip" id="tutSkip">Skip</button>'}
+      <button class="next" id="tutNext">${last?"Let's go!":'Next ›'}</button></div></div>`;
+  el.classList.add('show');
+  const nx=$('#tutNext');nx.onclick=()=>{if(last)endTutorial();else{tutI++;showTutStep();}};
+  const sk=$('#tutSkip');if(sk)sk.onclick=endTutorial;
+}
+function endTutorial(){localStorage.setItem('rf_tut_done','1');clearTutHl();$('#tut').classList.remove('show');setSpeed(1);}
 
 /* ---------- toasts / hint ---------- */
 function toast(msg,kind=''){const el=document.createElement('div');el.className='logitem '+kind;el.textContent=msg;logEl.prepend(el);
@@ -1254,12 +1321,13 @@ function start(){
   // frame camera on the colony
   const aim=(G.buildings[0]?G.buildings[0].dir:gridToDir(0,GRID/2)).clone().normalize();
   cam.phi=Math.acos(THREE.MathUtils.clamp(aim.y,-1,1));cam.theta=Math.atan2(aim.z,aim.x);updateCamera();
-  refreshDock();computeRates();updateResBar();
+  buildDock();computeRates();updateResBar();
   setTimeout(()=>{const l=$('#loader');l.style.opacity=0;setTimeout(()=>l.remove(),600);$('#hud').style.display='flex';$('#leftcol').style.display='flex';},250);
-  setInterval(()=>{if(!G.over){updateResBar();if(sidePanel==='info')renderInfo();
-    dock.querySelectorAll('.bcard').forEach(el=>{const b=BUILDINGS[el.dataset.key];const locked=b.tech&&!G.techDone[b.tech];el.classList.toggle('unaff',!locked&&!canAfford(effCost(b)));el.classList.toggle('locked',locked);});}},400);
+  setInterval(()=>{if(!G.over){updateResBar();refreshDock();if(sidePanel==='info')renderInfo();}},400);
   animate();
-  if(!loaded)setTimeout(()=>showHint('Pick a building below, then click a tile. Drag to spin the globe. Press ❔ for help.'),900);
+  const firstRun=!loaded&&!localStorage.getItem('rf_tut_done');
+  if(firstRun)setTimeout(startTutorial,700);
+  else if(!loaded)setTimeout(()=>showHint('Pick a building below, then click a tile. Drag to spin the globe. Press ❔ for help.'),900);
 }
 boot();
 </script>
