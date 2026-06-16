@@ -1,0 +1,1207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Jetpack Rush: Neon Run</title>
+  <style>
+    :root {
+      --bg: #05060f;
+      --panel: rgba(10, 12, 28, 0.9);
+      --line: rgba(120, 180, 255, 0.28);
+      --ink: #e7f0ff;
+      --muted: #93a6c8;
+      --neon: #6cf0ff;
+      --lime: #8bff9f;
+      --rose: #ff8cbf;
+      --gold: #ffd166;
+      --danger: #ff7a8a;
+      --violet: #b794ff;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      color: var(--ink);
+      font-family: "Trebuchet MS", "Lucida Sans Unicode", sans-serif;
+      background:
+        radial-gradient(circle at 10% 12%, rgba(61, 88, 161, 0.45) 0%, transparent 44%),
+        radial-gradient(circle at 86% 84%, rgba(120, 61, 154, 0.34) 0%, transparent 48%),
+        var(--bg);
+    }
+
+    .arcade {
+      width: min(1100px, 100%);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: linear-gradient(165deg, rgba(12, 16, 34, 0.96), var(--panel));
+      box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
+      overflow: hidden;
+      position: relative;
+    }
+
+    .arcade::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background-image: linear-gradient(transparent 49%, rgba(120, 214, 255, 0.045) 50%);
+      background-size: 100% 4px;
+      opacity: 0.5;
+      mix-blend-mode: screen;
+      z-index: 2;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 14px;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--line);
+      background: linear-gradient(90deg, rgba(108, 240, 255, 0.1), rgba(183, 148, 255, 0.08));
+      position: relative;
+      z-index: 1;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(1.2rem, 2.2vw, 1.8rem);
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      color: var(--neon);
+      font-family: "Rockwell", "Palatino Linotype", serif;
+    }
+
+    .tagline {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 0.86rem;
+    }
+
+    .back-link {
+      text-decoration: none;
+      color: #081224;
+      background: linear-gradient(90deg, var(--neon), #b4a0ff);
+      border-radius: 10px;
+      font-weight: 800;
+      padding: 10px 13px;
+      white-space: nowrap;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 240px 1fr;
+      gap: 14px;
+      padding: 14px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgba(8, 12, 26, 0.8);
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 11px;
+    }
+
+    .stat {
+      border: 1px solid rgba(120, 180, 255, 0.24);
+      border-radius: 10px;
+      padding: 8px 10px;
+      background: rgba(10, 16, 34, 0.65);
+    }
+
+    .label {
+      display: block;
+      font-size: 0.72rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      margin-bottom: 3px;
+    }
+
+    .value {
+      font-size: 1.15rem;
+      font-weight: 800;
+      letter-spacing: 0.02em;
+      color: var(--ink);
+      font-family: "Consolas", "Lucida Console", monospace;
+    }
+
+    .powerup-bar {
+      margin-top: 6px;
+      height: 6px;
+      border-radius: 4px;
+      background: rgba(120, 180, 255, 0.18);
+      overflow: hidden;
+    }
+
+    .powerup-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--neon), var(--violet));
+      transition: width 0.08s linear;
+    }
+
+    .controls {
+      font-size: 0.82rem;
+      line-height: 1.45;
+      color: var(--muted);
+      border: 1px solid rgba(120, 180, 255, 0.2);
+      border-radius: 10px;
+      padding: 10px;
+      background: rgba(7, 11, 23, 0.64);
+    }
+
+    .btn-row {
+      display: grid;
+      gap: 8px;
+      grid-template-columns: 1fr;
+    }
+
+    button {
+      border: none;
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-weight: 800;
+      letter-spacing: 0.02em;
+      cursor: pointer;
+      font-family: "Trebuchet MS", sans-serif;
+    }
+
+    #startBtn {
+      color: #061223;
+      background: linear-gradient(90deg, var(--neon), #a38fff);
+    }
+
+    #restartBtn {
+      color: #201300;
+      background: linear-gradient(90deg, var(--gold), #ff997f);
+    }
+
+    .status {
+      font-size: 0.88rem;
+      color: var(--lime);
+      min-height: 1.2em;
+      font-weight: 700;
+    }
+
+    .status.danger { color: var(--danger); }
+
+    .board-wrap {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 10px;
+      background: rgba(5, 9, 18, 0.84);
+      position: relative;
+      min-width: 0;
+    }
+
+    canvas {
+      width: 100%;
+      height: auto;
+      display: block;
+      border-radius: 8px;
+      border: 1px solid rgba(120, 180, 255, 0.26);
+      background: #04060e;
+      image-rendering: pixelated;
+      touch-action: none;
+    }
+
+    .hint {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 0.8rem;
+    }
+
+    @media (max-width: 920px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="arcade">
+    <header class="topbar">
+      <div>
+        <h1>Jetpack Rush: Neon Run</h1>
+        <p class="tagline">Hold to fire your jetpack — dodge zappers, lasers &amp; missiles, and chase the distance.</p>
+      </div>
+      <a class="back-link" href="../index.html">Back to launcher</a>
+    </header>
+
+    <section class="layout">
+      <aside class="panel">
+        <div class="stat">
+          <span class="label">Distance</span>
+          <span id="distanceValue" class="value">0 m</span>
+        </div>
+        <div class="stat">
+          <span class="label">Coins</span>
+          <span id="coinsValue" class="value">0</span>
+        </div>
+        <div class="stat">
+          <span class="label">Best Distance</span>
+          <span id="bestValue" class="value">0 m</span>
+        </div>
+        <div class="stat">
+          <span class="label">Power-up</span>
+          <span id="powerupValue" class="value">—</span>
+          <div class="powerup-bar"><div id="powerupFill" class="powerup-fill"></div></div>
+        </div>
+
+        <div class="controls">
+          <strong>Controls:</strong><br />
+          Hold <strong>Space</strong> / <strong>click</strong> / <strong>tap</strong> to fire the jetpack.<br />
+          Release to fall. <strong>P</strong> pauses.
+        </div>
+
+        <div class="btn-row">
+          <button id="startBtn" type="button">Start Run</button>
+          <button id="restartBtn" type="button">Restart</button>
+        </div>
+
+        <div id="statusText" class="status">Press Start or hold to launch.</div>
+      </aside>
+
+      <section class="board-wrap">
+        <canvas id="board" width="960" height="540" aria-label="Jetpack Rush game board"></canvas>
+        <p class="hint">Grab coins and power-ups. Shields and vehicles smash through hazards — survive as long as you can.</p>
+      </section>
+    </section>
+  </main>
+
+  <script src="../shared/strudel-sfx.js"></script>
+  <script src="../shared/arcade-bgm.js"></script>
+  <script>
+  (function () {
+    "use strict";
+
+    // ---------------------------------------------------------------------
+    // Config / constants
+    // ---------------------------------------------------------------------
+    const VIEW_W = 960;
+    const VIEW_H = 540;
+    const GROUND_H = 64;
+    const CEIL_H = 24;
+    const GROUND_Y = VIEW_H - GROUND_H;   // player feet rest here
+    const CEIL_Y = CEIL_H;
+    const PPM = 18;                        // pixels per metre
+
+    const PLAYER_X = 230;                  // fixed screen x of the runner
+    const PLAYER_W = 30;
+    const PLAYER_H = 42;
+    const PLAYER_R = 16;                   // collision radius (around centre)
+
+    const GRAVITY = 1750;                  // px/s^2 (down)
+    const THRUST = 3050;                   // px/s^2 (up, while held)
+    const VY_MIN = -640;                   // fastest rise
+    const VY_MAX = 860;                    // fastest fall
+
+    const BASE_SPEED = 300;                // px/s scroll at the start
+    const MAX_SPEED = 760;                 // px/s scroll cap
+    const SPEED_RAMP = 0.45;               // extra px/s per metre
+
+    const HIGH_SCORE_KEY = "jetpack_rush_best_distance";
+
+    // Power-up definitions
+    const POWERUPS = {
+      shield:  { name: "Shield",   dur: 7,  color: "#6cf0ff" },
+      magnet:  { name: "Magnet",   dur: 8,  color: "#ffd166" },
+      double:  { name: "x2 Coins", dur: 9,  color: "#b794ff" },
+      vehicle: { name: "Turbo",    dur: 6,  color: "#ff9d5c" }
+    };
+    const POWERUP_KEYS = Object.keys(POWERUPS);
+
+    // ---------------------------------------------------------------------
+    // DOM + audio
+    // ---------------------------------------------------------------------
+    const board = document.getElementById("board");
+    const ctx = board.getContext("2d");
+    ctx.imageSmoothingEnabled = false;
+
+    const sfx = window.StrudelSfx;
+    const distanceValue = document.getElementById("distanceValue");
+    const coinsValue = document.getElementById("coinsValue");
+    const bestValue = document.getElementById("bestValue");
+    const powerupValue = document.getElementById("powerupValue");
+    const powerupFill = document.getElementById("powerupFill");
+    const statusText = document.getElementById("statusText");
+    const startBtn = document.getElementById("startBtn");
+    const restartBtn = document.getElementById("restartBtn");
+
+    // ---------------------------------------------------------------------
+    // Helpers
+    // ---------------------------------------------------------------------
+    const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+    const rand = (lo, hi) => lo + Math.random() * (hi - lo);
+    const randInt = (lo, hi) => Math.floor(rand(lo, hi + 1));
+    const choice = (arr) => arr[Math.floor(Math.random() * arr.length)];
+
+    // deterministic pseudo-random for parallax (so the city doesn't shimmer)
+    function hash(n) {
+      const s = Math.sin(n * 127.1) * 43758.5453;
+      return s - Math.floor(s);
+    }
+
+    // distance from point to a line segment
+    function segDist(px, py, x1, y1, x2, y2) {
+      const dx = x2 - x1, dy = y2 - y1;
+      const l2 = dx * dx + dy * dy;
+      let t = l2 ? ((px - x1) * dx + (py - y1) * dy) / l2 : 0;
+      t = clamp(t, 0, 1);
+      const cx = x1 + t * dx, cy = y1 + t * dy;
+      return Math.hypot(px - cx, py - cy);
+    }
+
+    // ---------------------------------------------------------------------
+    // State
+    // ---------------------------------------------------------------------
+    const state = {
+      mode: "ready",          // ready | playing | dead
+      paused: false,
+      camX: 0,                // world scroll position
+      speed: BASE_SPEED,
+      metres: 0,
+      coins: 0,
+      best: Number(localStorage.getItem(HIGH_SCORE_KEY) || 0),
+      thrusting: false,
+      nextSpawnX: 1200,       // world x of next feature
+      tokenCooldown: 0,       // metres until a token may spawn again
+      player: { y: GROUND_Y, vy: 0, grounded: true, angle: 0, runFrame: 0 },
+      power: { type: null, time: 0 },
+      zappers: [],
+      coinList: [],
+      tokens: [],
+      lasers: [],
+      missiles: [],
+      particles: [],
+      flameTick: 0,
+      lastTime: performance.now()
+    };
+
+    function resetGame(startNow) {
+      state.mode = startNow ? "playing" : "ready";
+      state.paused = false;
+      state.camX = 0;
+      state.speed = BASE_SPEED;
+      state.metres = 0;
+      state.coins = 0;
+      state.thrusting = false;
+      state.nextSpawnX = 1200;
+      state.tokenCooldown = 0;
+      state.player = { y: GROUND_Y, vy: 0, grounded: true, angle: 0, runFrame: 0 };
+      state.power = { type: null, time: 0 };
+      state.zappers.length = 0;
+      state.coinList.length = 0;
+      state.tokens.length = 0;
+      state.lasers.length = 0;
+      state.missiles.length = 0;
+      state.particles.length = 0;
+      state.deadTimer = 0;
+      setStatus(startNow ? "Go!" : "Press Start or hold to launch.");
+      startBtn.textContent = startNow ? "Running…" : "Start Run";
+      updateHud();
+      if (startNow) sfx?.play("start", 0.85);
+    }
+
+    function setStatus(text, danger) {
+      statusText.textContent = text;
+      statusText.classList.toggle("danger", !!danger);
+    }
+
+    function updateHud() {
+      distanceValue.textContent = Math.floor(state.metres) + " m";
+      coinsValue.textContent = String(state.coins);
+      bestValue.textContent = Math.floor(state.best) + " m";
+      if (state.power.type) {
+        const def = POWERUPS[state.power.type];
+        powerupValue.textContent = def.name;
+        powerupValue.style.color = def.color;
+        powerupFill.style.width = clamp((state.power.time / def.dur) * 100, 0, 100) + "%";
+      } else {
+        powerupValue.textContent = "—";
+        powerupValue.style.color = "";
+        powerupFill.style.width = "0%";
+      }
+    }
+
+    function commitBest() {
+      if (state.metres > state.best) {
+        state.best = Math.floor(state.metres);
+        localStorage.setItem(HIGH_SCORE_KEY, String(state.best));
+      }
+    }
+
+    const isInvincible = () => state.power.type === "shield" || state.power.type === "vehicle";
+
+    // ---------------------------------------------------------------------
+    // Spawning — procedural feature formations
+    // ---------------------------------------------------------------------
+    function difficulty() {
+      return clamp(state.metres / 1400, 0, 1); // 0 → 1 over the first 1400 m
+    }
+
+    function addCoinArc(baseX, cy, count, dir) {
+      const span = 44;
+      for (let i = 0; i < count; i++) {
+        const t = i / Math.max(1, count - 1);
+        const x = baseX + i * span;
+        const y = cy + dir * Math.sin(t * Math.PI) * 120;
+        state.coinList.push({ x, y: clamp(y, CEIL_Y + 30, GROUND_Y - 30), r: 11, got: false });
+      }
+    }
+
+    function addCoinLine(baseX, cy, count) {
+      for (let i = 0; i < count; i++) {
+        state.coinList.push({ x: baseX + i * 42, y: cy, r: 11, got: false });
+      }
+    }
+
+    function spawnZapperVertical(baseX) {
+      // a vertical zapper hanging from ceiling or rising from floor, leaving a gap
+      const fromTop = Math.random() < 0.5;
+      const len = rand(150, 250);
+      const x = baseX;
+      let y1, y2;
+      if (fromTop) { y1 = CEIL_Y; y2 = CEIL_Y + len; }
+      else { y2 = GROUND_Y; y1 = GROUND_Y - len; }
+      state.zappers.push({ x1: x, y1, x2: x, y2, rot: false });
+    }
+
+    function spawnZapperFloating(baseX) {
+      const cy = rand(CEIL_Y + 90, GROUND_Y - 90);
+      const len = rand(120, 200);
+      const horizontal = Math.random() < 0.55;
+      if (horizontal) {
+        state.zappers.push({ x1: baseX - len / 2, y1: cy, x2: baseX + len / 2, y2: cy, rot: false });
+      } else {
+        state.zappers.push({ x1: baseX, y1: cy - len / 2, x2: baseX, y2: cy + len / 2, rot: false });
+      }
+    }
+
+    function spawnZapperRotating(baseX) {
+      const cy = rand(CEIL_Y + 130, GROUND_Y - 130);
+      const len = rand(150, 210);
+      state.zappers.push({
+        cx: baseX, cy, len, angle: rand(0, Math.PI), rot: true,
+        angVel: rand(0.8, 1.8) * (Math.random() < 0.5 ? 1 : -1),
+        x1: 0, y1: 0, x2: 0, y2: 0
+      });
+    }
+
+    function spawnLaser(baseX) {
+      // screen-anchored: 1–3 full-width horizontal beams, telegraphed then fired
+      const n = randInt(1, difficulty() > 0.4 ? 3 : 2);
+      const ys = [];
+      for (let i = 0; i < n; i++) {
+        let y, ok = false, tries = 0;
+        do {
+          y = rand(CEIL_Y + 50, GROUND_Y - 50);
+          ok = ys.every((o) => Math.abs(o - y) > 110);
+          tries++;
+        } while (!ok && tries < 12);
+        ys.push(y);
+      }
+      state.lasers.push({ triggerX: baseX, ys, phase: "armed", warn: 0.95, fire: 0.55, t: 0, active: false });
+    }
+
+    function spawnMissile(baseX) {
+      state.missiles.push({
+        triggerX: baseX, phase: "armed", warn: 1.1, t: 0,
+        x: VIEW_W + 40, y: clamp(state.player.y - PLAYER_H / 2, CEIL_Y + 30, GROUND_Y - 30),
+        launched: false
+      });
+    }
+
+    function spawnToken(baseX) {
+      const type = choice(POWERUP_KEYS);
+      state.tokens.push({ x: baseX, y: rand(CEIL_Y + 80, GROUND_Y - 80), r: 18, type, got: false, bob: rand(0, 6.28) });
+    }
+
+    // Pick the next feature to place at nextSpawnX, then advance nextSpawnX.
+    function spawnFeature() {
+      const d = difficulty();
+      const baseX = state.nextSpawnX;
+      const roll = Math.random();
+
+      // weave coins through most features
+      const coinY = rand(CEIL_Y + 70, GROUND_Y - 70);
+
+      if (roll < 0.30) {
+        spawnZapperVertical(baseX);
+        addCoinArc(baseX + 90, coinY, randInt(4, 6), Math.random() < 0.5 ? 1 : -1);
+      } else if (roll < 0.50) {
+        spawnZapperFloating(baseX);
+        addCoinLine(baseX + 120, coinY, randInt(4, 7));
+      } else if (roll < 0.65 && d > 0.2) {
+        spawnZapperRotating(baseX);
+        addCoinArc(baseX + 130, coinY, randInt(4, 6), 1);
+      } else if (roll < 0.80 && d > 0.25) {
+        spawnLaser(baseX);
+        addCoinLine(baseX + 70, coinY, randInt(3, 5));
+      } else if (roll < 0.90 && d > 0.35) {
+        spawnMissile(baseX);
+        addCoinArc(baseX + 60, coinY, randInt(4, 6), -1);
+      } else {
+        // coin-rich breather
+        addCoinArc(baseX, coinY, randInt(6, 9), Math.random() < 0.5 ? 1 : -1);
+      }
+
+      // occasional power-up token
+      state.tokenCooldown -= 1;
+      if (state.metres > 150 && state.tokenCooldown <= 0 && Math.random() < 0.16) {
+        spawnToken(baseX + rand(40, 180));
+        state.tokenCooldown = randInt(3, 6); // features before another token
+      }
+
+      // advance: gaps tighten as difficulty rises
+      const gap = rand(440, 620) - d * 150;
+      state.nextSpawnX += Math.max(300, gap);
+    }
+
+    function maybeSpawn() {
+      const lead = state.camX + VIEW_W + 360;
+      let guard = 0;
+      while (state.nextSpawnX < lead && guard++ < 20) {
+        spawnFeature();
+      }
+    }
+
+    // ---------------------------------------------------------------------
+    // Particles
+    // ---------------------------------------------------------------------
+    function addParticle(x, y, vx, vy, life, color, size) {
+      state.particles.push({ x, y, vx, vy, life, max: life, color, size });
+    }
+
+    function burst(x, y, n, color, spread) {
+      for (let i = 0; i < n; i++) {
+        const a = rand(0, Math.PI * 2);
+        const sp = rand(40, spread);
+        addParticle(x, y, Math.cos(a) * sp, Math.sin(a) * sp, rand(0.3, 0.7), color, rand(2, 4));
+      }
+    }
+
+    // ---------------------------------------------------------------------
+    // Update
+    // ---------------------------------------------------------------------
+    function update(dt) {
+      if (state.mode === "dead") {
+        updateDead(dt);
+        return;
+      }
+      if (state.mode !== "playing" || state.paused) return;
+
+      // speed + scroll
+      state.speed = Math.min(MAX_SPEED, BASE_SPEED + state.metres * SPEED_RAMP);
+      let scroll = state.speed;
+      if (state.power.type === "vehicle") scroll += 170;
+      state.camX += scroll * dt;
+      state.metres = state.camX / PPM;
+
+      // player physics
+      const p = state.player;
+      p.vy += GRAVITY * dt;
+      if (state.thrusting) p.vy -= THRUST * dt;
+      p.vy = clamp(p.vy, VY_MIN, VY_MAX);
+      p.y += p.vy * dt;
+
+      const floor = GROUND_Y;
+      const ceil = CEIL_Y + PLAYER_H;
+      if (p.y >= floor) { p.y = floor; p.vy = 0; p.grounded = true; }
+      else p.grounded = false;
+      if (p.y <= ceil) { p.y = ceil; p.vy = Math.max(0, p.vy); }
+
+      p.angle = clamp(p.vy / VY_MAX, -0.5, 0.5) * 0.5;
+      if (p.grounded) p.runFrame += dt * 14;
+
+      // jetpack flame
+      if (state.thrusting && !p.grounded) {
+        state.flameTick += dt;
+        if (state.flameTick > 0.012) {
+          state.flameTick = 0;
+          const fx = PLAYER_X - 8;
+          const fy = p.y - 6;
+          addParticle(fx, fy, rand(-30, 30), rand(120, 240), rand(0.18, 0.4),
+            choice(["#ffd166", "#ff9d5c", "#ff6f6f"]), rand(2, 5));
+        }
+      }
+
+      // power-up timer
+      if (state.power.type) {
+        state.power.time -= dt;
+        if (state.power.time <= 0) {
+          setStatus(POWERUPS[state.power.type].name + " expired.");
+          state.power.type = null;
+        }
+      }
+
+      maybeSpawn();
+      updateEntities(dt);
+      updateParticles(dt);
+      checkCollisions();
+      commitBest();
+      updateHud();
+    }
+
+    function updateEntities(dt) {
+      const cam = state.camX;
+      const playerWorldX = cam + PLAYER_X;
+      const p = state.player;
+      const pcx = PLAYER_X;
+      const pcy = p.y - PLAYER_H / 2;
+
+      // rotating zappers
+      for (const z of state.zappers) {
+        if (z.rot) {
+          z.angle += z.angVel * dt;
+          const hx = Math.cos(z.angle) * z.len / 2;
+          const hy = Math.sin(z.angle) * z.len / 2;
+          z.x1 = z.cx - hx; z.y1 = z.cy - hy;
+          z.x2 = z.cx + hx; z.y2 = z.cy + hy;
+        }
+      }
+      // cull zappers behind
+      state.zappers = state.zappers.filter((z) => {
+        const rightX = (z.rot ? z.cx + z.len : Math.max(z.x1, z.x2)) - cam;
+        return rightX > -120;
+      });
+
+      // coins — magnet attraction + cull
+      const magnet = state.power.type === "magnet";
+      for (const c of state.coinList) {
+        if (c.got) continue;
+        const sx = c.x - cam;
+        if (magnet) {
+          const dx = pcx - sx;
+          const dy = pcy - c.y;
+          const dist = Math.hypot(dx, dy);
+          if (dist < 230) {
+            c.x += (dx) * Math.min(1, dt * 9);
+            c.y += (dy) * Math.min(1, dt * 9);
+          }
+        }
+      }
+      state.coinList = state.coinList.filter((c) => !c.got && (c.x - cam) > -60);
+
+      // tokens
+      for (const t of state.tokens) t.bob += dt * 4;
+      state.tokens = state.tokens.filter((t) => !t.got && (t.x - cam) > -60);
+
+      // lasers (screen-anchored, triggered when their world x enters view)
+      for (const l of state.lasers) {
+        if (l.phase === "armed" && (l.triggerX - cam) < VIEW_W - 40) {
+          l.phase = "warn";
+          sfx?.play("serve", 0.4);
+        }
+        if (l.phase === "warn") {
+          l.t += dt;
+          if (l.t >= l.warn) { l.phase = "fire"; l.t = 0; l.active = true; sfx?.play("shoot", 0.5); }
+        } else if (l.phase === "fire") {
+          l.t += dt;
+          if (l.t >= l.fire) { l.phase = "done"; l.active = false; }
+        }
+      }
+      state.lasers = state.lasers.filter((l) => l.phase !== "done");
+
+      // missiles
+      for (const m of state.missiles) {
+        if (m.phase === "armed" && (m.triggerX - cam) < VIEW_W) {
+          m.phase = "warn";
+        }
+        if (m.phase === "warn") {
+          m.t += dt;
+          // re-aim toward player for first part of the warning
+          if (m.t < m.warn * 0.7) m.y = clamp(pcy, CEIL_Y + 24, GROUND_Y - 24);
+          if (m.t >= m.warn) { m.phase = "fly"; m.launched = true; sfx?.play("shoot", 0.7); }
+        } else if (m.phase === "fly") {
+          m.x -= (state.speed + 360) * dt;
+          if (Math.random() < 0.6) {
+            addParticle(m.x + 26, m.y, rand(60, 140), rand(-20, 20), rand(0.2, 0.4),
+              choice(["#ffd166", "#ff9d5c"]), rand(2, 4));
+          }
+          if (m.x < -70) m.phase = "done";
+        }
+      }
+      state.missiles = state.missiles.filter((m) => m.phase !== "done");
+    }
+
+    function updateParticles(dt) {
+      for (const pt of state.particles) {
+        pt.life -= dt;
+        pt.x += pt.vx * dt;
+        pt.y += pt.vy * dt;
+        pt.vy += 240 * dt;
+      }
+      state.particles = state.particles.filter((pt) => pt.life > 0);
+    }
+
+    function checkCollisions() {
+      const cam = state.camX;
+      const p = state.player;
+      const pcx = PLAYER_X;
+      const pcy = p.y - PLAYER_H / 2;
+
+      // coins
+      for (const c of state.coinList) {
+        if (c.got) continue;
+        const sx = c.x - cam;
+        if (Math.hypot(sx - pcx, c.y - pcy) < PLAYER_R + c.r) {
+          c.got = true;
+          state.coins += state.power.type === "double" ? 2 : 1;
+          burst(sx, c.y, 5, "#ffd166", 120);
+          sfx?.play("pickup", 0.7);
+        }
+      }
+
+      // tokens
+      for (const t of state.tokens) {
+        if (t.got) continue;
+        const sx = t.x - cam;
+        if (Math.hypot(sx - pcx, t.y - pcy) < PLAYER_R + t.r) {
+          t.got = true;
+          state.power.type = t.type;
+          state.power.time = POWERUPS[t.type].dur;
+          burst(sx, t.y, 14, POWERUPS[t.type].color, 200);
+          setStatus(POWERUPS[t.type].name + " active!");
+          sfx?.play("level", 0.8);
+        }
+      }
+
+      if (isInvincible()) {
+        // vehicle/shield smashes zappers it touches
+        if (state.power.type === "vehicle") {
+          for (const z of state.zappers) {
+            if (z.smashed) continue;
+            if (segDist(pcx, pcy, z.x1 - cam, z.y1, z.x2 - cam, z.y2) < PLAYER_R + 6) {
+              z.smashed = true;
+              burst((z.x1 + z.x2) / 2 - cam, (z.y1 + z.y2) / 2, 16, "#6cf0ff", 220);
+              sfx?.play("hit", 0.7);
+            }
+          }
+          state.zappers = state.zappers.filter((z) => !z.smashed);
+        }
+        return; // immune to death while invincible
+      }
+
+      // zappers
+      for (const z of state.zappers) {
+        if (segDist(pcx, pcy, z.x1 - cam, z.y1, z.x2 - cam, z.y2) < PLAYER_R + 5) {
+          return die();
+        }
+      }
+
+      // lasers
+      for (const l of state.lasers) {
+        if (!l.active) continue;
+        for (const y of l.ys) {
+          if (Math.abs(pcy - y) < PLAYER_R + 9) return die();
+        }
+      }
+
+      // missiles
+      for (const m of state.missiles) {
+        if (m.phase !== "fly") continue;
+        if (Math.abs(m.x - pcx) < 26 + PLAYER_R && Math.abs(m.y - pcy) < 16 + PLAYER_R) {
+          return die();
+        }
+      }
+    }
+
+    function die() {
+      if (state.mode === "dead") return;
+      state.mode = "dead";
+      state.deadTimer = 0;
+      commitBest();
+      const p = state.player;
+      p.vy = -260;
+      burst(PLAYER_X, p.y - PLAYER_H / 2, 24, "#ff7a8a", 320);
+      setStatus("Crashed! Press Restart for another run.", true);
+      startBtn.textContent = "Start Run";
+      sfx?.play("crash", 0.95);
+      sfx?.play("gameover", 1);
+      updateHud();
+    }
+
+    function updateDead(dt) {
+      state.deadTimer += dt;
+      const p = state.player;
+      p.vy += GRAVITY * dt;
+      p.y += p.vy * dt;
+      p.angle += dt * 6;
+      if (p.y >= GROUND_Y) { p.y = GROUND_Y; p.vy *= -0.35; if (Math.abs(p.vy) < 40) p.vy = 0; }
+      updateParticles(dt);
+    }
+
+    // ---------------------------------------------------------------------
+    // Rendering
+    // ---------------------------------------------------------------------
+    function draw() {
+      ctx.clearRect(0, 0, VIEW_W, VIEW_H);
+      drawBackground();
+      drawGroundCeiling();
+      drawCoins();
+      drawTokens();
+      drawZappers();
+      drawLasers();
+      drawMissiles();
+      drawParticles();
+      drawPlayer();
+      drawOverlay();
+    }
+
+    function drawBackground() {
+      const g = ctx.createLinearGradient(0, 0, 0, VIEW_H);
+      g.addColorStop(0, "#070a1e");
+      g.addColorStop(0.6, "#0a0f2b");
+      g.addColorStop(1, "#0c1130");
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+
+      // far stars (slow parallax)
+      const starScroll = state.camX * 0.12;
+      ctx.fillStyle = "rgba(180, 220, 255, 0.5)";
+      for (let i = 0; i < 70; i++) {
+        const sx = (i * 137 - starScroll) % (VIEW_W + 40);
+        const x = sx < 0 ? sx + VIEW_W + 40 : sx;
+        const y = hash(i) * (GROUND_Y - 40) + 10;
+        const s = hash(i + 99) > 0.7 ? 2 : 1;
+        ctx.fillRect(Math.floor(x), Math.floor(y), s, s);
+      }
+
+      // mid neon city silhouette (chunky pixel buildings)
+      drawCityLayer(0.3, 150, "#121a3e", 0);
+      drawCityLayer(0.55, 110, "#172250", 53);
+    }
+
+    function drawCityLayer(par, maxH, color, seed) {
+      const scroll = state.camX * par;
+      const colW = 64;
+      const startCol = Math.floor(scroll / colW) - 1;
+      ctx.fillStyle = color;
+      for (let i = 0; i < VIEW_W / colW + 3; i++) {
+        const col = startCol + i;
+        const h = 40 + hash(col + seed) * maxH;
+        const x = Math.floor(col * colW - scroll);
+        const y = Math.floor(GROUND_Y - h);
+        ctx.fillRect(x, y, colW - 6, h);
+        // a couple of lit windows
+        ctx.fillStyle = "rgba(108, 240, 255, 0.18)";
+        for (let w = 0; w < 3; w++) {
+          if (hash(col * 7 + w + seed) > 0.55) {
+            ctx.fillRect(x + 8 + w * 16, y + 12 + (w % 2) * 18, 8, 8);
+          }
+        }
+        ctx.fillStyle = color;
+      }
+    }
+
+    function drawGroundCeiling() {
+      // ground
+      ctx.fillStyle = "#0e1638";
+      ctx.fillRect(0, GROUND_Y, VIEW_W, GROUND_H);
+      ctx.fillStyle = "#6cf0ff";
+      ctx.fillRect(0, GROUND_Y, VIEW_W, 3);
+      // scrolling floor tiles
+      const tile = 48;
+      const off = Math.floor(state.camX % tile);
+      ctx.fillStyle = "rgba(108, 240, 255, 0.12)";
+      for (let x = -off; x < VIEW_W; x += tile) {
+        ctx.fillRect(x, GROUND_Y + 10, tile - 6, 4);
+        ctx.fillRect(x, GROUND_Y + 26, tile - 6, 4);
+      }
+      // ceiling
+      ctx.fillStyle = "#0e1638";
+      ctx.fillRect(0, 0, VIEW_W, CEIL_Y);
+      ctx.fillStyle = "#b794ff";
+      ctx.fillRect(0, CEIL_Y - 3, VIEW_W, 3);
+    }
+
+    function drawCoins() {
+      const cam = state.camX;
+      for (const c of state.coinList) {
+        if (c.got) continue;
+        const x = c.x - cam;
+        if (x < -20 || x > VIEW_W + 20) continue;
+        ctx.fillStyle = "rgba(255, 209, 102, 0.22)";
+        ctx.beginPath(); ctx.arc(x, c.y, c.r + 4, 0, 6.2832); ctx.fill();
+        ctx.fillStyle = "#ffd166";
+        ctx.beginPath(); ctx.arc(x, c.y, c.r, 0, 6.2832); ctx.fill();
+        ctx.fillStyle = "#fff3c4";
+        ctx.fillRect(Math.floor(x) - 2, Math.floor(c.y) - 5, 3, 10);
+      }
+    }
+
+    function drawTokens() {
+      const cam = state.camX;
+      for (const t of state.tokens) {
+        if (t.got) continue;
+        const x = t.x - cam;
+        if (x < -30 || x > VIEW_W + 30) continue;
+        const y = t.y + Math.sin(t.bob) * 5;
+        const def = POWERUPS[t.type];
+        ctx.save();
+        ctx.shadowColor = def.color;
+        ctx.shadowBlur = 16;
+        ctx.fillStyle = "rgba(8,12,26,0.9)";
+        ctx.beginPath(); ctx.arc(x, y, t.r, 0, 6.2832); ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = def.color;
+        ctx.beginPath(); ctx.arc(x, y, t.r, 0, 6.2832); ctx.stroke();
+        // glyph
+        ctx.fillStyle = def.color;
+        ctx.font = "bold 16px Consolas, monospace";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        const glyph = t.type === "shield" ? "S" : t.type === "magnet" ? "M" : t.type === "double" ? "2" : "T";
+        ctx.fillText(glyph, x, y + 1);
+        ctx.restore();
+      }
+    }
+
+    function drawZappers() {
+      const cam = state.camX;
+      for (const z of state.zappers) {
+        const x1 = z.x1 - cam, x2 = z.x2 - cam;
+        if (Math.max(x1, x2) < -20 || Math.min(x1, x2) > VIEW_W + 20) continue;
+        // emitter nodes
+        ctx.fillStyle = "#ff7a8a";
+        ctx.beginPath(); ctx.arc(x1, z.y1, 7, 0, 6.2832); ctx.fill();
+        ctx.beginPath(); ctx.arc(x2, z.y2, 7, 0, 6.2832); ctx.fill();
+        // electric beam (jittered glow)
+        ctx.save();
+        ctx.shadowColor = "#ff7a8a";
+        ctx.shadowBlur = 12;
+        ctx.strokeStyle = "#ffd1d8";
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(x1, z.y1);
+        const segs = 5;
+        for (let i = 1; i < segs; i++) {
+          const t = i / segs;
+          const jx = x1 + (x2 - x1) * t + rand(-3, 3);
+          const jy = z.y1 + (z.y2 - z.y1) * t + rand(-3, 3);
+          ctx.lineTo(jx, jy);
+        }
+        ctx.lineTo(x2, z.y2);
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+
+    function drawLasers() {
+      for (const l of state.lasers) {
+        for (const y of l.ys) {
+          if (l.phase === "warn") {
+            // blinking telegraph
+            const blink = Math.floor(l.t * 12) % 2 === 0;
+            ctx.strokeStyle = blink ? "rgba(255, 90, 110, 0.9)" : "rgba(255, 90, 110, 0.25)";
+            ctx.lineWidth = 2;
+            ctx.setLineDash([12, 10]);
+            ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(VIEW_W, y); ctx.stroke();
+            ctx.setLineDash([]);
+          } else if (l.phase === "fire") {
+            ctx.save();
+            ctx.shadowColor = "#ff5a6e";
+            ctx.shadowBlur = 20;
+            ctx.fillStyle = "rgba(255, 120, 140, 0.35)";
+            ctx.fillRect(0, y - 16, VIEW_W, 32);
+            ctx.fillStyle = "#ffd1d8";
+            ctx.fillRect(0, y - 4, VIEW_W, 8);
+            ctx.restore();
+          }
+        }
+      }
+    }
+
+    function drawMissiles() {
+      for (const m of state.missiles) {
+        if (m.phase === "warn") {
+          // warning arrow on the right edge
+          const blink = Math.floor(m.t * 10) % 2 === 0;
+          ctx.fillStyle = blink ? "#ff5a6e" : "rgba(255,90,110,0.4)";
+          ctx.beginPath();
+          ctx.moveTo(VIEW_W - 6, m.y);
+          ctx.lineTo(VIEW_W - 26, m.y - 12);
+          ctx.lineTo(VIEW_W - 26, m.y + 12);
+          ctx.closePath();
+          ctx.fill();
+          ctx.fillStyle = "#ff5a6e";
+          ctx.font = "bold 11px Consolas, monospace";
+          ctx.textAlign = "right";
+          ctx.fillText("!", VIEW_W - 30, m.y + 4);
+        } else if (m.phase === "fly") {
+          ctx.save();
+          ctx.translate(m.x, m.y);
+          ctx.fillStyle = "#c9d4e8";
+          ctx.fillRect(-2, -7, 30, 14);
+          ctx.fillStyle = "#ff5a6e";
+          ctx.beginPath();
+          ctx.moveTo(-2, -7); ctx.lineTo(-14, 0); ctx.lineTo(-2, 7); ctx.closePath();
+          ctx.fill();
+          ctx.fillStyle = "#6cf0ff";
+          ctx.fillRect(20, -9, 8, 4);
+          ctx.fillRect(20, 5, 8, 4);
+          ctx.restore();
+        }
+      }
+    }
+
+    function drawParticles() {
+      for (const pt of state.particles) {
+        ctx.globalAlpha = clamp(pt.life / pt.max, 0, 1);
+        ctx.fillStyle = pt.color;
+        ctx.fillRect(Math.floor(pt.x), Math.floor(pt.y), pt.size, pt.size);
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    function drawPlayer() {
+      const p = state.player;
+      const cy = p.y - PLAYER_H / 2;
+      ctx.save();
+      ctx.translate(PLAYER_X, cy);
+      ctx.rotate(p.angle);
+
+      // shield / vehicle aura
+      if (state.power.type === "shield") {
+        ctx.strokeStyle = "rgba(108, 240, 255, 0.8)";
+        ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(0, 0, PLAYER_R + 10, 0, 6.2832); ctx.stroke();
+      } else if (state.power.type === "vehicle") {
+        ctx.fillStyle = "rgba(255, 157, 92, 0.18)";
+        ctx.fillRect(-26, -26, 52, 52);
+      }
+
+      const half = PLAYER_H / 2;
+      // jetpack (back)
+      ctx.fillStyle = "#7d8aa8";
+      ctx.fillRect(-PLAYER_W / 2 - 6, -half + 8, 8, PLAYER_H - 14);
+      // body
+      ctx.fillStyle = state.power.type === "vehicle" ? "#ff9d5c" : "#5ea8ff";
+      ctx.fillRect(-PLAYER_W / 2 + 2, -half + 12, PLAYER_W - 6, PLAYER_H - 18);
+      // head
+      ctx.fillStyle = "#ffe0c2";
+      ctx.fillRect(-6, -half, 14, 14);
+      // visor
+      ctx.fillStyle = "#0a1228";
+      ctx.fillRect(-2, -half + 3, 9, 6);
+      // legs (run cycle on ground, tucked in air)
+      ctx.fillStyle = "#324a78";
+      if (p.grounded) {
+        const swing = Math.sin(p.runFrame) * 6;
+        ctx.fillRect(-6, half - 8, 6, 8 + swing);
+        ctx.fillRect(2, half - 8, 6, 8 - swing);
+      } else {
+        ctx.fillRect(-6, half - 10, 6, 8);
+        ctx.fillRect(2, half - 6, 6, 8);
+      }
+      ctx.restore();
+    }
+
+    function drawOverlay() {
+      if (state.mode === "playing" && !state.paused) return;
+      ctx.fillStyle = "rgba(4, 7, 18, 0.55)";
+      ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+
+      let title, sub;
+      if (state.mode === "ready") {
+        title = "Jetpack Rush"; sub = "Hold Space / click / tap to fly";
+        ctx.fillStyle = "#6cf0ff";
+      } else if (state.paused) {
+        title = "Paused"; sub = "Press P or Start to resume";
+        ctx.fillStyle = "#9deeff";
+      } else { // dead
+        title = "Crashed"; sub = Math.floor(state.metres) + " m  •  " + state.coins + " coins  •  Restart to retry";
+        ctx.fillStyle = "#ff9ca7";
+      }
+      ctx.font = 'bold 52px "Rockwell", "Trebuchet MS", serif';
+      ctx.fillText(title, VIEW_W / 2, VIEW_H / 2 - 22);
+      ctx.fillStyle = "#dcefff";
+      ctx.font = '20px "Trebuchet MS", sans-serif';
+      ctx.fillText(sub, VIEW_W / 2, VIEW_H / 2 + 22);
+      ctx.textAlign = "left";
+      ctx.textBaseline = "alphabetic";
+    }
+
+    // ---------------------------------------------------------------------
+    // Main loop (fixed timestep)
+    // ---------------------------------------------------------------------
+    function frame(now) {
+      let dt = (now - state.lastTime) / 1000;
+      state.lastTime = now;
+      dt = Math.min(dt, 0.05);
+      update(dt);
+      draw();
+      requestAnimationFrame(frame);
+    }
+
+    // ---------------------------------------------------------------------
+    // Input
+    // ---------------------------------------------------------------------
+    function pressDown() {
+      sfx?.unlock();
+      if (state.mode === "ready") resetGame(true);
+      if (state.mode === "playing" && !state.paused) state.thrusting = true;
+    }
+    function pressUp() {
+      state.thrusting = false;
+    }
+
+    function togglePause() {
+      if (state.mode !== "playing") return;
+      state.paused = !state.paused;
+      state.thrusting = false;
+      setStatus(state.paused ? "Paused." : "Go!");
+      sfx?.play(state.paused ? "pause" : "resume", 0.6);
+    }
+
+    window.addEventListener("keydown", (e) => {
+      if (e.code === "Space" || e.code === "ArrowUp" || e.code === "KeyW") {
+        e.preventDefault();
+        if (!e.repeat) pressDown(); else if (state.mode === "playing" && !state.paused) state.thrusting = true;
+      } else if (e.code === "KeyP") {
+        e.preventDefault();
+        togglePause();
+      }
+    });
+    window.addEventListener("keyup", (e) => {
+      if (e.code === "Space" || e.code === "ArrowUp" || e.code === "KeyW") {
+        e.preventDefault();
+        pressUp();
+      }
+    });
+
+    board.addEventListener("pointerdown", (e) => { e.preventDefault(); pressDown(); });
+    window.addEventListener("pointerup", pressUp);
+    window.addEventListener("blur", () => { state.thrusting = false; });
+
+    startBtn.addEventListener("click", () => {
+      if (state.mode === "ready") resetGame(true);
+      else if (state.mode === "playing") togglePause();
+    });
+    restartBtn.addEventListener("click", () => resetGame(true));
+
+    // ---------------------------------------------------------------------
+    // Boot
+    // ---------------------------------------------------------------------
+    resetGame(false);
+    requestAnimationFrame(frame);
+  })();
+  </script>
+</body>
+</html>
