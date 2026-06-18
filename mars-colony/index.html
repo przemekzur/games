@@ -4,155 +4,189 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Red Frontier — Mars Colony</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg:#0a0604; --panel:rgba(24,14,10,0.88); --panel-2:rgba(34,20,14,0.94);
-    --line:rgba(255,150,90,0.22); --ink:#ffe9da; --muted:#c99c83;
-    --rust:#ff7a3c; --rust-2:#ffb066; --good:#7fe08a; --warn:#ffd166; --bad:#ff6b6b;
-    --sci:#8fd4ff; --joy:#ffcaa0; --shadow:0 18px 50px rgba(0,0,0,.55);
+    --bg:#0b0705;
+    --glass:rgba(26,16,11,0.74); --glass-2:rgba(18,11,8,0.9);
+    --line:rgba(255,138,74,0.20); --line-2:rgba(255,138,74,0.45);
+    --ink:#ffeede; --muted:#bb9882;
+    --rust:#ff7536; --rust-2:#ffb060; --amber:#ffc46b;
+    --good:#74e0a0; --warn:#ffce5b; --bad:#ff6f6f; --sci:#9fb8ff; --joy:#ffcaa0; --cyan:#5fd0e6;
+    --shadow:0 22px 60px rgba(0,0,0,.62);
+    --ui:"Chakra Petch","Segoe UI",system-ui,sans-serif;
+    --mono:"IBM Plex Mono",ui-monospace,"Cascadia Mono",monospace;
   }
   *{box-sizing:border-box}
   html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--ink);
-    font-family:"Inter","Segoe UI",system-ui,Arial,sans-serif;-webkit-font-smoothing:antialiased;}
+    font-family:var(--ui);-webkit-font-smoothing:antialiased;}
   canvas{display:block}
   #app{position:fixed;inset:0}
+  /* subtle CRT/scanline atmosphere between canvas and HUD */
+  #app::after{content:"";position:fixed;inset:0;z-index:3;pointer-events:none;
+    background:repeating-linear-gradient(transparent 0 2px,rgba(0,0,0,.05) 2px 3px),
+      radial-gradient(circle at 50% 42%,transparent 55%,rgba(0,0,0,.45) 100%);}
+
+  /* corner-bracket HUD frame */
+  .frame{position:relative}
+  .frame::before,.frame::after{content:"";position:absolute;width:15px;height:15px;pointer-events:none;opacity:.85}
+  .frame::before{top:-1px;left:-1px;border-top:2px solid var(--rust);border-left:2px solid var(--rust)}
+  .frame::after{bottom:-1px;right:-1px;border-bottom:2px solid var(--rust);border-right:2px solid var(--rust)}
 
   #loader{position:fixed;inset:0;z-index:50;display:grid;place-items:center;
-    background:radial-gradient(circle at 50% 30%,#3a1606,#0a0604 70%);transition:opacity .6s;}
+    background:radial-gradient(circle at 50% 32%,#3a1606,#0b0705 72%);transition:opacity .6s;}
   #loader .lwrap{text-align:center}
-  #loader h1{font-size:clamp(28px,6vw,64px);margin:0;letter-spacing:.18em;
-    background:linear-gradient(90deg,var(--rust),var(--rust-2));-webkit-background-clip:text;background-clip:text;color:transparent;
-    text-shadow:0 0 40px rgba(255,120,60,.35);font-weight:800;}
-  #loader p{color:var(--muted);letter-spacing:.35em;margin:.4em 0 1.4em;font-size:13px;text-transform:uppercase}
-  .bar{width:min(360px,70vw);height:6px;border-radius:6px;background:rgba(255,255,255,.08);overflow:hidden;margin:0 auto}
-  .bar>i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--rust),var(--rust-2));transition:width .3s}
+  #loader h1{font-size:clamp(30px,6vw,68px);margin:0;letter-spacing:.26em;font-weight:700;
+    background:linear-gradient(90deg,var(--rust),var(--amber));-webkit-background-clip:text;background-clip:text;color:transparent;
+    text-shadow:0 0 46px rgba(255,120,60,.4);}
+  #loader p{color:var(--muted);letter-spacing:.5em;margin:.6em 0 1.6em;font-size:12px;text-transform:uppercase}
+  .bar{width:min(360px,70vw);height:5px;border-radius:0;background:rgba(255,255,255,.08);overflow:hidden;margin:0 auto;
+    clip-path:polygon(4px 0,100% 0,calc(100% - 4px) 100%,0 100%)}
+  .bar>i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--rust),var(--amber));transition:width .3s}
 
   #hud{position:fixed;inset:0;pointer-events:none;z-index:10;display:flex;flex-direction:column;justify-content:space-between}
-  .topbar{pointer-events:auto;display:flex;gap:7px;flex-wrap:wrap;align-items:center;padding:10px 12px;
-    background:linear-gradient(180deg,rgba(10,6,4,.85),rgba(10,6,4,0));}
-  .res{display:flex;align-items:center;gap:6px;padding:5px 10px;border:1px solid var(--line);border-radius:11px;
-    background:var(--panel);backdrop-filter:blur(8px);font-variant-numeric:tabular-nums;min-width:0}
-  .res .ic{width:17px;height:17px;flex:0 0 auto}
-  .res .v{font-weight:700;font-size:13.5px}
-  .res .r{font-size:10.5px;color:var(--muted)}
+
+  /* ===== top telemetry rail ===== */
+  .topbar{pointer-events:auto;display:flex;gap:0;flex-wrap:wrap;align-items:stretch;padding:8px 12px;
+    background:linear-gradient(180deg,rgba(11,7,5,.94),rgba(11,7,5,.55) 70%,transparent);
+    border-bottom:1px solid var(--line)}
+  .brand{display:flex;flex-direction:column;justify-content:center;padding:2px 16px 2px 4px;margin-right:6px;
+    border-right:1px solid var(--line)}
+  .brand .bd1{font-weight:700;font-size:14px;letter-spacing:.16em;color:var(--ink)}
+  .brand .bd2{font-size:9px;letter-spacing:.42em;color:var(--rust);text-transform:uppercase;margin-top:1px}
+  .res{display:flex;align-items:center;gap:7px;padding:4px 12px;font-variant-numeric:tabular-nums;min-width:0;
+    border-right:1px solid rgba(255,138,74,.1)}
+  .res .ic{width:18px;height:18px;flex:0 0 auto;opacity:.92}
+  .res .v{font-family:var(--mono);font-weight:600;font-size:13px;letter-spacing:-.02em;line-height:1.1}
+  .res .r{font-size:9.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-family:var(--mono)}
   .res .r.pos{color:var(--good)}.res .r.neg{color:var(--bad)}
-  .res.alert{animation:pulseBad 1s infinite}
-  @keyframes pulseBad{0%,100%{border-color:var(--line)}50%{border-color:var(--bad)}}
+  .res.alert .v{color:var(--bad);animation:flick .9s infinite}
+  @keyframes flick{0%,100%{opacity:1}50%{opacity:.4}}
   .spacer{flex:1}
-  .clock{display:flex;align-items:center;gap:10px;padding:5px 12px;border:1px solid var(--line);border-radius:11px;background:var(--panel);backdrop-filter:blur(8px)}
-  .clock .sol{font-weight:800;font-size:15px}
-  .clock .tod{font-size:11px;color:var(--muted);width:70px}
+  .clock{display:flex;align-items:center;gap:12px;padding:3px 4px 3px 14px;border-left:1px solid var(--line)}
+  .clock .sol{font-family:var(--mono);font-weight:600;font-size:15px;letter-spacing:.04em}
+  .clock .tod{font-size:10px;color:var(--muted);width:80px;text-transform:uppercase;letter-spacing:.1em}
   .speed{display:flex;gap:4px}
-  .speed button{pointer-events:auto;border:1px solid var(--line);background:var(--panel-2);color:var(--ink);
-    width:30px;height:30px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:700;transition:.15s}
-  .speed button:hover{border-color:var(--rust)}
-  .speed button.on{background:var(--rust);color:#1a0a04;border-color:var(--rust)}
+  .speed button{pointer-events:auto;border:1px solid var(--line);background:rgba(255,255,255,.03);color:var(--ink);
+    width:30px;height:30px;cursor:pointer;font-size:12px;font-weight:700;font-family:var(--mono);transition:.15s}
+  .speed button:hover{border-color:var(--rust);color:var(--rust)}
+  .speed button.on{background:var(--rust);color:#180a04;border-color:var(--rust)}
 
-  .dock{pointer-events:auto;align-self:center;margin-bottom:14px;display:flex;gap:7px;padding:10px;
-    border:1px solid var(--line);border-radius:16px;background:var(--panel);backdrop-filter:blur(10px);box-shadow:var(--shadow);
-    max-width:min(97vw,1240px);overflow-x:auto;scrollbar-width:thin}
-  .bcard{position:relative;width:80px;flex:0 0 auto;border:1px solid transparent;border-radius:12px;padding:8px 6px 7px;
-    background:rgba(255,255,255,.03);cursor:pointer;text-align:center;transition:.16s;user-select:none}
-  .bcard:hover{background:rgba(255,150,90,.12);border-color:var(--line);transform:translateY(-3px)}
-  .bcard.sel{border-color:var(--rust);background:rgba(255,122,60,.18);box-shadow:0 0 0 1px var(--rust) inset}
-  .bcard.locked{opacity:.4;cursor:not-allowed;filter:grayscale(.6)}
-  .bcard.unaff{opacity:.62}
-  .bcard svg{width:36px!important;height:36px!important;margin:0 auto 4px;display:block;flex:0 0 auto}
+  /* ===== build dock ===== */
+  .dock{pointer-events:auto;align-self:center;margin-bottom:16px;display:flex;gap:6px;padding:11px 12px;
+    border:1px solid var(--line);background:var(--glass);backdrop-filter:blur(11px);box-shadow:var(--shadow);
+    max-width:min(97vw,1260px);overflow-x:auto;scrollbar-width:thin}
+  .bcard{position:relative;width:82px;flex:0 0 auto;border:1px solid transparent;padding:9px 6px 8px;
+    background:rgba(255,255,255,.025);cursor:pointer;text-align:center;transition:transform .16s,background .16s,border-color .16s;user-select:none}
+  .bcard::after{content:"";position:absolute;left:0;right:0;bottom:0;height:2px;background:var(--rust);transform:scaleX(0);transition:transform .18s}
+  .bcard:hover{background:rgba(255,138,74,.12);border-color:var(--line-2);transform:translateY(-4px)}
+  .bcard:hover::after{transform:scaleX(1)}
+  .bcard.sel{border-color:var(--rust);background:rgba(255,117,54,.2)}
+  .bcard.sel::after{transform:scaleX(1)}
+  .bcard.locked{opacity:.38;cursor:not-allowed;filter:grayscale(.6)}
+  .bcard.unaff{opacity:.6}
+  .bcard svg{width:34px!important;height:34px!important;margin:0 auto 5px;display:block;flex:0 0 auto}
   .bcard .bn{font-size:10.5px;line-height:1.15;color:var(--ink);font-weight:600}
-  .bcard .bc{font-size:9.5px;color:var(--muted);margin-top:2px}
-  .bcard .lk{position:absolute;top:4px;right:5px;font-size:11px}
+  .bcard .bc{font-size:9px;color:var(--muted);margin-top:3px;font-family:var(--mono);letter-spacing:-.02em}
+  .bcard .lk{position:absolute;top:5px;right:6px;font-size:10px}
 
-  .leftcol{position:fixed;left:12px;top:92px;display:flex;flex-direction:column;gap:8px;pointer-events:none}
-  .tool{pointer-events:auto;width:42px;height:42px;border:1px solid var(--line);border-radius:11px;background:var(--panel);
+  /* ===== tool rail ===== */
+  .leftcol{position:fixed;left:12px;top:96px;display:flex;flex-direction:column;gap:7px;pointer-events:none}
+  .tool{pointer-events:auto;width:44px;height:44px;border:1px solid var(--line);background:var(--glass);
     color:var(--ink);cursor:pointer;display:grid;place-items:center;backdrop-filter:blur(8px);transition:.15s;font-size:18px}
-  .tool:hover{border-color:var(--rust);background:var(--panel-2)}
-  .tool.on{background:var(--rust);color:#1a0a04}
+  .tool:hover{border-color:var(--rust);background:var(--glass-2);transform:translateX(2px)}
+  .tool.on{background:var(--rust);color:#180a04;border-color:var(--rust)}
 
-  .side{position:fixed;right:12px;top:92px;width:min(360px,88vw);max-height:calc(100vh - 200px);overflow:auto;
-    border:1px solid var(--line);border-radius:14px;background:var(--panel);backdrop-filter:blur(10px);box-shadow:var(--shadow);
-    pointer-events:auto;padding:14px;transform:translateX(125%);transition:transform .35s cubic-bezier(.2,.8,.2,1);scrollbar-width:thin}
+  /* ===== side panel ===== */
+  .side{position:fixed;right:12px;top:96px;width:min(366px,88vw);max-height:calc(100vh - 200px);overflow:auto;
+    border:1px solid var(--line);background:var(--glass-2);backdrop-filter:blur(12px);box-shadow:var(--shadow);
+    pointer-events:auto;padding:16px 16px 18px;transform:translateX(125%);transition:transform .38s cubic-bezier(.2,.85,.25,1);scrollbar-width:thin}
   .side.open{transform:none}
-  .side h3{margin:0 0 4px;font-size:16px;display:flex;align-items:center;gap:8px}
+  .side h3{margin:0 0 4px;font-size:15px;font-weight:700;letter-spacing:.04em;display:flex;align-items:center;gap:8px;
+    text-transform:uppercase}
   .side .close{margin-left:auto;cursor:pointer;color:var(--muted);font-size:18px;line-height:1}
-  .side .sub{color:var(--muted);font-size:12px;margin:0 0 12px}
-  .stat{display:flex;justify-content:space-between;font-size:12.5px;padding:5px 0;border-bottom:1px dashed rgba(255,255,255,.07)}
-  .stat b{font-weight:700}
-  .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid var(--line);background:var(--panel-2);
-    color:var(--ink);border-radius:10px;padding:8px 12px;cursor:pointer;font-size:13px;font-weight:600;transition:.15s;width:100%}
-  .btn:hover{border-color:var(--rust)}
-  .btn.danger:hover{border-color:var(--bad);color:var(--bad)}
-  .btn:disabled{opacity:.4;cursor:not-allowed}
+  .side .close:hover{color:var(--rust)}
+  .side .sub{color:var(--muted);font-size:12px;margin:0 0 13px;line-height:1.5}
+  .stat{display:flex;justify-content:space-between;font-size:12.5px;padding:6px 0;border-bottom:1px solid rgba(255,138,74,.1)}
+  .stat b{font-weight:600;font-family:var(--mono)}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid var(--line);background:rgba(255,255,255,.04);
+    color:var(--ink);padding:9px 12px;cursor:pointer;font-size:13px;font-weight:600;font-family:var(--ui);transition:.15s;width:100%;letter-spacing:.02em}
+  .btn:hover{border-color:var(--rust);background:rgba(255,117,54,.14)}
+  .btn.danger:hover{border-color:var(--bad);color:var(--bad);background:rgba(255,111,111,.1)}
+  .btn:disabled{opacity:.38;cursor:not-allowed}
 
-  .tech{border:1px solid var(--line);border-radius:11px;padding:10px;margin-bottom:9px;background:rgba(255,255,255,.02)}
-  .tech.done{border-color:rgba(127,224,138,.4);background:rgba(127,224,138,.06)}
-  .tech h4{margin:0 0 3px;font-size:13.5px;display:flex;align-items:center;gap:6px}
-  .tech p{margin:0 0 8px;font-size:11.5px;color:var(--muted);line-height:1.4}
-  .tech .cost{font-size:11px;color:var(--sci);font-weight:700}
-  .branchTag{font-size:9.5px;text-transform:uppercase;letter-spacing:.08em;padding:2px 7px;border-radius:20px;background:rgba(255,255,255,.06);color:var(--muted)}
+  .tech{border:1px solid var(--line);padding:11px;margin-bottom:9px;background:rgba(255,255,255,.02)}
+  .tech.done{border-color:rgba(116,224,160,.4);background:rgba(116,224,160,.06)}
+  .tech h4{margin:0 0 4px;font-size:13px;display:flex;align-items:center;gap:6px;font-weight:600}
+  .tech p{margin:0 0 9px;font-size:11.5px;color:var(--muted);line-height:1.45}
+  .tech .cost{font-size:11px;color:var(--sci);font-weight:600;font-family:var(--mono)}
+  .branchTag{font-size:9px;text-transform:uppercase;letter-spacing:.1em;padding:2px 8px;background:rgba(255,138,74,.12);color:var(--rust-2);margin-left:auto}
 
-  .mile{display:flex;gap:9px;align-items:flex-start;padding:8px 0;border-bottom:1px dashed rgba(255,255,255,.07)}
-  .mile .dot{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;flex:0 0 auto;font-size:13px;
+  .mile{display:flex;gap:10px;align-items:flex-start;padding:9px 0;border-bottom:1px solid rgba(255,138,74,.1)}
+  .mile .dot{width:26px;height:26px;display:grid;place-items:center;flex:0 0 auto;font-size:13px;
     border:1px solid var(--line);background:rgba(255,255,255,.04)}
-  .mile.done .dot{background:linear-gradient(135deg,var(--rust),var(--rust-2));color:#1a0a04;border-color:transparent}
+  .mile.done .dot{background:linear-gradient(135deg,var(--rust),var(--amber));color:#180a04;border-color:transparent}
   .mile .mt{font-size:12.5px;font-weight:600}
-  .mile .md{font-size:11px;color:var(--muted);line-height:1.4}
-  .order{display:flex;justify-content:space-between;align-items:center;gap:8px;border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin-bottom:7px;font-size:12px}
-  .order .ob{flex:0 0 auto;width:auto;padding:6px 11px}
+  .mile .md{font-size:11px;color:var(--muted);line-height:1.45;margin-top:2px}
+  .order{display:flex;justify-content:space-between;align-items:center;gap:8px;border:1px solid var(--line);padding:9px 11px;margin-bottom:7px;font-size:12px}
+  .order .ob{flex:0 0 auto;width:auto;padding:7px 11px;font-family:var(--mono);font-size:11.5px}
 
-  #tip{position:fixed;z-index:30;max-width:240px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;
-    background:var(--panel-2);backdrop-filter:blur(8px);font-size:12px;pointer-events:none;opacity:0;transition:opacity .12s;box-shadow:var(--shadow)}
-  #tip h5{margin:0 0 4px;font-size:13px;color:var(--rust-2)}
-  #tip .row{display:flex;justify-content:space-between;gap:14px;color:var(--muted);line-height:1.5}
-  #tip .row b{color:var(--ink)}
-  #tip .desc{color:var(--muted);margin-top:6px;font-style:italic;line-height:1.4}
-  #tip .biomes{margin-top:6px;font-size:11px;color:var(--rust-2)}
+  #tip{position:fixed;z-index:30;max-width:244px;padding:11px 13px;border:1px solid var(--line-2);
+    background:var(--glass-2);backdrop-filter:blur(8px);font-size:12px;pointer-events:none;opacity:0;transition:opacity .12s;box-shadow:var(--shadow)}
+  #tip h5{margin:0 0 6px;font-size:13px;color:var(--rust-2);font-weight:700;letter-spacing:.03em;text-transform:uppercase}
+  #tip .row{display:flex;justify-content:space-between;gap:14px;color:var(--muted);line-height:1.55}
+  #tip .row b{color:var(--ink);font-family:var(--mono);font-weight:500}
+  #tip .desc{color:var(--muted);margin-top:7px;font-style:italic;line-height:1.45}
+  #tip .biomes{margin-top:7px;font-size:11px;color:var(--rust-2)}
 
   #log{position:fixed;left:12px;bottom:14px;width:min(340px,72vw);pointer-events:none;display:flex;flex-direction:column;gap:5px}
-  .logitem{font-size:12px;padding:7px 11px;border-radius:9px;background:var(--panel);border:1px solid var(--line);
-    backdrop-filter:blur(6px);animation:slideIn .35s;opacity:.96}
-  .logitem.good{border-color:rgba(127,224,138,.35)}
-  .logitem.warn{border-color:rgba(255,209,102,.4)}
-  .logitem.bad{border-color:rgba(255,107,107,.45)}
-  .logitem.disc{border-color:rgba(143,212,255,.5)}
-  @keyframes slideIn{from{transform:translateX(-30px);opacity:0}to{transform:translateX(0);opacity:.96}}
+  .logitem{font-size:12px;padding:8px 11px;background:var(--glass);border:1px solid var(--line);border-left:2px solid var(--muted);
+    backdrop-filter:blur(6px);animation:slideIn .35s;opacity:.97}
+  .logitem.good{border-left-color:var(--good)}
+  .logitem.warn{border-left-color:var(--warn)}
+  .logitem.bad{border-left-color:var(--bad)}
+  .logitem.disc{border-left-color:var(--cyan)}
+  @keyframes slideIn{from{transform:translateX(-30px);opacity:0}to{transform:translateX(0);opacity:.97}}
 
-  #modal{position:fixed;inset:0;z-index:40;display:none;place-items:center;background:rgba(5,3,2,.72);backdrop-filter:blur(4px)}
+  #modal{position:fixed;inset:0;z-index:40;display:none;place-items:center;background:rgba(5,3,2,.74);backdrop-filter:blur(5px)}
   #modal.show{display:grid}
-  .mcard{width:min(500px,92vw);border:1px solid var(--line);border-radius:18px;background:var(--panel-2);
-    box-shadow:var(--shadow);padding:26px;text-align:center;animation:pop .35s}
-  @keyframes pop{from{transform:scale(.9);opacity:0}to{transform:scale(1);opacity:1}}
-  .mcard .emoji{font-size:46px}
-  .mcard h2{margin:8px 0 6px;font-size:24px}
-  .mcard p{color:var(--muted);font-size:13.5px;line-height:1.6;margin:0 0 18px}
+  .mcard{width:min(500px,92vw);border:1px solid var(--line-2);background:var(--glass-2);
+    box-shadow:var(--shadow);padding:28px;text-align:center;animation:pop .35s}
+  @keyframes pop{from{transform:scale(.92);opacity:0}to{transform:scale(1);opacity:1}}
+  .mcard .emoji{font-size:48px}
+  .mcard h2{margin:10px 0 8px;font-size:23px;letter-spacing:.03em}
+  .mcard p{color:var(--muted);font-size:13.5px;line-height:1.65;margin:0 0 20px}
   .mcard .mbtns{display:flex;gap:10px}
 
-  .hint{position:fixed;bottom:88px;left:50%;transform:translateX(-50%);pointer-events:none;
-    font-size:12px;color:var(--muted);background:var(--panel);border:1px solid var(--line);
-    padding:6px 14px;border-radius:20px;backdrop-filter:blur(6px);opacity:0;transition:opacity .3s;text-align:center;max-width:90vw}
+  .hint{position:fixed;bottom:92px;left:50%;transform:translateX(-50%);pointer-events:none;
+    font-size:12px;color:var(--ink);background:var(--glass-2);border:1px solid var(--line-2);
+    padding:7px 16px;backdrop-filter:blur(6px);opacity:0;transition:opacity .3s;text-align:center;max-width:90vw;letter-spacing:.02em}
   .hint.show{opacity:1}
 
-  /* ===== Tutorial ===== */
-  #tut{position:fixed;left:50%;bottom:120px;transform:translateX(-50%);z-index:46;width:min(400px,93vw);
-    border:1px solid var(--rust);border-radius:14px;background:var(--panel-2);box-shadow:var(--shadow);
-    padding:16px 18px;display:none;pointer-events:auto;backdrop-filter:blur(10px)}
+  /* ===== tutorial ===== */
+  #tut{position:fixed;left:50%;bottom:124px;transform:translateX(-50%);z-index:46;width:min(404px,93vw);
+    border:1px solid var(--rust);background:var(--glass-2);box-shadow:var(--shadow);
+    padding:17px 19px;display:none;pointer-events:auto;backdrop-filter:blur(12px)}
   #tut.show{display:block;animation:pop .3s}
-  #tut h4{margin:0 0 6px;font-size:15px;color:var(--rust-2)}
-  #tut p{margin:0 0 13px;font-size:12.5px;color:var(--ink);line-height:1.55}
+  #tut h4{margin:0 0 7px;font-size:15px;color:var(--rust-2);font-weight:700;letter-spacing:.03em}
+  #tut p{margin:0 0 14px;font-size:12.5px;color:var(--ink);line-height:1.6}
   #tut .tb{display:flex;justify-content:space-between;align-items:center;gap:10px}
   #tut .dots{display:flex;gap:5px}
   #tut .dots i{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.22);transition:.2s}
-  #tut .dots i.on{background:var(--rust);transform:scale(1.2)}
+  #tut .dots i.on{background:var(--rust);transform:scale(1.25)}
   #tut .tbtns{display:flex;gap:8px}
-  #tut button{border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:9px;
-    padding:7px 14px;cursor:pointer;font-size:12.5px;font-weight:700;transition:.15s}
+  #tut button{border:1px solid var(--line);background:rgba(255,255,255,.04);color:var(--ink);
+    padding:8px 15px;cursor:pointer;font-size:12.5px;font-weight:700;font-family:var(--ui);transition:.15s}
   #tut button.skip{color:var(--muted);font-weight:600}
-  #tut button.next{background:var(--rust);color:#1a0a04;border-color:var(--rust)}
+  #tut button.next{background:var(--rust);color:#180a04;border-color:var(--rust)}
   #tut button:hover{filter:brightness(1.08)}
-  .tut-hl{outline:3px solid var(--rust)!important;outline-offset:4px;border-radius:14px;
+  .tut-hl{outline:2px solid var(--rust)!important;outline-offset:4px;
     animation:tutPulse 1.2s infinite;position:relative;z-index:20}
-  @keyframes tutPulse{0%,100%{outline-color:rgba(255,122,60,.95)}50%{outline-color:rgba(255,122,60,.28)}}
+  @keyframes tutPulse{0%,100%{outline-color:rgba(255,117,54,.95)}50%{outline-color:rgba(255,117,54,.3)}}
 
-  ::-webkit-scrollbar{width:8px;height:8px}::-webkit-scrollbar-thumb{background:rgba(255,150,90,.3);border-radius:8px}
+  ::-webkit-scrollbar{width:8px;height:8px}::-webkit-scrollbar-thumb{background:rgba(255,138,74,.32)}
 </style>
 </head>
 <body>
@@ -166,7 +200,7 @@
 <div id="hud" style="display:none">
   <div class="topbar" id="resbar"></div>
   <div class="spacer"></div>
-  <div class="dock" id="dock"></div>
+  <div class="dock frame" id="dock"></div>
 </div>
 
 <div class="leftcol" id="leftcol" style="display:none">
@@ -179,12 +213,12 @@
   <button class="tool" id="tHelp" title="How to play">❔</button>
 </div>
 
-<div class="side" id="side"></div>
+<div class="side frame" id="side"></div>
 <div id="tip"></div>
 <div id="log"></div>
 <div class="hint" id="hint"></div>
 <div id="tut"></div>
-<div id="modal"><div class="mcard" id="mcard"></div></div>
+<div id="modal"><div class="mcard frame" id="mcard"></div></div>
 
 <script type="importmap">
 { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
@@ -372,17 +406,19 @@ const raycaster=new THREE.Raycaster();
 const pointer=new THREE.Vector2(-2,-2);
 let hoveredTile=null;
 const ambientColonists=[]; // moving people across all buildings
+// reusable scratch objects — avoid per-frame allocation (GC churn) in the animate loop
+const _v1=new THREE.Vector3(),_v2=new THREE.Vector3(),_m4=new THREE.Matrix4(),_ORIGIN=new THREE.Vector3();
 
 function initScene(){
   renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:"high-performance"});
   const vw=()=>innerWidth||document.documentElement.clientWidth||1280;
   const vh=()=>innerHeight||document.documentElement.clientHeight||720;
   renderer.setSize(vw(),vh());
-  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  renderer.setPixelRatio(Math.min(devicePixelRatio,1.5)); // cap DPR — big GPU/RAM win on hi-dpi
   renderer.shadowMap.enabled=true;
-  renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+  renderer.shadowMap.type=THREE.PCFShadowMap; // cheaper than PCFSoft
   renderer.toneMapping=THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure=1.05;
+  renderer.toneMappingExposure=1.12;
   renderer.setClearColor(0x05030a);
   document.getElementById('app').appendChild(renderer.domElement);
 
@@ -396,7 +432,7 @@ function initScene(){
   sunPivot=new THREE.Object3D();scene.add(sunPivot);
   sun=new THREE.DirectionalLight(0xfff0e0,2.4);
   sun.position.set(R*4,R,R*2);
-  sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);
+  sun.castShadow=true;sun.shadow.mapSize.set(1024,1024); // 4x less shadow memory
   const d=R*1.4;
   sun.shadow.camera.left=-d;sun.shadow.camera.right=d;sun.shadow.camera.top=d;sun.shadow.camera.bottom=-d;
   sun.shadow.camera.near=R*1.5;sun.shadow.camera.far=R*7;sun.shadow.bias=-0.0004;
@@ -413,7 +449,7 @@ function initScene(){
 
 /* ---------- planet ---------- */
 function buildTerrain(){
-  const geo=new THREE.SphereGeometry(R,260,190);
+  const geo=new THREE.SphereGeometry(R,200,150);
   const pos=geo.attributes.position;const colors=[];
   const cLow=new THREE.Color(0x4a1e10),cMid=new THREE.Color(0x8a3a18),cHi=new THREE.Color(0xc26a38),
         cDust=new THREE.Color(0xd98a4a),cPolar=new THREE.Color(0xe8dcc8),cBasin=new THREE.Color(0x6a3320);
@@ -579,16 +615,19 @@ function tileSlope(gx,gz){
  *  MESH FACTORIES                                                *
  * ============================================================= */
 const mat=(c,rough=0.6,metal=0.3,emissive=0,ei=0.6)=>new THREE.MeshStandardMaterial({color:c,roughness:rough,metalness:metal,emissive,emissiveIntensity:emissive?ei:0});
-const glass=(c,em)=>new THREE.MeshPhysicalMaterial({color:c,transmission:0.6,roughness:0.08,metalness:0,transparent:true,opacity:0.55,emissive:em,emissiveIntensity:0.3});
+// cheap "glass" — transparent standard material (avoids the costly transmission render pass)
+const glass=(c,em)=>new THREE.MeshStandardMaterial({color:c,roughness:0.14,metalness:0.1,transparent:true,opacity:0.5,emissive:em,emissiveIntensity:0.3});
 
-function makeColonist(){
+const _colTpl=[];
+function colonistTemplate(i){
+  if(_colTpl[i])return _colTpl[i];
   const g=new THREE.Group();
-  const suit=Math.random()<0.5?0xff8a4a:0xe8e8ee;
-  const body=new THREE.Mesh(new THREE.CapsuleGeometry(0.18,0.32,4,8),mat(suit,0.7,0.1));body.position.y=0.34;
-  const head=new THREE.Mesh(new THREE.SphereGeometry(0.16,12,10),mat(0x88ccdd,0.2,0.6,0x224455,0.4));head.position.y=0.72;
-  g.add(body,head);g.castShadow=true;g.traverse(o=>{if(o.isMesh)o.castShadow=true;});
-  return g;
+  const body=new THREE.Mesh(new THREE.CapsuleGeometry(0.18,0.32,4,8),mat(i?0xe8e8ee:0xff8a4a,0.7,0.1));body.position.y=0.34;
+  const head=new THREE.Mesh(new THREE.SphereGeometry(0.16,10,8),mat(0x88ccdd,0.2,0.6,0x224455,0.4));head.position.y=0.72;
+  g.add(body,head); // colonists don't cast shadows (tiny — saves the shadow pass a lot of draws)
+  return _colTpl[i]=g;
 }
+function makeColonist(){return colonistTemplate(Math.random()<0.5?0:1).clone(true);}
 function makeDrone(){
   const g=new THREE.Group();
   const body=new THREE.Mesh(new THREE.BoxGeometry(0.55,0.3,0.55),mat(0xffc24d,0.4,0.6));
@@ -605,7 +644,7 @@ function makeLamp(x,z){
   m.position.set(x,0.3,z);return m;
 }
 
-function makeBuildingMesh(key){
+function makeTemplate(key){
   const b=BUILDINGS[key];const g=new THREE.Group();
   const lamps=[];
   const pad=new THREE.Mesh(new THREE.CylinderGeometry(TILE*0.46,TILE*0.5,0.3,18),mat(0x3a2418,0.95,0.05));
@@ -693,7 +732,7 @@ function makeBuildingMesh(key){
       add(new THREE.Mesh(new THREE.ConeGeometry(2.4,5.0,6),mat(0xff9d5c,0.6,0.2)),0,2.5);
       for(let i=0;i<3;i++)add(new THREE.Mesh(new THREE.TorusGeometry(2.0-i*0.55,0.12,8,6),mat(0xffd0a0,0.4,0.4,0x553311,0.3)),0,1.2+i*1.3).rotation.x=Math.PI/2;
       const top=add(new THREE.Mesh(new THREE.SphereGeometry(0.7,16,12),glass(0xaaffff,0x224466)),0,5.4);
-      g.userData.glow=top;g.userData.win=top;g.userData.peopleCount=5;g.userData.peopleR=2.8;
+      g.userData.win=top;g.userData.peopleCount=5;g.userData.peopleR=2.8;
       lamps.push(add(makeLamp(2.8,0)),add(makeLamp(-2.6,1)),add(makeLamp(0,2.6)));break;}
     case'algae':{
       add(new THREE.Mesh(new THREE.CylinderGeometry(1.8,1.8,0.5,20),mat(0x2a6a40,0.3,0.1,0x0a3a1a,0.3)),0,0.3);
@@ -715,8 +754,28 @@ function makeBuildingMesh(key){
       g.userData.glow=cap;break;}
   }
   g.userData.lamps=lamps;
-  g.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});
+  // Make the template clone-safe: tag animated parts by name, keep only primitive userData
+  // (Object3D refs in userData would break clone()'s JSON copy.)
+  const ud=g.userData,tag=(o,n)=>{if(o)o.name=n;};
+  tag(ud.spin,'p_spin');tag(ud.glow,'p_glow');tag(ud.win,'p_win');tag(ud.arm,'p_arm');
+  tag(ud.panel,'p_panel');tag(ud.rocket,'p_rocket');tag(ud.flame,'p_flame');
+  if(ud.lamps)ud.lamps.forEach(l=>l.name='p_lamp');
+  g.userData={__prim:{peopleCount:ud.peopleCount||0,peopleR:ud.peopleR||2}};
+  g.traverse(o=>{if(o.isMesh){o.receiveShadow=true;o.castShadow=o.name!=='p_lamp';}});
   return g;
+}
+
+// Build each type once, then clone() instances (shared geometry + materials = low RAM)
+const TEMPLATES={};
+function getTemplate(key){return TEMPLATES[key]||(TEMPLATES[key]=makeTemplate(key));}
+function makeBuildingMesh(key){
+  const tpl=getTemplate(key),m=tpl.clone(true),ud=m.userData={};
+  ud.spin=m.getObjectByName('p_spin');ud.glow=m.getObjectByName('p_glow');ud.win=m.getObjectByName('p_win');
+  ud.arm=m.getObjectByName('p_arm');ud.panel=m.getObjectByName('p_panel');
+  ud.rocket=m.getObjectByName('p_rocket');ud.flame=m.getObjectByName('p_flame');
+  ud.lamps=[];m.traverse(o=>{if(o.name==='p_lamp')ud.lamps.push(o);});
+  const prim=tpl.userData.__prim||{};ud.peopleCount=prim.peopleCount||0;ud.peopleR=prim.peopleR||2;
+  return m;
 }
 
 /* ============================================================= *
@@ -740,7 +799,7 @@ function placeBuilding(key,gx,gz){
   const drone=makeDrone();scene.add(drone);obj.builder=drone;
   // colonists for housing/social buildings
   const pc=mesh.userData.peopleCount||0,pr=mesh.userData.peopleR||2;
-  for(let i=0;i<pc&&ambientColonists.length<120;i++){
+  for(let i=0;i<pc&&ambientColonists.length<80;i++){
     const c=makeColonist();scene.add(c);
     const p={obj,mesh:c,ang:Math.random()*6.28,speed:(0.4+Math.random()*0.5)*(Math.random()<0.5?1:-1),rad:pr*(0.6+Math.random()*0.4)};
     obj.people.push(p);ambientColonists.push(p);
@@ -775,10 +834,12 @@ function onClick(){
 }
 
 /* ---------- puffs ---------- */
-const puffs=[];
+const puffs=[],PUFF_MAX=10;
+function disposePuff(pf){scene.remove(pf.pts);pf.pts.geometry.dispose();pf.pts.material.dispose();}
 function spawnPuff(pos,dir){
+  if(puffs.length>=PUFF_MAX)disposePuff(puffs.shift()); // cap simultaneous puffs
   const up=dir.clone().normalize();const {t1,t2}=tangentBasis(up);
-  const n=20,geo=new THREE.BufferGeometry(),arr=[],vel=[];
+  const n=16,geo=new THREE.BufferGeometry(),arr=[],vel=[];
   for(let i=0;i<n;i++){arr.push(pos.x,pos.y,pos.z);const a=Math.random()*6.28,sp=2+Math.random()*3;
     const dv=t1.clone().multiplyScalar(Math.cos(a)*sp).addScaledVector(t2,Math.sin(a)*sp).addScaledVector(up,1.5+Math.random()*2);
     vel.push(dv.x,dv.y,dv.z);}
@@ -895,7 +956,7 @@ const resbar=$('#resbar'),dock=$('#dock'),side=$('#side'),tip=$('#tip'),logEl=$(
 const RES_DEF=[['power','Power','power'],['oxygen','O₂','oxygen'],['water','Water','water'],['food','Food','food'],['materials','Mat','materials'],['science','Sci','science'],['credits','Cr','credits']];
 
 function buildResBar(){
-  let html='';
+  let html='<div class="brand"><span class="bd1">RED FRONTIER</span><span class="bd2">Mars Command</span></div>';
   for(const[k,,ic]of RES_DEF)html+=`<div class="res" id="res-${k}">${ICONS[ic]}<div><div class="v" id="resv-${k}">0</div><div class="r" id="resr-${k}"></div></div></div>`;
   html+=`<div class="res" id="res-pop">${ICONS.pop}<div><div class="v" id="resv-pop">0</div><div class="r" id="resr-pop">cap 0</div></div></div>`;
   html+=`<div class="res" id="res-morale">${ICONS.morale}<div><div class="v" id="resv-morale">0</div><div class="r" id="resr-morale">morale</div></div></div>`;
@@ -1173,7 +1234,7 @@ function load(){
       const {t1,t2}=tangentBasis(dir);
       const obj={key:b.key,gx:b.gx,gz:b.gz,mesh,anim:1,dir,pos,t1,t2,people:[],builder:null,builderAng:0};
       const pc=mesh.userData.peopleCount||0,pr=mesh.userData.peopleR||2;
-      for(let i=0;i<pc&&ambientColonists.length<120;i++){const c=makeColonist();scene.add(c);const p={obj,mesh:c,ang:Math.random()*6.28,speed:(0.4+Math.random()*0.5)*(Math.random()<0.5?1:-1),rad:pr*(0.6+Math.random()*0.4)};obj.people.push(p);ambientColonists.push(p);}
+      for(let i=0;i<pc&&ambientColonists.length<80;i++){const c=makeColonist();scene.add(c);const p={obj,mesh:c,ang:Math.random()*6.28,speed:(0.4+Math.random()*0.5)*(Math.random()<0.5?1:-1),rad:pr*(0.6+Math.random()*0.4)};obj.people.push(p);ambientColonists.push(p);}
       G.buildings.push(obj);tileOccupied[idx(b.gx,b.gz)]=true;}
     return true;
   }catch(e){console.warn('load failed',e);return false;}
@@ -1216,58 +1277,58 @@ function animate(){
     dustParticles[0].material.opacity=intensity*0.5;dustParticles[0].rotation.y+=dt*0.3;
     if(dustStormT>18){dustStormActive=false;dustParticles[0].material.opacity=0;toast('🌤️ The dust storm has passed','good');}}
 
-  // buildings: construction, robots, spinners, glow, lights, people
+  // precompute shared (per-frame-global) emissive levels once — materials are shared across instances
+  const glowI=0.4+Math.sin(t*3)*0.25, winI=0.12+nightF*0.7, lampI=nightF*1.2, panelI=dl*0.4;
+
+  // buildings: construction, robots, spinners, glow, lights
   for(const o of G.buildings){
     if(o.anim<1){
       o.anim=Math.min(1,o.anim+dt*0.4); // ~2.5s build
-      const e=1-Math.pow(1-o.anim,3);o.mesh.scale.y=e;
-      // construction drone orbits the site
+      o.mesh.scale.y=1-Math.pow(1-o.anim,3);
       if(o.builder){o.builderAng+=dt*2.2;const r=TILE*0.5;
-        const off=o.t1.clone().multiplyScalar(Math.cos(o.builderAng)*r).addScaledVector(o.t2,Math.sin(o.builderAng)*r).addScaledVector(o.dir,1.4+Math.sin(t*4)*0.3);
-        o.builder.position.copy(o.pos).add(off);orientToNormal(o.builder,o.dir);
-        const sp=o.builder.userData.spark;if(sp){sp.visible=Math.sin(t*30)>0;sp.material.color.setHex(Math.random()<0.5?0xfff0b0:0xff9a4a);}
-        if(Math.random()<0.04)spawnPuff(o.pos.clone().addScaledVector(o.dir,0.6),o.dir);
+        _v1.copy(o.t1).multiplyScalar(Math.cos(o.builderAng)*r).addScaledVector(o.t2,Math.sin(o.builderAng)*r).addScaledVector(o.dir,1.4+Math.sin(t*4)*0.3);
+        o.builder.position.copy(o.pos).add(_v1);orientToNormal(o.builder,o.dir);
+        const sp=o.builder.userData.spark;if(sp){sp.visible=Math.sin(t*30)>0;sp.material.color.setHex(((t*7)|0)%2?0xfff0b0:0xff9a4a);}
       }
     } else if(o.builder){scene.remove(o.builder);o.builder=null;spawnPuff(o.pos,o.dir);}
 
     const ud=o.mesh.userData;
     if(ud.spin){const axis=ud.spin.userData&&ud.spin.userData.axis==='y'?'y':'z';const spd=(dustStormActive&&o.key==='wind')?7:1.6;ud.spin.rotation[axis]+=dt*spd;}
     if(ud.arm)ud.arm.rotation.x=-0.6+Math.sin(t*2+o.gx)*0.25;
-    if(ud.glow&&ud.glow.material.emissive)ud.glow.material.emissiveIntensity=0.4+Math.sin(t*3+o.gz)*0.25;
-    if(ud.win)ud.win.material.emissiveIntensity=0.12+nightF*0.7;
-    if(ud.lamps)for(const l of ud.lamps)l.material.emissiveIntensity=nightF*1.2;
-    if(ud.panel){const f=o.dir.dot(sun.position.clone().normalize());ud.panel.material.emissiveIntensity=Math.max(0,f)*0.4;}
+    if(ud.glow&&ud.glow.material.emissive)ud.glow.material.emissiveIntensity=glowI;
+    if(ud.win)ud.win.material.emissiveIntensity=winI;
+    if(ud.lamps)for(const l of ud.lamps)l.material.emissiveIntensity=lampI;
+    if(ud.panel)ud.panel.material.emissiveIntensity=panelI;
 
     // spaceport rocket launch animation
     if(o.key==='spaceport'&&o.launchT!==undefined&&o.anim>=1){
       o.launchT+=dt;const rk=ud.rocket,fl=ud.flame;
       if(rk){
-        if(o.launchT<3.2){const h=Math.pow(o.launchT/3.2,2)*46;rk.position.y=0.4+h;if(fl){fl.visible=true;fl.scale.y=1+Math.sin(t*40)*0.3;}
-          if(Math.random()<0.6)spawnPuff(o.pos.clone().addScaledVector(o.dir,0.5),o.dir);}
-        else if(o.launchT<6){rk.position.y=0.4;if(fl)fl.visible=false;} // gone, off-screen
-        else {o.launchT=undefined;rk.position.y=0.4;if(fl)fl.visible=false;}
+        if(o.launchT<3.2){rk.position.y=0.4+Math.pow(o.launchT/3.2,2)*46;if(fl){fl.visible=true;fl.scale.y=1+Math.sin(t*40)*0.3;}
+          if(Math.random()<0.4)spawnPuff(_v1.copy(o.pos).addScaledVector(o.dir,0.5),o.dir);}
+        else {o.launchT=o.launchT<6?o.launchT:undefined;rk.position.y=0.4;if(fl)fl.visible=false;}
       }
     }
   }
 
-  // colonists walk around their building
+  // colonists walk around their building (LOD: skip & hide when zoomed far out)
+  const showPeople=cam.radius<R*3.0;
   for(const p of ambientColonists){
-    const o=p.obj;if(o.anim<1)continue;p.ang+=p.speed*dt;
-    const off=o.t1.clone().multiplyScalar(Math.cos(p.ang)*p.rad).addScaledVector(o.t2,Math.sin(p.ang)*p.rad);
-    const ppos=o.pos.clone().add(off);
-    p.mesh.position.copy(ppos);
-    // face walking direction, feet on ground
-    const tangent=o.t1.clone().multiplyScalar(-Math.sin(p.ang)*p.speed).addScaledVector(o.t2,Math.cos(p.ang)*p.speed);
-    const m=new THREE.Matrix4().lookAt(new THREE.Vector3(),tangent,o.dir);
-    p.mesh.quaternion.setFromRotationMatrix(m);
-    p.mesh.position.addScaledVector(o.dir,0.05+Math.abs(Math.sin(t*6+p.ang))*0.05); // little bob
+    const o=p.obj;
+    if(o.anim<1||!showPeople){if(p.mesh.visible)p.mesh.visible=false;continue;}
+    if(!p.mesh.visible)p.mesh.visible=true;
+    p.ang+=p.speed*dt;
+    _v1.copy(o.t1).multiplyScalar(Math.cos(p.ang)*p.rad).addScaledVector(o.t2,Math.sin(p.ang)*p.rad);
+    p.mesh.position.copy(o.pos).add(_v1).addScaledVector(o.dir,0.05+Math.abs(Math.sin(t*6+p.ang))*0.05);
+    _v2.copy(o.t1).multiplyScalar(-Math.sin(p.ang)).addScaledVector(o.t2,Math.cos(p.ang)*Math.sign(p.speed));
+    _m4.lookAt(_ORIGIN,_v2,o.dir);p.mesh.quaternion.setFromRotationMatrix(_m4);
   }
 
   // puffs
   for(let i=puffs.length-1;i>=0;i--){const pf=puffs[i];pf.life-=dt*1.3;const p=pf.pts.geometry.attributes.position;
     for(let j=0;j<p.count;j++){p.setXYZ(j,p.getX(j)+pf.vel[j*3]*dt,p.getY(j)+pf.vel[j*3+1]*dt,p.getZ(j)+pf.vel[j*3+2]*dt);
       pf.vel[j*3]-=pf.up.x*dt*4;pf.vel[j*3+1]-=pf.up.y*dt*4;pf.vel[j*3+2]-=pf.up.z*dt*4;}
-    p.needsUpdate=true;pf.pts.material.opacity=Math.max(0,pf.life);if(pf.life<=0){scene.remove(pf.pts);puffs.splice(i,1);}}
+    p.needsUpdate=true;pf.pts.material.opacity=Math.max(0,pf.life);if(pf.life<=0){disposePuff(pf);puffs.splice(i,1);}}
 
   updateCursor();
   starField.rotation.y=t*0.004;
