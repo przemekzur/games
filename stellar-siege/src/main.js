@@ -95,6 +95,9 @@ function startGame(seed, localPlayer, { net: n, solo }) {
   const input = new Input({ renderer, sim, hud, lockstep, localPlayer, audio });
   input.attach();
 
+  hud.onMute = (m) => { Audio.setMuted(m); };
+  addEventListener('keydown', (e) => { if ((e.key || '').toLowerCase() === 'm' && !/input|textarea/i.test((e.target && e.target.tagName) || '')) hud.toggleMute(); });
+
   // handle mid-game disconnect: keep playing solo
   if (net) {
     const prevStatus = net.onStatus;

@@ -23,6 +23,13 @@ export class Hud {
     this.elSup = this._res(top, '▣', 'sup', '#ffd27f');
     const spacer = el('div', 'hud-spacer', top);
     this.elStatus = el('div', 'hud-status', top);
+    // audio mute toggle
+    this.onMute = () => {};
+    this.muted = false;
+    this.elMute = el('button', 'hud-mute', top);
+    this.elMute.innerHTML = '<span>♪</span>';
+    this.elMute.title = 'Mute audio (M)';
+    this.elMute.addEventListener('click', () => this.toggleMute());
 
     // bottom command panel
     const bottom = el('div', 'hud-bottom', this.root);
@@ -80,6 +87,13 @@ export class Hud {
     this.elSup.classList.toggle('res-cap', p.supplyUsed >= p.supplyMax && p.supplyMax > 0);
   }
 
+  toggleMute() {
+    this.muted = !this.muted;
+    this.elMute.classList.toggle('muted', this.muted);
+    this.elMute.innerHTML = this.muted ? '<span>♪</span>' : '<span>♪</span>';
+    this.onMute(this.muted);
+  }
+
   setStatus(text, kind) {
     this.elStatus.textContent = text || '';
     this.elStatus.className = 'hud-status' + (kind ? ' ' + kind : '');
@@ -122,7 +136,8 @@ export class Hud {
       if (!a) { b.style.display = 'none'; b.className = 'card-btn'; b.innerHTML = ''; continue; }
       b.style.display = '';
       b.className = 'card-btn' + (a.disabled ? ' disabled' : '') + (a.active ? ' active' : '');
-      b.innerHTML = `<span class="cb-label">${a.label}</span>` + (a.hot ? `<span class="cb-hot">${a.hot}</span>` : '');
+      const cost = a.cost ? `<span class="cb-cost">${a.cost.minerals || 0}${a.cost.gas ? '<i>·' + a.cost.gas + '</i>' : ''}</span>` : '';
+      b.innerHTML = `<span class="cb-label">${a.label}</span>${cost}` + (a.hot ? `<span class="cb-hot">${a.hot}</span>` : '');
       if (a.accent) b.style.setProperty('--cb-accent', a.accent);
     }
   }

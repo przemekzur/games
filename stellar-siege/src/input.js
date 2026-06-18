@@ -48,33 +48,53 @@ export class Input {
   // ----- mouse -------------------------------------------------------------
   _down(e) {
     this.mouse.x = e.clientX; this.mouse.y = e.clientY;
-    if (e.button === 0) {
+    if (e.button === 0) {                                   // left: select / place / box
       if (this.mode === 'place') { this._tryPlace(); return; }
       if (this.mode === 'attackmove') { const g = this.r.screenToGround(e.clientX, e.clientY); if (g) this._issueAttackMove(g.x, g.z); this.mode = 'normal'; return; }
       this.drag = { x0: e.clientX, y0: e.clientY, x1: e.clientX, y1: e.clientY, moved: false, additive: e.shiftKey };
-    } else if (e.button === 2) {
+    } else if (e.button === 1) {                            // middle: pan the map (grab & drag)
+      e.preventDefault();
+      this.cam = { mode: 'pan', x: e.clientX, y: e.clientY };
+    } else if (e.button === 2) {                            // right: click = order, drag = rotate
       if (this.mode === 'place' || this.mode === 'attackmove') { this.mode = 'normal'; this.r.clearPlacement(); return; }
-      const g = this.r.screenToGround(e.clientX, e.clientY);
-      if (g) this._issueAt(g.x, g.z, e.shiftKey);
+      this.cam = { mode: 'rotate', x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, moved: false, shift: e.shiftKey };
     }
   }
 
   _move(e) {
-    this.mouse.x = e.clientX; this.mouse.y = e.clientY;
+    const px = e.clientX, py = e.clientY;
+    if (this.cam) {
+      const dx = px - this.cam.x, dy = py - this.cam.y;
+      if (this.cam.mode === 'pan') {
+        const k = this.r.camDist / 620;
+        this.r.panBy(-dx * k, dy * k);
+      } else if (this.cam.mode === 'rotate') {
+        if (Math.abs(px - this.cam.x0) + Math.abs(py - this.cam.y0) > 4) this.cam.moved = true;
+        if (this.cam.moved) { this.r.rotateBy(-dx * 0.006); this.r.pitchBy(-dy * 0.005); }
+      }
+      this.cam.x = px; this.cam.y = py;
+    }
+    this.mouse.x = px; this.mouse.y = py;
     if (this.drag) {
-      this.drag.x1 = e.clientX; this.drag.y1 = e.clientY;
-      if (Math.abs(e.clientX - this.drag.x0) + Math.abs(e.clientY - this.drag.y0) > 5) this.drag.moved = true;
+      this.drag.x1 = px; this.drag.y1 = py;
+      if (Math.abs(px - this.drag.x0) + Math.abs(py - this.drag.y0) > 5) this.drag.moved = true;
       if (this.drag.moved && this.boxEl) {
-        const x = Math.min(this.drag.x0, e.clientX), y = Math.min(this.drag.y0, e.clientY);
+        const x = Math.min(this.drag.x0, px), y = Math.min(this.drag.y0, py);
         this.boxEl.style.display = 'block';
         this.boxEl.style.left = x + 'px'; this.boxEl.style.top = y + 'px';
-        this.boxEl.style.width = Math.abs(e.clientX - this.drag.x0) + 'px';
-        this.boxEl.style.height = Math.abs(e.clientY - this.drag.y0) + 'px';
+        this.boxEl.style.width = Math.abs(px - this.drag.x0) + 'px';
+        this.boxEl.style.height = Math.abs(py - this.drag.y0) + 'px';
       }
     }
   }
 
   _up(e) {
+    if (e.button === 1 && this.cam && this.cam.mode === 'pan') { this.cam = null; return; }
+    if (e.button === 2 && this.cam && this.cam.mode === 'rotate') {
+      const c = this.cam; this.cam = null;
+      if (!c.moved) { const g = this.r.screenToGround(e.clientX, e.clientY); if (g) this._issueAt(g.x, g.z, c.shift); }
+      return;
+    }
     if (e.button !== 0 || !this.drag) return;
     if (this.boxEl) this.boxEl.style.display = 'none';
     const d = this.drag; this.drag = null;

@@ -79,6 +79,7 @@ export class Renderer {
   }
   zoomBy(d) { this.camDist = Math.max(24, Math.min(140, this.camDist + d)); this._updateCamera(); }
   rotateBy(a) { this.camAzim += a; this._updateCamera(); }
+  pitchBy(d) { this.camPitch = Math.max(0.5, Math.min(1.45, this.camPitch + d)); this._updateCamera(); }
   focusOn(x, z) { this.camFocus.x = x; this.camFocus.z = z; this._updateCamera(); }
 
   screenToGround(clientX, clientY) {
@@ -174,7 +175,7 @@ export class Renderer {
     this.scene.add(group);
     const view = { group, kind: e.kind, etype: e.etype, hpbar: null, ring: null };
     this.views.set(e.id, view);
-    if (e.etype !== 'resource') this._pickList.push(group);
+    this._pickList.push(group); // resources must be pickable so right-click → gather works
     return view;
   }
   _removeView(eid) {

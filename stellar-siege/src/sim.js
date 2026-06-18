@@ -489,6 +489,8 @@ export class Sim {
       u.carry = got; u.carryKind = node.kind === 'gas' ? 'gas' : 'minerals';
       if (node.amount <= 0) { node.hp = 0; this.events.push({ t: 'depleted', id: node.id }); }
       u.state = 'returning';
+      const drop = this._nearestDropoff(u);   // path straight to the drop-off now
+      if (drop) this._setPath(u, drop.x, drop.z);
     }
   }
 
@@ -497,8 +499,8 @@ export class Sim {
     if (!drop) { u.state = 'idle'; return; }
     const reach = drop.footprint * TILE * 0.5 + u.radius + 1.0;
     if (dist2(u.x, u.z, drop.x, drop.z) > reach * reach) {
-      if (!u.path || this._arrive(u, u.tx, u.tz, 1.0)) this._setPath(u, drop.x, drop.z);
-      u.state = 'returning';
+      // ensure our move-target is actually the drop-off (not a stale gather target)
+      if (!u.path || dist2(u.tx, u.tz, drop.x, drop.z) > 4) this._setPath(u, drop.x, drop.z);
       this._followPath(u);
       return;
     }
