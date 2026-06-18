@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Stellar Siege — RTS</title>
+<style>
+  :root{
+    --bg:#05080d; --panel:rgba(12,20,30,0.86); --panel-2:rgba(16,28,42,0.95);
+    --line:rgba(90,180,255,0.22); --ink:#dff1ff; --muted:#7fa3c0;
+    --blue:#2e6cff; --cyan:#6fd0ff; --good:#55ff88; --warn:#ffd166; --bad:#ff6b6b;
+    --accent:#6fd0ff; --shadow:0 18px 50px rgba(0,0,0,.6);
+    --font:"Rajdhani","Segoe UI",system-ui,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--ink);
+    font-family:var(--font);-webkit-font-smoothing:antialiased;user-select:none;}
+  canvas{display:block}
+  #game{position:fixed;inset:0;z-index:0}
+
+  /* ---------- MENU ---------- */
+  #menu{position:fixed;inset:0;z-index:40;display:grid;place-items:center;
+    background:radial-gradient(120% 90% at 50% 18%,#0d2036,#05080d 70%);}
+  #menu::before{content:"";position:absolute;inset:0;opacity:.5;pointer-events:none;
+    background:
+      radial-gradient(2px 2px at 20% 30%,rgba(120,200,255,.5),transparent),
+      radial-gradient(1.5px 1.5px at 70% 20%,rgba(120,200,255,.4),transparent),
+      radial-gradient(1.5px 1.5px at 40% 70%,rgba(120,200,255,.35),transparent),
+      radial-gradient(2px 2px at 85% 60%,rgba(120,200,255,.4),transparent),
+      radial-gradient(1px 1px at 55% 45%,rgba(120,200,255,.3),transparent);}
+  .menu-card{position:relative;width:min(520px,92vw);padding:34px 32px 28px;text-align:center;
+    background:linear-gradient(180deg,rgba(16,30,46,.92),rgba(10,18,28,.96));
+    border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);backdrop-filter:blur(8px);}
+  .menu-card h1{margin:0;font-size:clamp(34px,8vw,62px);font-weight:800;letter-spacing:.16em;
+    background:linear-gradient(90deg,var(--blue),var(--cyan));-webkit-background-clip:text;background-clip:text;color:transparent;
+    text-shadow:0 0 50px rgba(90,180,255,.3);}
+  .menu-card .tag{color:var(--muted);letter-spacing:.4em;font-size:12px;text-transform:uppercase;margin:.4em 0 1.6em;}
+  .menu-row{display:flex;gap:10px;margin:10px 0;}
+  button{font-family:var(--font);cursor:pointer;color:var(--ink);font-weight:700;letter-spacing:.04em;
+    border:1px solid var(--line);border-radius:12px;background:linear-gradient(180deg,rgba(46,108,255,.18),rgba(46,108,255,.05));
+    padding:13px 18px;font-size:15px;transition:.15s;flex:1;}
+  button:hover{border-color:var(--cyan);background:linear-gradient(180deg,rgba(111,208,255,.28),rgba(46,108,255,.1));transform:translateY(-1px);}
+  button.primary{background:linear-gradient(180deg,var(--blue),#1b48c8);border-color:var(--cyan);}
+  button.ghost{background:rgba(255,255,255,.03);}
+  input{font-family:var(--font);flex:2;border:1px solid var(--line);border-radius:12px;background:rgba(0,0,0,.3);
+    color:var(--ink);padding:13px 14px;font-size:18px;letter-spacing:.3em;text-align:center;text-transform:uppercase;}
+  input::placeholder{color:var(--muted);letter-spacing:.12em;}
+  .menu-msg{min-height:20px;margin-top:14px;color:var(--cyan);font-size:13.5px;letter-spacing:.03em;}
+  .menu-msg.bad{color:var(--bad);}
+  #host-wait{display:none;margin-top:8px;}
+  #code-display{font-size:34px;font-weight:800;letter-spacing:.4em;color:var(--good);
+    background:rgba(0,0,0,.3);border:1px dashed var(--line);border-radius:12px;padding:10px;margin-top:6px;}
+  .hr{height:1px;background:var(--line);margin:18px 0;opacity:.7}
+  .hint{color:var(--muted);font-size:11.5px;line-height:1.7;text-align:left;margin-top:6px}
+  .hint b{color:var(--ink)}
+  .menu-sub{color:var(--muted);font-size:11px;letter-spacing:.25em;text-transform:uppercase;margin:14px 0 4px;text-align:left}
+
+  /* ---------- HUD ---------- */
+  #hud{position:fixed;inset:0;z-index:10;display:none;pointer-events:none;}
+  #hud > *{pointer-events:auto}
+  .hud-top{position:absolute;top:0;left:0;right:0;display:flex;align-items:center;gap:8px;padding:8px 12px;
+    background:linear-gradient(180deg,rgba(5,8,13,.85),rgba(5,8,13,0));}
+  .res{display:flex;align-items:center;gap:7px;padding:6px 12px;border:1px solid var(--line);border-radius:11px;
+    background:var(--panel);backdrop-filter:blur(8px);font-variant-numeric:tabular-nums;}
+  .res-ic{font-size:15px}.res-v{font-weight:700;font-size:15px}
+  .res.res-cap{animation:pulseBad 1s infinite}
+  @keyframes pulseBad{0%,100%{border-color:var(--line)}50%{border-color:var(--bad)}}
+  .hud-spacer{flex:1}
+  .hud-status{color:var(--warn);font-weight:600;font-size:14px;letter-spacing:.04em;text-shadow:0 0 12px rgba(0,0,0,.8);}
+
+  .hud-bottom{position:absolute;left:0;right:0;bottom:0;display:flex;align-items:flex-end;gap:10px;padding:10px 12px;
+    background:linear-gradient(0deg,rgba(5,8,13,.92),rgba(5,8,13,0));}
+  .hud-minimap{width:226px;height:226px;border:1px solid var(--line);border-radius:12px;overflow:hidden;
+    background:var(--panel-2);box-shadow:var(--shadow);flex:0 0 auto;}
+  .mm-canvas{width:100%;height:100%;display:block;cursor:crosshair}
+
+  .hud-select{flex:1;min-width:0;height:150px;border:1px solid var(--line);border-radius:12px;
+    background:var(--panel);backdrop-filter:blur(8px);padding:8px 10px;overflow:hidden;}
+  .sel-title{font-weight:700;font-size:14px;letter-spacing:.05em;color:var(--cyan);margin-bottom:6px;}
+  .sel-grid{display:flex;flex-wrap:wrap;gap:5px;align-content:flex-start;max-height:106px;overflow:auto;}
+  .uchip{position:relative;width:28px;height:28px;border:1.5px solid #456;border-radius:6px;
+    display:grid;place-items:center;font-size:12px;font-weight:700;background:rgba(0,0,0,.3);overflow:hidden;}
+  .uchip-hp{position:absolute;left:0;bottom:0;height:3px;background:var(--good);}
+  .sel-queue{display:flex;gap:5px;margin-bottom:6px;flex-wrap:wrap}
+  .qchip{position:relative;font-size:11px;padding:3px 8px;border:1px solid var(--line);border-radius:6px;
+    background:rgba(0,0,0,.3);overflow:hidden;}
+  .qchip i{position:absolute;left:0;bottom:0;height:2px;background:var(--cyan);}
+  .qchip.qactive{border-color:var(--cyan)}
+
+  .hud-card{flex:0 0 auto;width:228px;height:150px;display:grid;grid-template-columns:repeat(4,1fr);
+    grid-template-rows:repeat(3,1fr);gap:5px;}
+  .card-btn{--cb-accent:var(--cyan);position:relative;border:1px solid var(--line);border-radius:9px;padding:2px;
+    background:linear-gradient(180deg,rgba(20,34,50,.9),rgba(12,22,34,.95));display:flex;flex-direction:column;
+    align-items:center;justify-content:center;font-size:10px;line-height:1.1;text-align:center;overflow:hidden;}
+  .card-btn:hover{border-color:var(--cb-accent);box-shadow:0 0 12px rgba(111,208,255,.25) inset;transform:none}
+  .card-btn.disabled{opacity:.42;cursor:not-allowed;filter:saturate(.5)}
+  .card-btn.active{border-color:var(--bad);box-shadow:0 0 14px rgba(255,107,107,.35) inset}
+  .cb-label{font-weight:700;letter-spacing:.02em;padding:0 2px}
+  .cb-hot{position:absolute;top:2px;right:4px;font-size:9px;color:var(--cb-accent);font-weight:800;opacity:.85}
+
+  .hud-tip{position:fixed;z-index:20;max-width:230px;padding:8px 10px;border:1px solid var(--line);border-radius:9px;
+    background:var(--panel-2);font-size:12px;line-height:1.4;box-shadow:var(--shadow);pointer-events:none;}
+  .hud-tip .tip-cost{color:var(--cyan);font-weight:700}
+
+  .hud-alert{position:absolute;top:54px;left:50%;transform:translateX(-50%) translateY(-12px);opacity:0;
+    padding:8px 18px;border-radius:10px;border:1px solid var(--line);background:var(--panel-2);
+    font-weight:600;font-size:14px;transition:.25s;pointer-events:none;letter-spacing:.03em;}
+  .hud-alert.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .hud-alert.bad{border-color:var(--bad);color:var(--bad)}
+  .hud-alert.warn{border-color:var(--warn);color:var(--warn)}
+  .hud-alert.info{border-color:var(--cyan);color:var(--cyan)}
+
+  #sel-box{position:fixed;z-index:15;border:1.4px solid var(--good);background:rgba(85,255,136,.12);
+    display:none;pointer-events:none;border-radius:2px;}
+
+  .hud-result{position:fixed;inset:0;z-index:30;display:none;place-items:center;background:rgba(5,8,13,.78);}
+  .result-card{text-align:center;padding:40px 50px;border-radius:18px;border:1px solid var(--line);background:var(--panel-2);box-shadow:var(--shadow);}
+  .result-card h1{font-size:64px;margin:0;letter-spacing:.1em;font-weight:800}
+  .result-card.win h1{color:var(--good);text-shadow:0 0 40px rgba(85,255,136,.4)}
+  .result-card.lose h1{color:var(--bad);text-shadow:0 0 40px rgba(255,107,107,.4)}
+  .result-card p{color:var(--muted);margin:.6em 0 1.4em}
+  .result-card button{display:inline-block;flex:none;padding:12px 30px}
+</style>
+</head>
+<body>
+  <div id="game"></div>
+
+  <div id="hud"></div>
+  <div id="sel-box"></div>
+
+  <div id="menu">
+    <div class="menu-card">
+      <h1>STELLAR SIEGE</h1>
+      <div class="tag">Real-Time Strategy · 1v1</div>
+
+      <div class="menu-sub">Host a match</div>
+      <div class="menu-row">
+        <button class="primary" id="btn-host">⚔ Host Game</button>
+      </div>
+      <div id="host-wait">
+        <div class="hint">Your room code:</div>
+        <div id="code-display">—————</div>
+      </div>
+
+      <div class="menu-sub">Join a match</div>
+      <div class="menu-row">
+        <input id="join-code" maxlength="5" placeholder="ROOM CODE" />
+        <button id="btn-join">Join →</button>
+      </div>
+
+      <div class="hr"></div>
+      <div class="menu-row">
+        <button class="ghost" id="btn-practice">▶ Practice (solo sandbox)</button>
+      </div>
+
+      <div class="menu-msg" id="menu-msg"></div>
+
+      <div class="menu-sub">Controls</div>
+      <div class="hint">
+        <b>Left-drag</b> select · <b>Right-click</b> move/attack/gather · <b>Double-click</b> select all of type<br>
+        <b>Ctrl+1–9</b> set group · <b>1–9</b> recall · <b>A</b> attack-move · <b>S</b> stop · <b>Q/E</b> rotate · <b>F</b> focus<br>
+        Select a <b>worker</b> to build · select a <b>structure</b> to train units. Mine minerals, build a Refinery on geysers for gas.
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
+  <script type="importmap">
+  { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+  </script>
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>

@@ -22,6 +22,7 @@ A collection of browser games behind one launcher page, hosted on GitHub Pages.
 | [Star Trek Voyager — Definitive Edition](voyager-game-v2/) | 3D space strategy | Three.js + Vite |
 | [Red Frontier — Mars Colony](mars-colony/) | 3D colony / terraforming strategy | Three.js (CDN) |
 | [Jetpack Rush: Neon Run](jetpack-rush/) | Endless runner | Vanilla JS / Canvas |
+| [Stellar Siege](stellar-siege/) | 3D multiplayer RTS (StarCraft-like) | Three.js (CDN) + PeerJS lockstep |
 
 Most games are plain HTML/JS — open their folder's `index.html` or serve the repo
 root with any static server. The two Voyager games are Vite projects; see their

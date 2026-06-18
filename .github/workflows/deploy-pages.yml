@@ -38,7 +38,7 @@ jobs:
         run: |
           mkdir -p _site
           cp index.html _site/
-          for d in asteroids breakout doom fintech-heroes hollow-crown jetpack-rush mars-colony mortal-combat-1 pong river-raid shared snake space-invaders; do
+          for d in asteroids breakout doom fintech-heroes hollow-crown jetpack-rush mars-colony mortal-combat-1 pong river-raid shared snake space-invaders stellar-siege; do
             cp -r "$d" "_site/$d"
           done
           cp -r voyager-game/dist _site/voyager-game
