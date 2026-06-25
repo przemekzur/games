@@ -267,14 +267,14 @@ export class Input {
     // edge / key panning
     const sp = 60 * dt * (this.r.camDist / 60);
     if (this.keys.has('arrowleft') || this.keys.has('a') && false) {}
-    let px = 0, pz = 0;
+    let px = 0, pz = 0;                                  // px = screen-right, pz = into-screen
     if (this.keys.has('arrowleft')) px -= sp;
     if (this.keys.has('arrowright')) px += sp;
-    if (this.keys.has('arrowup')) pz -= sp;
-    if (this.keys.has('arrowdown')) pz += sp;
+    if (this.keys.has('arrowup')) pz += sp;
+    if (this.keys.has('arrowdown')) pz -= sp;
     const m = this.mouse, edge = 6;
     if (m.x <= edge) px -= sp; else if (m.x >= innerWidth - edge) px += sp;
-    if (m.y <= edge) pz -= sp; else if (m.y >= innerHeight - edge) pz += sp;
+    if (m.y <= edge) pz += sp; else if (m.y >= innerHeight - edge) pz -= sp;
     if (this.keys.has('q')) this.r.rotateBy(dt * 1.2);
     if (this.keys.has('e')) this.r.rotateBy(-dt * 1.2);
     if (px || pz) this.r.panBy(px, pz);

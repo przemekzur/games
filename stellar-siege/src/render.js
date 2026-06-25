@@ -69,12 +69,17 @@ export class Renderer {
     this.camera.position.set(f.x + ox, f.y + oy, f.z + oz);
     this.camera.lookAt(f.x, f.y, f.z);
   }
-  panBy(dx, dz) {
-    // pan in camera-aligned ground plane
-    const fwdX = -Math.cos(this.camAzim), fwdZ = -Math.sin(this.camAzim);
-    const rX = -Math.sin(this.camAzim), rZ = Math.cos(this.camAzim);
-    this.camFocus.x = Math.max(0, Math.min(WORLD_W, this.camFocus.x + rX * dx + fwdX * dz));
-    this.camFocus.z = Math.max(0, Math.min(WORLD_H, this.camFocus.z + rZ * dx + fwdZ * dz));
+  // Pan relative to the SCREEN: rightAmt = screen-right, fwdAmt = into the screen.
+  // Forward = ground vector from camera toward the look point (exact at any
+  // rotation/pitch); right = cross(forward, up). Provably consistent both axes.
+  panBy(rightAmt, fwdAmt) {
+    let fx = this.camFocus.x - this.camera.position.x;
+    let fz = this.camFocus.z - this.camera.position.z;
+    const fl = Math.hypot(fx, fz) || 1;
+    fx /= fl; fz /= fl;          // into-screen, on the ground
+    const rx = -fz, rz = fx;     // cross(forward, +Y) = screen-right
+    this.camFocus.x = Math.max(0, Math.min(WORLD_W, this.camFocus.x + rx * rightAmt + fx * fwdAmt));
+    this.camFocus.z = Math.max(0, Math.min(WORLD_H, this.camFocus.z + rz * rightAmt + fz * fwdAmt));
     this._updateCamera();
   }
   zoomBy(d) { this.camDist = Math.max(24, Math.min(140, this.camDist + d)); this._updateCamera(); }
