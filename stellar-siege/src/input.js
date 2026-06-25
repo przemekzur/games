@@ -154,17 +154,32 @@ export class Input {
     // what's under the click?
     const eid = this.r.pickEntity(this.mouse.x, this.mouse.y);
     const target = eid != null ? this.sim.byId.get(eid) : null;
-    if (target && target.etype === 'resource' && this._ownWorkers().length) {
-      this.cmd({ type: 'gather', units: this._ownWorkers().map(u => u.id), target: target.id });
+    const workers = this._ownWorkers();
+
+    // Resolve a harvest target: a mineral field, a geyser, or our own refinery
+    // (a refinery sits on top of its geyser, so a click there should re-task to gas).
+    let harvest = null;
+    if (target && target.etype === 'resource') harvest = target;
+    else if (target && target.etype === 'building' && target.owner === this.me && target.kind === 'refinery' && !target.building)
+      harvest = this.sim.byId.get(target.gasNode);
+
+    if (harvest && workers.length) {
+      if (harvest.kind === 'gas') {
+        const hasRef = this.sim.buildings.some(b => b.kind === 'refinery' && b.gasNode === harvest.id && !b.building && b.owner === this.me);
+        if (!hasRef) { this.hud.alert('Build a Refinery on the geyser to mine gas  (press R)', 'warn'); this.audio.playSound('error'); return; }
+      }
+      this.cmd({ type: 'gather', units: workers.map(u => u.id), target: harvest.id });
       this.audio.playSound('move');
-    } else if (target && target.owner >= 0 && target.owner !== this.me) {
+      return;
+    }
+    if (target && target.owner >= 0 && target.owner !== this.me) {
       this.cmd({ type: 'attack', units: ids, target: target.id });
       this.audio.playSound('attack');
-    } else {
-      this.cmd({ type: 'move', units: ids, x, z });
-      this.audio.playSound('move');
-      this.r.pingMove(x, z);
+      return;
     }
+    this.cmd({ type: 'move', units: ids, x, z });
+    this.audio.playSound('move');
+    this.r.pingMove(x, z);
   }
 
   _issueAttackMove(x, z) {
