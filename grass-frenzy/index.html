@@ -1,0 +1,407 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Grass Frenzy</title>
+<style>
+  :root{
+    --sky1:#bfeaff; --sky2:#eaf7e8;
+    --grass:#7bcf57; --grass-dark:#5bb43e;
+    --mud:#6b4a2b; --mud-dark:#4e3520;
+    --clover:#3fae4d; --gold:#ffcf33;
+    --ink:#2c3e2d;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%;overflow:hidden;font-family:"Inter","Segoe UI",Arial,sans-serif}
+  body{
+    background:linear-gradient(180deg,var(--sky1) 0%,var(--sky2) 60%,var(--grass) 60%,var(--grass-dark) 100%);
+    display:flex;align-items:center;justify-content:center;
+    user-select:none;-webkit-user-select:none;
+  }
+  #wrap{
+    position:relative;
+    width:min(96vw,480px);
+    height:min(92vh,720px);
+    background:rgba(255,255,255,.12);
+    border-radius:18px;
+    box-shadow:0 12px 40px rgba(0,0,0,.25);
+    overflow:hidden;
+  }
+  canvas{display:block;width:100%;height:100%}
+  /* HUD */
+  #hud{
+    position:absolute;top:0;left:0;right:0;
+    display:flex;justify-content:space-between;align-items:center;
+    padding:10px 14px;pointer-events:none;z-index:5;
+    font-weight:bold;color:#fff;text-shadow:0 2px 4px rgba(0,0,0,.4);
+    font-size:clamp(14px,4vw,20px);
+  }
+  #hud .badge{background:rgba(0,0,0,.28);padding:4px 12px;border-radius:999px}
+  #hud .badge.right{display:flex;gap:8px;align-items:center}
+  .icon-btn{
+    pointer-events:auto;cursor:pointer;border:none;
+    background:rgba(0,0,0,.28);color:#fff;font-size:18px;
+    width:34px;height:34px;border-radius:50%;display:grid;place-items:center;
+    transition:background .15s;
+  }
+  .icon-btn:hover{background:rgba(0,0,0,.45)}
+  .back-btn{
+    position:absolute;top:10px;left:14px;z-index:6;
+    pointer-events:auto;cursor:pointer;border:none;
+    background:rgba(0,0,0,.28);color:#fff;font-size:18px;
+    width:34px;height:34px;border-radius:50%;display:grid;place-items:center;
+    text-decoration:none;line-height:1;
+  }
+  .back-btn:hover{background:rgba(0,0,0,.45)}
+  /* Overlays */
+  .overlay{
+    position:absolute;inset:0;z-index:10;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    text-align:center;color:#fff;padding:24px;
+    background:rgba(44,62,45,.62);backdrop-filter:blur(3px);
+    transition:opacity .3s;
+  }
+  .overlay h1{font-size:clamp(26px,8vw,44px);margin-bottom:6px;letter-spacing:.5px}
+  .overlay p{font-size:clamp(13px,3.6vw,16px);opacity:.92;max-width:340px;line-height:1.5;margin-bottom:18px}
+  .overlay button{
+    font-family:inherit;font-weight:bold;
+    font-size:clamp(15px,4.5vw,20px);
+    padding:12px 30px;border:none;border-radius:999px;
+    background:linear-gradient(180deg,#ffe066,#ffc926);
+    color:#5b4a00;cursor:pointer;
+    box-shadow:0 6px 0 #b8860b,0 8px 18px rgba(0,0,0,.3);
+    transition:transform .08s,box-shadow .08s;
+  }
+  .overlay button:active{transform:translateY(4px);box-shadow:0 2px 0 #b8860b,0 4px 10px rgba(0,0,0,.3)}
+  .hint{font-size:12px;opacity:.7;margin-top:14px}
+  .hidden{opacity:0;pointer-events:none}
+  .gold{color:var(--gold)}
+  .mud{color:#caa07a}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <a class="back-btn" href="../" title="Back to Arcade Hub">&#8592;</a>
+  <canvas id="game"></canvas>
+  <div id="hud">
+    <span class="badge">&#11088; <span id="score">0</span></span>
+    <span class="badge right">
+      &#10084;&#65039; <span id="lives">3</span>
+      <button class="icon-btn" id="bgmBtn" title="Toggle music">&#127925;</button>
+    </span>
+  </div>
+
+  <div id="start" class="overlay">
+    <h1>&#128004; Grass Frenzy</h1>
+    <p>Move with your <b>mouse</b> or <b>arrow keys</b>.<br>
+       Catch the <span class="gold">clovers</span> &amp; golden <span class="gold">stars</span>.<br>
+       Dodge the <span class="mud">mud puddles</span>!</p>
+    <button id="playBtn">Start Mooo-laying</button>
+    <div class="hint">3 lives &middot; gets faster the longer you graze</div>
+  </div>
+
+  <div id="over" class="overlay hidden">
+    <h1>Moo-done! &#128004;</h1>
+    <p>You grazed a total of <b class="gold"><span id="final">0</span></b> points.</p>
+    <button id="againBtn">Graze Again</button>
+  </div>
+</div>
+
+<script src="../shared/strudel-sfx.js"></script>
+<script src="../shared/arcade-bgm.js"></script>
+<script>
+const sfx = window.StrudelSfx;
+const bgm = window.ArcadeBgm;
+</script>
+<script>
+(()=>{
+const cvs=document.getElementById('game');
+const ctx=cvs.getContext('2d');
+const scoreEl=document.getElementById('score');
+const livesEl=document.getElementById('lives');
+const finalEl=document.getElementById('final');
+const startScr=document.getElementById('start');
+const overScr=document.getElementById('over');
+
+// sizing
+let W=480,H=720,DPR=1;
+function resize(){
+  const r=cvs.getBoundingClientRect();
+  DPR=Math.min(window.devicePixelRatio||1,2);
+  W=r.width; H=r.height;
+  cvs.width=W*DPR; cvs.height=H*DPR;
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+}
+new ResizeObserver(resize).observe(cvs);
+resize();
+
+// ---------- Game state ----------
+const GROUND=()=>H*0.86;
+let state='menu';
+let score=0,lives=3,spawnT=0,spawnEvery=1100,diff=1,t=0;
+let items=[],particles=[],puffs=[];
+let last=0;
+
+const cow={x:240,y:0,w:78,h:54,vx:0,target:null};
+function resetCow(){cow.x=W/2;cow.y=GROUND()-cow.h/2-6;}
+resetCow();
+
+// ---------- Input ----------
+let mouseActive=false;
+cvs.addEventListener('pointermove',e=>{
+  const r=cvs.getBoundingClientRect();
+  cow.x=clamp(e.clientX-r.left, cow.w/2, W-cow.w/2);
+  mouseActive=true;
+});
+cvs.addEventListener('pointerdown',()=>{mouseActive=true; sfx?.unlock();});
+const keys={};
+addEventListener('keydown',e=>{keys[e.key]=true; if(['ArrowLeft','ArrowRight'].includes(e.key))e.preventDefault();});
+addEventListener('keyup',e=>{keys[e.key]=false;});
+
+function clamp(v,a,b){return v<a?a:v>b?b:v;}
+function rand(a,b){return a+Math.random()*(b-a);}
+
+// ---------- Items ----------
+function spawn(){
+  const r=Math.random();
+  let kind='clover';
+  if(r>0.88) kind='star';
+  else if(r<0.28) kind='mud';
+  const size=kind==='star'?26:kind==='mud'?38:24;
+  items.push({
+    kind,x:rand(size,W-size),y:-size,
+    vy:rand(110,170)*diff, vx:rand(-20,20),
+    size,rot:rand(0,6.28),vr:rand(-2,2),dead:false
+  });
+}
+
+// ---------- Particles ----------
+function burst(x,y,color,n=14){
+  for(let i=0;i<n;i++){
+    particles.push({
+      x,y,
+      vx:Math.cos(i/n*6.28)*rand(40,160),
+      vy:Math.sin(i/n*6.28)*rand(40,160)-rand(30,90),
+      life:rand(.4,.8),age:0,color,size:rand(3,7)
+    });
+  }
+}
+
+// ---------- Update ----------
+function update(dt){
+  t+=dt;
+  let kx=0;
+  if(keys['ArrowLeft']||keys['a']||keys['A'])kx-=1;
+  if(keys['ArrowRight']||keys['d']||keys['D'])kx+=1;
+  if(kx!==0){mouseActive=false;cow.x=clamp(cow.x+kx*360*dt,cow.w/2,W-cow.w/2);}
+  cow.y=GROUND()-cow.h/2-6;
+
+  diff=1+t*0.018;
+  spawnEvery=clamp(1150-t*6,420,1150);
+  spawnT+=dt*1000;
+  if(spawnT>spawnEvery){spawnT=0;spawn();}
+
+  for(const it of items){
+    it.y+=it.vy*dt;
+    it.x+=it.vx*dt;
+    it.rot+=it.vr*dt;
+    if(it.x<it.size/2||it.x>W-it.size/2)it.vx*=-1;
+    const dx=it.x-cow.x, dy=it.y-cow.y;
+    const hit = Math.abs(dx)<(cow.w*0.42+it.size/2) && Math.abs(dy)<(cow.h*0.5+it.size/2);
+    if(hit && !it.dead){
+      it.dead=true;
+      if(it.kind==='mud'){
+        lives--; burst(it.x,it.y,'#6b4a2b',18); shake(10);
+        sfx?.play('hit',0.9);
+        if(lives<=0){endGame();}
+      }else if(it.kind==='star'){
+        score+=50; burst(it.x,it.y,'#ffcf33',22);
+        sfx?.play('pickup',1);
+      }else{
+        score+=10; burst(it.x,it.y,'#7bcf57',12);
+        sfx?.play('pickup',0.7);
+      }
+      scoreEl.textContent=score; livesEl.textContent=lives;
+    }
+    if(it.y>H+40)it.dead=true;
+  }
+  items=items.filter(i=>!i.dead);
+
+  for(const p of particles){
+    p.age+=dt; p.vy+=420*dt; p.x+=p.vx*dt; p.y+=p.vy*dt;
+  }
+  particles=particles.filter(p=>p.age<p.life);
+
+  shakeAmt*=0.86;
+  if(Math.random()<0.02)puffs.push({x:cow.x+cow.w*0.32,y:cow.y-cow.h*0.1,life:1,age:0});
+  for(const p of puffs){p.age+=dt;p.y-=20*dt;}
+  puffs=puffs.filter(p=>p.age<p.life);
+}
+
+let shakeAmt=0;
+function shake(a){shakeAmt=Math.max(shakeAmt,a);}
+
+// ---------- Draw ----------
+function drawClouds(){
+  ctx.save();
+  ctx.fillStyle='rgba(255,255,255,.7)';
+  for(let i=0;i<4;i++){
+    const x=((t*8+i*120)%(W+120))-60;
+    const y=40+i*28;
+    circle(x,y,16);circle(x+18,y+4,20);circle(x+38,y,15);circle(x+20,y-8,14);
+  }
+  ctx.restore();
+}
+function circle(x,y,r){ctx.beginPath();ctx.arc(x,y,r,0,6.2832);ctx.fill();}
+
+function drawGround(){
+  const gy=GROUND();
+  const g=ctx.createLinearGradient(0,gy,0,H);
+  g.addColorStop(0,'#7bcf57');g.addColorStop(1,'#4f9e36');
+  ctx.fillStyle=g; ctx.fillRect(0,gy,W,H-gy);
+  ctx.strokeStyle='#3f8a2c';ctx.lineWidth=2;
+  for(let x=8;x<W;x+=26){
+    const off=Math.sin((t+x*0.3)*1.5)*2;
+    ctx.beginPath();ctx.moveTo(x,gy+2);ctx.lineTo(x+off,gy-6);ctx.stroke();
+  }
+}
+
+function drawCow(){
+  ctx.save();
+  const sx=(Math.random()<0.5&&shakeAmt>1)?(Math.random()-0.5)*shakeAmt:0;
+  ctx.translate(cow.x+sx,cow.y);
+  ctx.fillStyle='#fffdf7';
+  roundRect(-cow.w/2,-cow.h/2,cow.w,cow.h,16);ctx.fill();
+  ctx.fillStyle='#3b2f2a';
+  ctx.beginPath();ctx.ellipse(-12,-4,12,9,0.4,0,6.28);ctx.fill();
+  ctx.beginPath();ctx.ellipse(16,6,10,7,-0.3,0,6.28);ctx.fill();
+  ctx.fillRect(-cow.w/2+8,cow.h/2-4,8,12);
+  ctx.fillRect(cow.w/2-16,cow.h/2-4,8,12);
+  ctx.fillStyle='#fffdf7';
+  roundRect(cow.w/2-4,-cow.h/2-2,26,26,10);ctx.fill();
+  ctx.beginPath();ctx.moveTo(cow.w/2-2,-cow.h/2-2);ctx.lineTo(cow.w/2+2,-cow.h/2-14);ctx.lineTo(cow.w/2+8,-cow.h/2-2);ctx.fill();
+  ctx.fillStyle='#ffb6c1';
+  roundRect(cow.w/2+8,-cow.h/2+6,16,14,7);ctx.fill();
+  ctx.fillStyle='#d98a9a';
+  ctx.beginPath();ctx.arc(cow.w/2+13,-cow.h/2+13,1.8,0,6.28);ctx.fill();
+  ctx.beginPath();ctx.arc(cow.w/2+19,-cow.h/2+13,1.8,0,6.28);ctx.fill();
+  ctx.fillStyle='#2c3e2d';
+  ctx.beginPath();ctx.arc(cow.w/2+2,-cow.h/2+6,2.2,0,6.28);ctx.fill();
+  ctx.restore();
+}
+
+function roundRect(x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r);
+  ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);
+  ctx.arcTo(x,y,x+w,y,r);
+  ctx.closePath();
+}
+
+function drawItem(it){
+  ctx.save();
+  ctx.translate(it.x,it.y);
+  ctx.rotate(it.rot);
+  if(it.kind==='clover'){
+    ctx.fillStyle='#3fae4d';
+    for(let i=0;i<4;i++){ctx.save();ctx.rotate(i*1.5708);circle(0,-7,7);ctx.restore();}
+    ctx.fillStyle='#2f8a38';circle(0,0,4);
+  }else if(it.kind==='star'){
+    ctx.fillStyle='#ffcf33';
+    ctx.strokeStyle='#e0a800';ctx.lineWidth=2;
+    star(0,0,5,12,6);ctx.fill();ctx.stroke();
+  }else{
+    ctx.fillStyle='#5b4128';
+    ctx.beginPath();ctx.ellipse(0,0,18,12,0,0,6.28);ctx.fill();
+    ctx.fillStyle='#6e5034';
+    ctx.beginPath();ctx.ellipse(-3,-3,10,6,0,0,6.28);ctx.fill();
+    ctx.fillStyle='#4a3420';
+    circle(-6,2,2.5);circle(5,3,2);
+  }
+  ctx.restore();
+}
+function star(cx,cy,spikes,outer,inner){
+  let rot=Math.PI/2*3,x=cx,y=cy,step=Math.PI/spikes;
+  ctx.beginPath();ctx.moveTo(cx,cy-outer);
+  for(let i=0;i<spikes;i++){
+    x=cx+Math.cos(rot)*inner;y=cy+Math.sin(rot)*inner;ctx.lineTo(x,y);rot+=step;
+    x=cx+Math.cos(rot)*outer;y=cy+Math.sin(rot)*outer;ctx.lineTo(x,y);rot+=step;
+  }
+  ctx.lineTo(cx,cy-outer);ctx.closePath();
+}
+
+function drawParticles(){
+  for(const p of particles){
+    const a=1-p.age/p.life;
+    ctx.globalAlpha=Math.max(0,a);
+    ctx.fillStyle=p.color;
+    circle(p.x,p.y,p.size);
+  }
+  ctx.globalAlpha=1;
+  for(const p of puffs){
+    const a=1-p.age/p.life;
+    ctx.globalAlpha=a*0.5; ctx.fillStyle='#fff';
+    circle(p.x,p.y,4+a*3);
+  }
+  ctx.globalAlpha=1;
+}
+
+function render(){
+  ctx.clearRect(0,0,W,H);
+  drawClouds();
+  drawGround();
+  for(const it of items)drawItem(it);
+  drawCow();
+  drawParticles();
+}
+
+// ---------- Loop ----------
+function loop(ts){
+  if(!last)last=ts;
+  let dt=(ts-last)/1000;last=ts;
+  dt=Math.min(dt,0.05);
+  if(state==='play')update(dt);
+  render();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+// ---------- Flow ----------
+function startGame(){
+  state='play';score=0;lives=3;t=0;diff=1;spawnEvery=1100;items=[];particles=[];puffs=[];resetCow();
+  scoreEl.textContent='0';livesEl.textContent='3';
+  startScr.classList.add('hidden');
+  overScr.classList.add('hidden');
+  sfx?.unlock();
+  sfx?.play('start',0.82);
+}
+function endGame(){
+  state='over';
+  finalEl.textContent=score;
+  overScr.classList.remove('hidden');
+  burst(cow.x,cow.y-20,'#6b4a2b',30);
+  sfx?.play('gameover',1);
+}
+document.getElementById('playBtn').addEventListener('click',startGame);
+document.getElementById('againBtn').addEventListener('click',startGame);
+
+// BGM toggle
+const bgmBtn=document.getElementById('bgmBtn');
+let bgmOn=false;
+bgmBtn.addEventListener('click',()=>{
+  bgmOn=!bgmOn;
+  if(bgmOn){
+    bgm?.start?.('neonDrive');
+    bgmBtn.textContent='\u{1F50A}';
+  } else {
+    bgm?.stop?.();
+    bgmBtn.textContent='\u{1F3B5}';
+  }
+});
+})();
+</script>
+</body>
+</html>
