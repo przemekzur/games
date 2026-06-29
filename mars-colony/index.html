@@ -186,6 +186,33 @@
     animation:tutPulse 1.2s infinite;position:relative;z-index:20}
   @keyframes tutPulse{0%,100%{outline-color:rgba(255,117,54,.95)}50%{outline-color:rgba(255,117,54,.3)}}
 
+  /* ===== campaign: ORION feed, mission tracker & log ===== */
+  .logitem.orion{border-left-color:var(--cyan);background:rgba(18,28,38,.86)}
+  .otag{display:inline-block;font-family:var(--mono);font-size:9px;letter-spacing:.14em;color:var(--cyan);
+    border:1px solid rgba(95,208,230,.45);padding:1px 5px;margin-right:7px;vertical-align:1px}
+  #mtrack{position:fixed;top:60px;left:50%;transform:translateX(-50%);z-index:9;pointer-events:auto;cursor:pointer;
+    display:flex;align-items:center;gap:11px;max-width:min(560px,92vw);
+    background:var(--glass-2);border:1px solid var(--line);border-top:2px solid var(--rust);
+    padding:6px 15px;backdrop-filter:blur(8px);box-shadow:var(--shadow);transition:border-color .2s,opacity .3s;opacity:0}
+  #mtrack.show{opacity:1}
+  #mtrack:hover{border-color:var(--rust)}
+  #mtrack .mt-ic{font-size:16px;color:var(--rust-2);flex:0 0 auto}
+  #mtrack .mt-label{font-size:8.5px;letter-spacing:.22em;color:var(--muted);text-transform:uppercase;font-family:var(--mono)}
+  #mtrack .mt-title{font-size:13px;font-weight:600;color:var(--ink);line-height:1.2}
+  #mtrack .mt-prog{font-family:var(--mono);font-size:11px;color:var(--rust-2);margin-left:4px;flex:0 0 auto}
+  .mlog{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px solid rgba(255,138,74,.1)}
+  .mlog .mdot{width:22px;height:22px;display:grid;place-items:center;flex:0 0 auto;font-size:12px;font-family:var(--mono);
+    border:1px solid var(--line);color:var(--muted)}
+  .mlog.done .mdot{background:linear-gradient(135deg,var(--rust),var(--amber));color:#180a04;border-color:transparent}
+  .mlog.active .mdot{border-color:var(--rust);color:var(--rust)}
+  .mlog .mtt{font-size:12.5px;font-weight:600}
+  .mlog.done .mtt{color:var(--muted)}
+  .mlog .mhint{font-size:11px;color:var(--cyan);line-height:1.45;margin-top:3px}
+  .mcard p.story{text-align:left;font-size:13px;line-height:1.7;color:var(--ink);margin:0 0 14px}
+  .mcard .who{text-align:left;margin:0 0 16px;font-size:12px;color:var(--muted);line-height:1.55;
+    border-left:2px solid var(--cyan);padding-left:11px}
+  .mcard .who b{color:var(--rust-2)}
+
   ::-webkit-scrollbar{width:8px;height:8px}::-webkit-scrollbar-thumb{background:rgba(255,138,74,.32)}
 </style>
 </head>
@@ -205,6 +232,7 @@
 
 <div class="leftcol" id="leftcol" style="display:none">
   <button class="tool" id="tInfo" title="Colony overview">📊</button>
+  <button class="tool" id="tMission" title="Mission log">🎯</button>
   <button class="tool" id="tTech" title="Research & inventions">🧪</button>
   <button class="tool" id="tEvo" title="Evolution & frontier">🪐</button>
   <button class="tool" id="tShop" title="Earth supply & trade">📦</button>
@@ -216,6 +244,7 @@
 <div class="side frame" id="side"></div>
 <div id="tip"></div>
 <div id="log"></div>
+<div id="mtrack" title="Open mission log"><span class="mt-ic">◷</span><div class="mt-body"><div class="mt-label">Current Objective</div><div class="mt-title" id="mtrackTitle">—</div></div><span class="mt-prog" id="mtrackProg"></span></div>
 <div class="hint" id="hint"></div>
 <div id="tut"></div>
 <div id="modal"><div class="mcard frame" id="mcard"></div></div>
@@ -391,6 +420,8 @@ const G = {
   pending:[],            // {type,timer,payload}
   interstellar:false,
   milestones:{},
+  mission:{idx:0},       // campaign objective chain progress
+  story:{},              // fired ORION story-beat flags
 };
 
 /* ============================================================= *
@@ -1040,7 +1071,7 @@ function updateTools(){$('#tDemo').classList.toggle('on',G.demolish);}
 let sidePanel=null;
 function openSide(which){if(sidePanel===which){closeSide();return;}sidePanel=which;side.classList.add('open');render[which]();}
 function closeSide(){side.classList.remove('open');sidePanel=null;}
-const render={info:renderInfo,tech:renderTech,evo:renderEvo,shop:renderShop,help:renderHelp};
+const render={info:renderInfo,missions:renderMissions,tech:renderTech,evo:renderEvo,shop:renderShop,help:renderHelp};
 
 function bar(label,val,color){return `<div style="margin:8px 0 4px;font-size:12px;display:flex;justify-content:space-between"><span>${label}</span><b>${val.toFixed(0)}%</b></div>
   <div style="height:9px;border-radius:6px;background:rgba(255,255,255,.08);overflow:hidden"><i style="display:block;height:100%;width:${val}%;background:${color};transition:width .4s"></i></div>`;}
@@ -1163,12 +1194,124 @@ function checkMilestones(){
   }
 }
 
+/* ============================================================= *
+ *  CAMPAIGN LAYER — Iteration 1: Mars narrative wrapper          *
+ *  Intro · ORION assistant · objective chain · story beats       *
+ *  Non-blocking: pure sandbox play is unchanged underneath.      *
+ * ============================================================= */
+function hasB(k){return G.buildings.some(o=>o.key===k);}
+
+// ORION — calm, dry operations AI. Routes through the existing log feed, styled distinctly.
+function orion(text){
+  const el=document.createElement('div');el.className='logitem orion';
+  const tag=document.createElement('span');tag.className='otag';tag.textContent='ORION';
+  el.appendChild(tag);el.appendChild(document.createTextNode(text));
+  logEl.prepend(el);while(logEl.children.length>6)logEl.lastChild.remove();
+  setTimeout(()=>{el.style.transition='opacity .6s';el.style.opacity=0;setTimeout(()=>el.remove(),600);},8200);
+  beep(540,0.08);
+}
+
+// First-15-minutes objective chain. Guides, rewards & explains — never blocks building.
+const OBJECTIVES=[
+  {id:'power',title:'Establish power',hint:'Build a Solar Array (or Wind Turbine) from the dock. Nothing else runs without power.',
+    done:()=>hasB('solar')||hasB('wind'),reward:{science:20},
+    orion:'Power is online. Every colony in history began exactly here — with the lights on. Solar fades at night, so plan for a Power Cell or a reactor before long.'},
+  {id:'water',title:'Tap the buried ice',hint:'Build an Ice Extractor on polar ice or a lowland basin — robotic surveys already marked the deposits.',
+    done:()=>hasB('extractor'),reward:{credits:40},
+    orion:'Water secured. The cargo missions buried these reserves years before you arrived. You are simply collecting on Earth’s investment.'},
+  {id:'oxygen',title:'Manufacture air',hint:'Build an Oxygenator to split CO₂ and water into breathable oxygen.',
+    done:()=>hasB('moxie'),reward:{science:30},
+    orion:'Oxygen generation confirmed. The first thing a Martian ever breathes is something we built for them. I find that worth remembering.'},
+  {id:'habitat',title:'Shelter the crew',hint:'Build a Habitat Dome on the plains. It houses colonists but consumes O₂, water, food and power.',
+    done:()=>hasB('habitat'),reward:{credits:50},
+    orion:'Habitat pressurised. People can live here now, not merely survive. The distinction matters more than the engineering does.'},
+  {id:'food',title:'Grow your own food',hint:'Build a Hydro Farm so the colony feeds itself instead of waiting on Earth resupply.',
+    done:()=>hasB('greenhouse'),reward:{science:30},
+    orion:'Hydroponics running. The sol a colony grows its own food is the sol it stops being an experiment and starts being a home.'},
+  {id:'lab',title:'Begin research',hint:'Build a Research Lab to generate Science, then open 🧪 to invent new technology.',
+    done:()=>hasB('lab'),reward:{science:40},
+    orion:'Research lab active. From here, everything — trade, terraforming, even the stars — is just a question we have not answered yet.'},
+  {id:'spaceport',title:'Open the gateway',hint:'In 🧪 research Deep-Space Comms, then Aerospace Engineering — that unlocks the Spaceport and Earth supply runs.',
+    done:()=>!!G.techDone.aero||hasB('spaceport'),reward:{credits:120},
+    orion:'Aerospace capability restored. Mars can negotiate with Earth on its own terms now. Build the Spaceport when you are ready to make the umbilical a two-way road.'},
+];
+
+// Milestone story beats (fire once). Broader than objectives — surplus states, terraforming, frontier tech.
+const STORY=[
+  {id:'oxysurplus',when:()=>hasB('moxie')&&(G.rates.oxygen||0)>0,line:'Oxygen reserves are climbing. For the first time, this base produces more breath than it spends. Hold onto that margin.'},
+  {id:'watstable',when:()=>hasB('extractor')&&(G.rates.water||0)>=0,line:'Water balance is positive. A small thing. Civilisations have ended over less.'},
+  {id:'spaceportbuilt',when:()=>hasB('spaceport'),line:'Spaceport operational. I can route cargo, propellant and people through it. Earth is now four months away instead of forever.'},
+  {id:'terraform',when:()=>hasB('algae')||hasB('heater')||hasB('mirror')||hasB('processor'),line:'You have started rewriting a planet’s atmosphere. Until now, only asteroids and volcanoes did work at this scale.'},
+  {id:'interplanetary',when:()=>!!G.techDone.interplanetary,line:'Interplanetary transit certified. Mars is no longer the destination, Architect. It is the departure lounge.'},
+  {id:'warp',when:()=>!!G.techDone.warp,line:'Warp theory holds. If we cross that threshold, the future stops being strictly human. When that sol comes, I will need your judgement — not just your command.'},
+];
+
+function applyReward(r){if(r)for(const[k,v]of Object.entries(r))G.res[k]=(G.res[k]||0)+v;}
+function updateTracker(){
+  const t=$('#mtrackTitle'),p=$('#mtrackProg'),box=$('#mtrack');if(!t||!box)return;
+  const n=OBJECTIVES.length,i=G.mission.idx;
+  if(i>=n){box.querySelector('.mt-ic').textContent='✓';t.textContent='All initial directives complete';p.textContent=`${n}/${n}`;}
+  else{box.querySelector('.mt-ic').textContent='◷';t.textContent=OBJECTIVES[i].title;p.textContent=`${i}/${n}`;}
+}
+// advance past objectives & seed story flags WITHOUT messages/rewards (used on load of an existing colony)
+function reconcileCampaignSilent(){
+  while(G.mission.idx<OBJECTIVES.length&&OBJECTIVES[G.mission.idx].done())G.mission.idx++;
+  for(const s of STORY)if(s.when())G.story[s.id]=true;
+  updateTracker();
+}
+// live progression — called from the periodic UI tick (runs whether or not the sim is paused)
+function updateCampaign(){
+  if(!G.mission)return;let advanced=false;
+  while(G.mission.idx<OBJECTIVES.length&&OBJECTIVES[G.mission.idx].done()){
+    const o=OBJECTIVES[G.mission.idx];applyReward(o.reward);
+    toast(`🎯 Objective complete — ${o.title}`,'good');beep(820,0.12);
+    if(o.orion)orion(o.orion);
+    G.mission.idx++;advanced=true;
+    if(G.mission.idx>=OBJECTIVES.length)setTimeout(()=>orion('All initial directives are complete. The mission is yours to define now, Architect — make this planet breathable, or make it a launch point for the rest of the system.'),1400);
+  }
+  for(const s of STORY){if(!G.story[s.id]&&s.when()){G.story[s.id]=true;orion(s.line);}}
+  if(advanced)updateTracker();
+  if(sidePanel==='missions')renderMissions();
+}
+function renderMissions(){
+  let html=`<h3>🎯 Mission Log <span class="close" id="sclose">✕</span></h3>
+  <p class="sub">Project Red Frontier · Sol ${G.sol}. Directives relayed by ORION.</p>`;
+  OBJECTIVES.forEach((o,i)=>{
+    const done=i<G.mission.idx,active=i===G.mission.idx;
+    html+=`<div class="mlog ${done?'done':active?'active':''}"><div class="mdot">${done?'✓':active?'▸':(i+1)}</div>
+      <div><div class="mtt">${o.title}</div>${active?`<div class="mhint">${o.hint}</div>`:''}</div></div>`;
+  });
+  if(G.mission.idx>=OBJECTIVES.length)html+=`<p class="sub" style="margin-top:13px">✓ Initial directives complete. Free build from here — terraform Mars, or reach for the stars.</p>`;
+  html+=`<div style="margin-top:14px"><button class="btn" id="replayIntro">▶ Replay mission briefing</button></div>`;
+  side.innerHTML=html;$('#sclose').onclick=closeSide;$('#replayIntro').onclick=()=>{closeSide();showIntro(true);};
+}
+
+// Campaign intro — establishes the player (Mission Systems Architect), ORION, and the robotic-prep backstory.
+function showIntro(replay){
+  const mc=$('#mcard');
+  mc.innerHTML=`<div class="emoji">🛰️</div>
+   <h2>PROJECT RED FRONTIER</h2>
+   <div class="who"><b>You — Mission Systems Architect.</b> Earth handed you the keys to humanity’s first real foothold on another world. The hardware is down. Bringing it to life is on you.</div>
+   <p class="story">For three launch windows, robotic cargo missions have been landing ahead of you — burying water ice, staging supply caches, and printing the first landing pads across the plains. The colony was <i>prepared</i>. It was never <i>switched on</i>.</p>
+   <p class="story">Working beside you is <b style="color:var(--cyan)">ORION</b> — Orbital Reasoning &amp; Infrastructure Operations Network — the AI that runs operations when Earth is twenty light-minutes away. It will track your directives and speak up when it matters.</p>
+   <p class="story">Get the colony breathing, watered, fed and self-sufficient. This is Sol 1.</p>
+   <div class="mbtns"><button class="btn" id="introGo">Begin Sol 1 ▸</button></div>`;
+  $('#modal').classList.add('show');G.paused=true;
+  for(const id of['sp1','sp2','sp3'])$('#'+id)?.classList.remove('on');$('#sp0')?.classList.add('on');
+  $('#introGo').onclick=()=>{
+    $('#modal').classList.remove('show');localStorage.setItem('rf_campaign_intro','1');
+    if(replay){setSpeed(1);return;}
+    if(!localStorage.getItem('rf_tut_done'))startTutorial();else setSpeed(1);
+    setTimeout(()=>orion('This is ORION. Your prep cargo is on the surface and the grid is already live. Your next directive is on the tracker up top — let’s make this colony self-sufficient.'),900);
+  };
+}
+
 /* ---------- tutorial ---------- */
 const TUT=[
   {t:'Welcome to Mars, Commander 🚀',d:"Your mission: keep your colonists alive and grow the settlement. The long game is to terraform Mars — or evolve your civilization all the way to the stars. Here's a 30-second tour."},
   {sel:'#resbar',t:'① Your resources',d:'Up top you track Power, O₂, Water, Food, Materials, Science & Credits — plus population & morale. Watch the small per-sol numbers: keep them positive. A pulsing red chip means you are about to run out.'},
   {sel:'#dock',t:'② Build facilities',d:'Pick a building down here, then click a tile on the planet. Some need specific terrain (the tooltip shows where). Begin with power (Solar) + a Habitat for housing, then an Oxygenator, Ice Extractor and Hydro Farm. Drag anywhere to spin the globe.'},
-  {sel:'#leftcol',t:'③ Manage your colony',d:'📊 overview & goals · 🧪 research inventions · 🪐 evolution, colony ships & warp drive · 📦 order supplies from Earth (needs a Spaceport) · ⛏️ demolish · ❔ help any time.'},
+  {sel:'#leftcol',t:'③ Manage your colony',d:'📊 overview & goals · 🎯 mission log (your current objective) · 🧪 research inventions · 🪐 evolution, colony ships & warp drive · 📦 Earth supply (needs a Spaceport) · ⛏️ demolish · ❔ help.'},
   {t:"You're ready! 🌅",d:'Keep everyone breathing, watered and fed — happy colonists grow faster and work harder. Build a Research Lab to unlock inventions, then choose your path: terraform the planet, or reach for the stars. Good luck, Commander!'},
 ];
 let tutI=0;
@@ -1222,12 +1365,14 @@ function gameOver(won,kind){
 }
 
 /* ---------- save/load ---------- */
-function save(){const data={res:G.res,pop:G.pop,morale:G.morale,colonies:G.colonies,tf:G.tf,sol:G.sol,todFrac:G.todFrac,techDone:G.techDone,milestones:G.milestones,interstellar:G.interstellar,buildings:G.buildings.map(o=>({key:o.key,gx:o.gx,gz:o.gz}))};
+function save(){const data={res:G.res,pop:G.pop,morale:G.morale,colonies:G.colonies,tf:G.tf,sol:G.sol,todFrac:G.todFrac,techDone:G.techDone,milestones:G.milestones,interstellar:G.interstellar,mission:G.mission,story:G.story,buildings:G.buildings.map(o=>({key:o.key,gx:o.gx,gz:o.gz}))};
   localStorage.setItem(SAVE_KEY,JSON.stringify(data));toast('💾 Colony saved','good');}
 function load(){
   try{const d=JSON.parse(localStorage.getItem(SAVE_KEY));if(!d)return false;
     Object.assign(G.res,d.res);G.pop=d.pop;G.morale=d.morale??62;G.colonies=d.colonies||0;Object.assign(G.tf,d.tf);
     G.sol=d.sol;G.todFrac=d.todFrac;G.techDone=d.techDone||{};G.milestones=d.milestones||{};G.interstellar=d.interstellar||false;
+    // campaign state — safe defaults so older saves (pre-Iteration-1) still load
+    G.mission=(d.mission&&typeof d.mission.idx==='number')?d.mission:{idx:0};G.story=d.story||{};
     for(const b of d.buildings){if(!inGrid(b.gx,b.gz))continue;
       const dir=gridToDir(b.gx,b.gz).normalize();const pos=dir.clone().multiplyScalar(R+heightAt(dir));
       const mesh=makeBuildingMesh(b.key);mesh.position.copy(pos);orientToNormal(mesh,dir);scene.add(mesh);
@@ -1357,6 +1502,8 @@ function updateCursor(){
  * ============================================================= */
 function bindTools(){
   $('#tInfo').onclick=()=>openSide('info');
+  $('#tMission').onclick=()=>openSide('missions');
+  $('#mtrack').onclick=()=>openSide('missions');
   $('#tTech').onclick=()=>openSide('tech');
   $('#tEvo').onclick=()=>openSide('evo');
   $('#tShop').onclick=()=>openSide('shop');
@@ -1383,11 +1530,13 @@ function start(){
   const aim=(G.buildings[0]?G.buildings[0].dir:gridToDir(0,GRID/2)).clone().normalize();
   cam.phi=Math.acos(THREE.MathUtils.clamp(aim.y,-1,1));cam.theta=Math.atan2(aim.z,aim.x);updateCamera();
   buildDock();computeRates();updateResBar();
-  setTimeout(()=>{const l=$('#loader');l.style.opacity=0;setTimeout(()=>l.remove(),600);$('#hud').style.display='flex';$('#leftcol').style.display='flex';},250);
-  setInterval(()=>{if(!G.over){updateResBar();refreshDock();if(sidePanel==='info')renderInfo();}},400);
+  reconcileCampaignSilent(); // sync objectives/story to the current colony (starter buildings or loaded save) silently
+  setTimeout(()=>{const l=$('#loader');l.style.opacity=0;setTimeout(()=>l.remove(),600);$('#hud').style.display='flex';$('#leftcol').style.display='flex';$('#mtrack').classList.add('show');},250);
+  setInterval(()=>{if(!G.over){updateResBar();refreshDock();updateCampaign();if(sidePanel==='info')renderInfo();}},400);
   animate();
-  const firstRun=!loaded&&!localStorage.getItem('rf_tut_done');
-  if(firstRun)setTimeout(startTutorial,700);
+  const freshIntro=!loaded&&!localStorage.getItem('rf_campaign_intro');
+  if(freshIntro)setTimeout(()=>showIntro(false),650);
+  else if(!loaded&&!localStorage.getItem('rf_tut_done'))setTimeout(startTutorial,700);
   else if(!loaded)setTimeout(()=>showHint('Pick a building below, then click a tile. Drag to spin the globe. Press ❔ for help.'),900);
 }
 boot();
