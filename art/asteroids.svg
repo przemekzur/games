@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 400" role="img" aria-label="Asteroids cover art">
+  <defs>
+    <radialGradient id="as-bg" cx="0.5" cy="0.5" r="0.8">
+      <stop offset="0" stop-color="#0b1024"/><stop offset="1" stop-color="#04050c"/>
+    </radialGradient>
+    <style>
+      @keyframes asSpin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+      @keyframes asTwk{0%,100%{opacity:.25}50%{opacity:1}}
+      @keyframes asBullet{0%{opacity:0;transform:translate(0,0)}10%{opacity:1}100%{opacity:0;transform:translate(150px,-90px)}}
+      .as-rock{transform-origin:center;transform-box:fill-box}
+      .as-r1{animation:asSpin 14s linear infinite}
+      .as-r2{animation:asSpin 20s linear infinite reverse}
+      .as-r3{animation:asSpin 10s linear infinite}
+      .as-star{animation:asTwk 2.8s ease-in-out infinite}
+      .as-bullet{animation:asBullet 1.6s linear infinite}
+    </style>
+  </defs>
+  <rect width="640" height="400" fill="url(#as-bg)"/>
+  <g fill="#9fd0ff">
+    <circle class="as-star" cx="60" cy="80" r="1.5"/><circle class="as-star" cx="200" cy="50" r="1.2" style="animation-delay:.5s"/>
+    <circle class="as-star" cx="360" cy="100" r="1.6" style="animation-delay:1s"/><circle class="as-star" cx="540" cy="60" r="1.3" style="animation-delay:1.5s"/>
+    <circle class="as-star" cx="600" cy="180" r="1.4" style="animation-delay:.8s"/><circle class="as-star" cx="120" cy="320" r="1.5" style="animation-delay:2s"/>
+    <circle class="as-star" cx="480" cy="330" r="1.2" style="animation-delay:1.2s"/>
+  </g>
+  <!-- asteroids (vector) -->
+  <g class="as-rock as-r1" transform="translate(150 130)">
+    <polygon points="-40,-20 -10,-44 26,-30 44,4 22,40 -16,42 -44,12" fill="#101a30" stroke="#7fe9ff" stroke-width="2.5"/>
+  </g>
+  <g class="as-rock as-r2" transform="translate(470 250)">
+    <polygon points="-30,-16 -6,-32 22,-22 32,4 14,28 -18,26 -32,6" fill="#101a30" stroke="#9affd0" stroke-width="2.5"/>
+  </g>
+  <g class="as-rock as-r3" transform="translate(520 110)">
+    <polygon points="-18,-10 -2,-20 16,-12 20,6 6,18 -14,14" fill="#101a30" stroke="#b987ff" stroke-width="2"/>
+  </g>
+  <!-- ship -->
+  <g transform="translate(300 280) rotate(-32)">
+    <polygon points="26,0 -18,16 -8,0 -18,-16" fill="#0a1024" stroke="#eaffff" stroke-width="2.5"/>
+    <polygon points="-18,9 -30,0 -18,-9" fill="#ff8a4c" opacity="0.85"/>
+  </g>
+  <circle class="as-bullet" cx="320" cy="270" r="3" fill="#eaffff"/>
+  <circle class="as-bullet" cx="320" cy="270" r="3" fill="#7fe9ff" style="animation-delay:.8s"/>
+</svg>

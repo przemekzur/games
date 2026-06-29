@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 400" role="img" aria-label="Breakout: Prism Crash cover art">
+  <defs>
+    <linearGradient id="bo-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0a0820"/><stop offset="1" stop-color="#05040f"/>
+    </linearGradient>
+    <style>
+      @keyframes boBall{0%{transform:translate(0,0)}50%{transform:translate(180px,150px)}100%{transform:translate(0,0)}}
+      @keyframes boPad{0%,100%{transform:translateX(-40px)}50%{transform:translateX(60px)}}
+      @keyframes boBrk{0%,100%{opacity:1}50%{opacity:.6}}
+      .bo-ball{animation:boBall 2.6s ease-in-out infinite}
+      .bo-pad{animation:boPad 2.6s ease-in-out infinite}
+      .bo-brk{animation:boBrk 3s ease-in-out infinite}
+    </style>
+  </defs>
+  <rect width="640" height="400" fill="url(#bo-bg)"/>
+  <!-- brick wall -->
+  <g class="bo-brk">
+    <rect x="120" y="40" width="76" height="28" rx="5" fill="#ff5a7a"/>
+    <rect x="202" y="40" width="76" height="28" rx="5" fill="#ff9a4c"/>
+    <rect x="284" y="40" width="76" height="28" rx="5" fill="#ffe44c"/>
+    <rect x="366" y="40" width="76" height="28" rx="5" fill="#5dff9e"/>
+    <rect x="448" y="40" width="76" height="28" rx="5" fill="#5ad1ff"/>
+  </g>
+  <g class="bo-brk" style="animation-delay:.4s">
+    <rect x="120" y="76" width="76" height="28" rx="5" fill="#ff9a4c"/>
+    <rect x="202" y="76" width="76" height="28" rx="5" fill="#ffe44c"/>
+    <rect x="284" y="76" width="76" height="28" rx="5" fill="#5dff9e"/>
+    <rect x="366" y="76" width="76" height="28" rx="5" fill="#5ad1ff"/>
+    <rect x="448" y="76" width="76" height="28" rx="5" fill="#b987ff"/>
+  </g>
+  <g class="bo-brk" style="animation-delay:.8s">
+    <rect x="120" y="112" width="76" height="28" rx="5" fill="#ffe44c"/>
+    <rect x="202" y="112" width="76" height="28" rx="5" fill="#5dff9e"/>
+    <rect x="284" y="112" width="76" height="28" rx="5" fill="#5ad1ff"/>
+    <rect x="366" y="112" width="76" height="28" rx="5" fill="#b987ff"/>
+    <rect x="448" y="112" width="76" height="28" rx="5" fill="#ff5a7a"/>
+  </g>
+  <!-- ball -->
+  <circle class="bo-ball" cx="220" cy="200" r="11" fill="#ffffff"/>
+  <!-- paddle -->
+  <rect class="bo-pad" x="270" y="350" width="120" height="18" rx="9" fill="#5ad1ff"/>
+</svg>

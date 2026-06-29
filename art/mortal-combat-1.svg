@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 400" role="img" aria-label="Mortal Combat: Neo Exchange cover art">
+  <defs>
+    <linearGradient id="mc-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2a0608"/><stop offset="1" stop-color="#0a0204"/>
+    </linearGradient>
+    <radialGradient id="mc-sun" cx="0.5" cy="0.4" r="0.6">
+      <stop offset="0" stop-color="#ffb347" stop-opacity="0.9"/><stop offset="1" stop-color="#ffb347" stop-opacity="0"/>
+    </radialGradient>
+    <style>
+      @keyframes mcFlash{0%,92%,100%{opacity:0}94%,98%{opacity:1}}
+      @keyframes mcBreath{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+      @keyframes mcGlow{0%,100%{opacity:.4}50%{opacity:1}}
+      .mc-bolt{animation:mcFlash 4s linear infinite}
+      .mc-f{animation:mcBreath 3s ease-in-out infinite}
+      .mc-eye{animation:mcGlow 1.8s ease-in-out infinite}
+    </style>
+  </defs>
+  <rect width="640" height="400" fill="url(#mc-bg)"/>
+  <circle cx="320" cy="150" r="200" fill="url(#mc-sun)"/>
+  <!-- arena floor -->
+  <path d="M0 320 L640 320 L640 400 L0 400 Z" fill="#1a0608"/>
+  <path d="M120 320 L60 400 M260 320 L240 400 M380 320 L400 400 M520 320 L580 400" stroke="#ff5a3c" stroke-opacity="0.4" stroke-width="2"/>
+  <!-- left fighter -->
+  <g class="mc-f" transform="translate(190 200)">
+    <path d="M0,-70 C18,-70 22,-50 18,-40 L26,-6 L14,40 L20,100 L4,100 L0,52 L-4,100 L-20,100 L-12,40 L-26,-6 L-20,-40 C-24,-52 -18,-70 0,-70 Z" fill="#0c0202" stroke="#ff5a3c" stroke-width="3"/>
+    <circle class="mc-eye" cx="-6" cy="-58" r="3" fill="#ffd24c"/><circle class="mc-eye" cx="6" cy="-58" r="3" fill="#ffd24c"/>
+  </g>
+  <!-- right fighter -->
+  <g class="mc-f" style="animation-delay:1.4s" transform="translate(450 200) scale(-1,1)">
+    <path d="M0,-70 C18,-70 22,-50 18,-40 L26,-6 L14,40 L20,100 L4,100 L0,52 L-4,100 L-20,100 L-12,40 L-26,-6 L-20,-40 C-24,-52 -18,-70 0,-70 Z" fill="#0c0202" stroke="#5ac8ff" stroke-width="3"/>
+    <circle class="mc-eye" style="animation-delay:.7s" cx="-6" cy="-58" r="3" fill="#9af0ff"/><circle class="mc-eye" style="animation-delay:.7s" cx="6" cy="-58" r="3" fill="#9af0ff"/>
+  </g>
+  <!-- clash bolt -->
+  <polyline class="mc-bolt" points="305,170 325,150 312,150 332,128" fill="none" stroke="#fff2c2" stroke-width="4" stroke-linecap="round"/>
+  <polyline class="mc-bolt" style="animation-delay:.1s" points="320,200 338,182 326,182 344,162" fill="none" stroke="#ffd24c" stroke-width="3"/>
+</svg>

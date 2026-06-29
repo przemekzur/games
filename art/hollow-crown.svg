@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 400" role="img" aria-label="Echoes of the Hollow Crown cover art">
+  <defs>
+    <radialGradient id="hc-bg" cx="0.5" cy="0.45" r="0.75">
+      <stop offset="0" stop-color="#2a1840"/><stop offset="1" stop-color="#08060f"/>
+    </radialGradient>
+    <linearGradient id="hc-gold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffe9a8"/><stop offset="1" stop-color="#c79334"/>
+    </linearGradient>
+    <radialGradient id="hc-rift" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#b46bff"/><stop offset="1" stop-color="#3a1a6a" stop-opacity="0"/>
+    </radialGradient>
+    <style>
+      @keyframes hcGem{0%,100%{opacity:.5}50%{opacity:1}}
+      @keyframes hcRift{0%,100%{opacity:.45;transform:scale(1)}50%{opacity:.8;transform:scale(1.06)}}
+      @keyframes hcFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+      .hc-gem{animation:hcGem 2s ease-in-out infinite}
+      .hc-rift{transform-origin:center;transform-box:fill-box;animation:hcRift 4s ease-in-out infinite}
+      .hc-crown{transform-origin:center;transform-box:fill-box;animation:hcFloat 4s ease-in-out infinite}
+    </style>
+  </defs>
+  <rect width="640" height="400" fill="url(#hc-bg)"/>
+  <!-- rift gate -->
+  <ellipse class="hc-rift" cx="320" cy="210" rx="120" ry="150" fill="url(#hc-rift)"/>
+  <path d="M250 360 L250 150 Q320 70 390 150 L390 360" fill="none" stroke="#6a4aa0" stroke-width="6"/>
+  <!-- crown -->
+  <g class="hc-crown" transform="translate(320 200)">
+    <path d="M-70,40 L-78,-30 L-44,6 L-22,-44 L0,2 L22,-44 L44,6 L78,-30 L70,40 Z" fill="url(#hc-gold)" stroke="#8a6418" stroke-width="2"/>
+    <rect x="-70" y="40" width="140" height="20" rx="6" fill="url(#hc-gold)" stroke="#8a6418" stroke-width="2"/>
+    <circle class="hc-gem" cx="-44" cy="2" r="6" fill="#5dff9e"/>
+    <circle class="hc-gem" style="animation-delay:.6s" cx="0" cy="-4" r="7" fill="#5ad1ff"/>
+    <circle class="hc-gem" style="animation-delay:1.2s" cx="44" cy="2" r="6" fill="#ff6aa0"/>
+  </g>
+  <!-- floating sigils -->
+  <g class="hc-gem" transform="translate(140 130)"><polygon points="0,-16 14,8 -14,8" fill="none" stroke="#5dff9e" stroke-width="3"/></g>
+  <g class="hc-gem" style="animation-delay:.7s" transform="translate(500 120)"><rect x="-12" y="-12" width="24" height="24" fill="none" stroke="#5ad1ff" stroke-width="3" transform="rotate(45)"/></g>
+  <g class="hc-gem" style="animation-delay:1.3s" transform="translate(320 330)"><circle r="13" fill="none" stroke="#ff6aa0" stroke-width="3"/></g>
+</svg>

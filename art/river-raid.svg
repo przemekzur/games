@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 400" role="img" aria-label="River Raid cover art">
+  <defs>
+    <linearGradient id="rr-land" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#14361f"/><stop offset="1" stop-color="#0a1f13"/>
+    </linearGradient>
+    <linearGradient id="rr-river" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1ea0ff"/><stop offset="1" stop-color="#0a4d99"/>
+    </linearGradient>
+    <style>
+      @keyframes rrScroll{from{transform:translateY(-80px)}to{transform:translateY(0)}}
+      @keyframes rrJet{0%,100%{transform:translateX(0)}50%{transform:translateX(12px)}}
+      @keyframes rrShot{0%{opacity:1;transform:translateY(0)}100%{opacity:0;transform:translateY(-120px)}}
+      .rr-scroll{animation:rrScroll 1.2s linear infinite}
+      .rr-jet{animation:rrJet 3s ease-in-out infinite}
+      .rr-shot{animation:rrShot 1s linear infinite}
+    </style>
+  </defs>
+  <rect width="640" height="400" fill="url(#rr-land)"/>
+  <!-- river -->
+  <path d="M250 0 Q290 100 250 200 Q210 300 270 400 L390 400 Q330 300 370 200 Q410 100 380 0 Z" fill="url(#rr-river)"/>
+  <path d="M250 0 Q290 100 250 200 Q210 300 270 400" fill="none" stroke="#8fe0ff" stroke-opacity="0.5" stroke-width="2"/>
+  <path d="M380 0 Q410 100 370 200 Q330 300 390 400" fill="none" stroke="#8fe0ff" stroke-opacity="0.5" stroke-width="2"/>
+  <!-- scrolling lane markers -->
+  <g class="rr-scroll" stroke="#bfefff" stroke-opacity="0.4" stroke-width="4" stroke-dasharray="14 40">
+    <line x1="320" y1="-80" x2="320" y2="480"/>
+  </g>
+  <!-- bridge / enemy boat -->
+  <rect x="252" y="120" width="120" height="14" rx="4" fill="#8a5a2a"/>
+  <ellipse cx="300" cy="260" rx="20" ry="9" fill="#0c1422" stroke="#ff7a4c" stroke-width="2"/>
+  <!-- bullets -->
+  <rect class="rr-shot" x="316" y="280" width="6" height="18" rx="3" fill="#ffe44c"/>
+  <rect class="rr-shot" style="animation-delay:.5s" x="316" y="280" width="6" height="18" rx="3" fill="#ffe44c"/>
+  <!-- player jet -->
+  <g class="rr-jet" transform="translate(320 320)">
+    <polygon points="0,-26 14,18 0,8 -14,18" fill="#dff6ff" stroke="#5ad1ff" stroke-width="2"/>
+    <polygon points="0,-6 26,16 14,16" fill="#9af0ff"/><polygon points="0,-6 -26,16 -14,16" fill="#9af0ff"/>
+    <polygon points="-5,18 0,30 5,18" fill="#ff7a3c"/>
+  </g>
+</svg>

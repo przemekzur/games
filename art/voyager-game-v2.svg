@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 400" role="img" aria-label="Star Trek Voyager: Definitive Edition cover art">
+  <defs>
+    <radialGradient id="v2-bg" cx="0.5" cy="0.5" r="0.8">
+      <stop offset="0" stop-color="#102a4a"/><stop offset="0.6" stop-color="#0a1230"/><stop offset="1" stop-color="#04030d"/>
+    </radialGradient>
+    <linearGradient id="v2-streak" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#6ad8ff" stop-opacity="0"/><stop offset="1" stop-color="#6ad8ff"/>
+    </linearGradient>
+    <linearGradient id="v2-hull" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#dfeefb"/><stop offset="1" stop-color="#8ba2bd"/>
+    </linearGradient>
+    <style>
+      @keyframes v2Warp{0%{transform:translateX(-260px);opacity:0}20%{opacity:1}100%{transform:translateX(640px);opacity:0}}
+      @keyframes v2Pulse{0%,100%{opacity:.5}50%{opacity:1}}
+      .v2-streak{animation:v2Warp 1.4s linear infinite}
+      .v2-nac{animation:v2Pulse 1.2s ease-in-out infinite}
+    </style>
+  </defs>
+  <rect width="640" height="400" fill="url(#v2-bg)"/>
+  <!-- warp streaks -->
+  <g>
+    <rect class="v2-streak" x="0" y="70" width="220" height="3" fill="url(#v2-streak)"/>
+    <rect class="v2-streak" style="animation-delay:.2s" x="0" y="130" width="180" height="2" fill="url(#v2-streak)"/>
+    <rect class="v2-streak" style="animation-delay:.5s" x="0" y="190" width="240" height="3" fill="url(#v2-streak)"/>
+    <rect class="v2-streak" style="animation-delay:.8s" x="0" y="270" width="160" height="2" fill="url(#v2-streak)"/>
+    <rect class="v2-streak" style="animation-delay:.35s" x="0" y="330" width="210" height="3" fill="url(#v2-streak)"/>
+    <rect class="v2-streak" style="animation-delay:1s" x="0" y="100" width="140" height="2" fill="url(#v2-streak)"/>
+  </g>
+  <!-- ship streaking right -->
+  <g transform="translate(360 210)">
+    <ellipse cx="-66" cy="-26" rx="74" ry="30" fill="url(#v2-hull)" stroke="#5a7090" stroke-width="2"/>
+    <path d="M-30,-4 L96,4 Q116,8 96,18 L-20,20 Z" fill="url(#v2-hull)" stroke="#5a7090" stroke-width="2"/>
+    <rect class="v2-nac" x="60" y="-44" width="74" height="14" rx="7" fill="#aec6e0"/>
+    <rect class="v2-nac" style="animation-delay:.3s" x="78" y="40" width="74" height="14" rx="7" fill="#aec6e0"/>
+    <rect x="130" y="-40" width="44" height="6" fill="#6ad8ff"/><rect x="148" y="44" width="44" height="6" fill="#6ad8ff"/>
+  </g>
+  <!-- badge -->
+  <path d="M70 350 q24 -42 48 0 q-24 -14 -48 0 Z" fill="#ffc14c" opacity="0.85"/>
+</svg>

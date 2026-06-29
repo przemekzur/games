@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 400" role="img" aria-label="DOOM cover art">
+  <defs>
+    <linearGradient id="dm-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1c0604"/><stop offset="0.6" stop-color="#0c0302"/><stop offset="1" stop-color="#050101"/>
+    </linearGradient>
+    <radialGradient id="dm-fog" cx="0.5" cy="1" r="0.8">
+      <stop offset="0" stop-color="#ff3a1a" stop-opacity="0.5"/><stop offset="1" stop-color="#ff3a1a" stop-opacity="0"/>
+    </radialGradient>
+    <style>
+      @keyframes dmEye{0%,100%{opacity:.5}50%{opacity:1}}
+      @keyframes dmFlash{0%,90%,100%{opacity:0}93%{opacity:1}}
+      @keyframes dmFog{0%,100%{opacity:.5}50%{opacity:.85}}
+      .dm-eye{animation:dmEye 1.6s ease-in-out infinite}
+      .dm-flash{animation:dmFlash 3.4s linear infinite}
+      .dm-fog{animation:dmFog 4s ease-in-out infinite}
+    </style>
+  </defs>
+  <rect width="640" height="400" fill="url(#dm-bg)"/>
+  <!-- corridor perspective -->
+  <g stroke="#5a1208" stroke-width="2" fill="none" opacity="0.8">
+    <path d="M0 60 L250 175 M640 60 L390 175 M0 360 L250 220 M640 360 L390 220"/>
+    <rect x="250" y="175" width="140" height="45" fill="#180404"/>
+  </g>
+  <rect class="dm-fog" width="640" height="400" fill="url(#dm-fog)"/>
+  <!-- demon silhouette in doorway -->
+  <g transform="translate(320 198)">
+    <path d="M-26,30 L-30,-10 L-18,-24 L-26,-40 L-8,-28 L0,-40 L8,-28 L26,-40 L18,-24 L30,-10 L26,30 Z" fill="#0a0202" stroke="#ff3a1a" stroke-width="1.5"/>
+    <circle class="dm-eye" cx="-9" cy="-14" r="3.4" fill="#ff5a2a"/><circle class="dm-eye" style="animation-delay:.4s" cx="9" cy="-14" r="3.4" fill="#ff5a2a"/>
+  </g>
+  <!-- shotgun barrel (first person) -->
+  <g transform="translate(320 400)">
+    <rect x="-70" y="-70" width="140" height="80" rx="10" fill="#1a1410"/>
+    <rect x="-40" y="-118" width="26" height="64" rx="6" fill="#2a221a" stroke="#4a3a28" stroke-width="2"/>
+    <rect x="-8" y="-118" width="26" height="64" rx="6" fill="#2a221a" stroke="#4a3a28" stroke-width="2"/>
+    <circle cx="-27" cy="-118" r="11" fill="#0a0806"/><circle cx="5" cy="-118" r="11" fill="#0a0806"/>
+  </g>
+  <!-- muzzle flash -->
+  <g class="dm-flash" transform="translate(305 282)">
+    <polygon points="0,0 -22,-10 -6,-4 -24,4 -4,4 -20,16 2,6 14,18 8,2 26,8 8,-2 22,-14 2,-6" fill="#ffd86a"/>
+  </g>
+</svg>

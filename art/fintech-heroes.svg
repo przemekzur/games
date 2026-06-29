@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 400" role="img" aria-label="Fintech Heroes cover art">
+  <defs>
+    <linearGradient id="fh-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1a1330"/><stop offset="1" stop-color="#0a0718"/>
+    </linearGradient>
+    <linearGradient id="fh-gold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffe27a"/><stop offset="1" stop-color="#d99a2b"/>
+    </linearGradient>
+    <style>
+      @keyframes fhCoin{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+      @keyframes fhSpark{0%,100%{opacity:.3}50%{opacity:1}}
+      @keyframes fhFlag{0%,100%{transform:skewX(0)}50%{transform:skewX(-6deg)}}
+      .fh-coin{transform-origin:center;transform-box:fill-box}
+      .fh-c1{animation:fhCoin 2.4s ease-in-out infinite}
+      .fh-c2{animation:fhCoin 2.4s ease-in-out infinite;animation-delay:.6s}
+      .fh-c3{animation:fhCoin 2.4s ease-in-out infinite;animation-delay:1.2s}
+      .fh-spark{animation:fhSpark 2.6s ease-in-out infinite}
+      .fh-flag{transform-origin:top center;transform-box:fill-box;animation:fhFlag 3s ease-in-out infinite}
+    </style>
+  </defs>
+  <rect width="640" height="400" fill="url(#fh-bg)"/>
+  <g class="fh-spark" fill="#b987ff"><circle cx="80" cy="70" r="2"/><circle cx="540" cy="60" r="2.4" style="animation-delay:.8s"/><circle cx="300" cy="40" r="1.8" style="animation-delay:1.4s"/></g>
+  <!-- castle / ledger towers -->
+  <g fill="#241a44" stroke="#6b4fb0" stroke-width="2">
+    <rect x="120" y="180" width="60" height="180"/>
+    <rect x="290" y="140" width="70" height="220"/>
+    <rect x="470" y="190" width="58" height="170"/>
+  </g>
+  <g fill="#6b4fb0">
+    <rect x="120" y="172" width="14" height="14"/><rect x="146" y="172" width="14" height="14"/><rect x="166" y="172" width="14" height="14"/>
+    <rect x="290" y="132" width="14" height="14"/><rect x="318" y="132" width="14" height="14"/><rect x="346" y="132" width="14" height="14"/>
+    <rect x="470" y="182" width="14" height="14"/><rect x="498" y="182" width="14" height="14"/>
+  </g>
+  <!-- banner -->
+  <g class="fh-flag"><rect x="320" y="100" width="6" height="44" fill="#8a6cd6"/><path d="M326 104 L362 112 L326 128 Z" fill="#ff6aa0"/></g>
+  <!-- ledger candlesticks on towers -->
+  <g stroke-width="6" stroke-linecap="round">
+    <line x1="150" y1="230" x2="150" y2="290" stroke="#5dff9e"/><line x1="318" y1="200" x2="318" y2="300" stroke="#5dff9e"/><line x1="498" y1="250" x2="498" y2="310" stroke="#ff5a7a"/>
+  </g>
+  <!-- coins -->
+  <g class="fh-coin fh-c1" transform="translate(210 330)"><circle r="22" fill="url(#fh-gold)" stroke="#a8741c" stroke-width="2"/><text y="8" text-anchor="middle" font-family="serif" font-size="26" font-weight="700" fill="#8a5e16">$</text></g>
+  <g class="fh-coin fh-c2" transform="translate(330 350)"><circle r="20" fill="url(#fh-gold)" stroke="#a8741c" stroke-width="2"/><text y="7" text-anchor="middle" font-family="serif" font-size="23" font-weight="700" fill="#8a5e16">$</text></g>
+  <g class="fh-coin fh-c3" transform="translate(440 332)"><circle r="22" fill="url(#fh-gold)" stroke="#a8741c" stroke-width="2"/><text y="8" text-anchor="middle" font-family="serif" font-size="26" font-weight="700" fill="#8a5e16">$</text></g>
+</svg>

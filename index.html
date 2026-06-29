@@ -1,266 +1,627 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Arcade Hub</title>
+  <title>The Arcade · Repertory Programme</title>
+  <meta name="description" content="A repertory programme of 16 hand-built browser games, from a 3D real-time strategy engine to a cow chasing clovers. One click, no installs." />
+  <meta name="theme-color" content="#f4eede" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Hanken+Grotesk:wght@400;500;600;800&family=Martian+Mono:wght@300;400;600&display=swap" rel="stylesheet" />
+
   <style>
     :root {
-      --bg: #070b14;
-      --panel: rgba(14, 20, 36, 0.88);
-      --line: rgba(130, 190, 255, 0.22);
-      --ink: #e6f3ff;
-      --muted: #9cb3c9;
-      --brand: #64d5ff;
-      --brand-2: #b987ff;
+      /* Paper + ink, warm-tinted neutrals (hue ~78). No pure black/white. */
+      --paper:   oklch(0.962 0.010 78);
+      --paper-2: oklch(0.930 0.014 78);
+      --paper-3: oklch(0.892 0.016 78);
+      --ink:     oklch(0.215 0.018 60);
+      --ink-2:   oklch(0.380 0.022 62);
+      --ink-3:   oklch(0.512 0.020 64);
+      --rule:    oklch(0.840 0.014 78);
+      --accent:      oklch(0.555 0.190 31);
+      --accent-ink:  oklch(0.470 0.180 31);
+
+      --font-display: "Bricolage Grotesque", "Hanken Grotesk", system-ui, sans-serif;
+      --font-body: "Hanken Grotesk", system-ui, "Segoe UI", sans-serif;
+      --font-mono: "Martian Mono", ui-monospace, "Cascadia Mono", monospace;
+
+      --ease-expo: cubic-bezier(0.16, 1, 0.3, 1);
+      --ease-quart: cubic-bezier(0.25, 1, 0.5, 1);
+
+      --sp-1: 0.25rem; --sp-2: 0.5rem; --sp-3: 0.75rem; --sp-4: 1rem;
+      --sp-5: 1.5rem; --sp-6: 2rem; --sp-7: 3rem; --sp-8: 4.5rem;
+
+      --maxw: 1180px;
+
+      /* Re-skin the shared soundtrack panel (shared/arcade-bgm.js reads these). */
+      --bgm-bg: var(--paper);
+      --bgm-fg: var(--ink);
+      --bgm-muted: var(--ink-3);
+      --bgm-accent: var(--accent);
+      --bgm-accent-ink: var(--paper);
+      --bgm-border: var(--ink);
+      --bgm-field: var(--paper-2);
+      --bgm-font: var(--font-body);
+      --bgm-mono: var(--font-mono);
     }
 
     * { box-sizing: border-box; }
 
+    html { -webkit-text-size-adjust: 100%; }
+
     body {
       margin: 0;
       min-height: 100vh;
-      font-family: "Inter", "Segoe UI", Arial, sans-serif;
+      background: var(--paper);
       color: var(--ink);
-      background:
-        radial-gradient(circle at 12% 12%, #1b2f52 0%, transparent 42%),
-        radial-gradient(circle at 85% 85%, #24183e 0%, transparent 46%),
-        var(--bg);
-      display: grid;
-      place-items: center;
-      padding: 24px;
+      font-family: var(--font-body);
+      font-size: 1rem;
+      line-height: 1.55;
+      font-kerning: normal;
+      -webkit-font-smoothing: antialiased;
+      /* faint printed-stock texture: two low-contrast speckle layers, no glow */
+      background-image:
+        radial-gradient(oklch(0.88 0.02 78 / 0.5) 0.5px, transparent 0.5px),
+        radial-gradient(oklch(0.86 0.02 78 / 0.4) 0.5px, transparent 0.5px);
+      background-size: 18px 18px, 11px 11px;
+      background-position: 0 0, 6px 9px;
     }
 
-    .app {
-      width: min(1100px, 100%);
-      border: 1px solid var(--line);
-      border-radius: 18px;
-      background: linear-gradient(165deg, rgba(20, 28, 48, 0.88), var(--panel));
-      box-shadow: 0 30px 70px rgba(0, 0, 0, 0.5);
-      backdrop-filter: blur(6px);
+    .shell { max-width: var(--maxw); margin: 0 auto; padding: clamp(1.25rem, 4vw, 2.75rem) clamp(1rem, 4vw, 2.5rem) 4rem; }
+
+    a { color: inherit; }
+
+    ::selection { background: var(--accent); color: var(--paper); }
+
+    :focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 3px;
+      border-radius: 2px;
+    }
+
+    .mono { font-family: var(--font-mono); }
+
+    /* ---------- Masthead ---------- */
+    .masthead {
+      border-top: 2px solid var(--ink);
+      padding-top: var(--sp-4);
+      display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between;
+      gap: var(--sp-3) var(--sp-5);
+    }
+    .wordmark {
+      font-family: var(--font-display);
+      font-weight: 800;
+      font-size: clamp(1.6rem, 4.5vw, 2.6rem);
+      letter-spacing: -0.02em;
+      line-height: 0.95;
+      margin: 0;
+    }
+    .wordmark .reel { color: var(--accent); }
+    .masthead .colophon {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      font-weight: 400;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--ink-3);
+      text-align: right;
+      line-height: 1.7;
+    }
+    .masthead .colophon b { color: var(--ink); font-weight: 600; }
+
+    /* ---------- Marquee (featured, rotating) ---------- */
+    .marquee {
+      margin-top: var(--sp-6);
+      display: grid;
+      grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+      gap: clamp(1.25rem, 3.5vw, 2.75rem);
+      align-items: stretch;
+      border-top: 1px solid var(--rule);
+      border-bottom: 1px solid var(--rule);
+      padding: var(--sp-6) 0;
+    }
+    .marquee-stage {
+      position: relative;
+      background: var(--paper-3);
+      border: 1px solid var(--rule);
+      aspect-ratio: 16 / 10;
       overflow: hidden;
     }
-
-    .hero {
-      padding: 28px 28px 14px;
-      border-bottom: 1px solid var(--line);
-      background: linear-gradient(90deg, rgba(100, 213, 255, 0.09), rgba(185, 135, 255, 0.06));
+    .marquee-stage .frame {
+      position: absolute; inset: 0;
+      opacity: 0;
+      transform: scale(1.015);
+      transition: opacity 0.52s var(--ease-expo), transform 0.52s var(--ease-expo);
     }
-
-    .eyebrow {
-      font-size: 0.76rem;
-      text-transform: uppercase;
-      letter-spacing: 0.13em;
-      color: var(--brand);
-      margin-bottom: 8px;
-      font-weight: 700;
+    .marquee-stage .frame.is-active { opacity: 1; transform: none; }
+    .marquee-stage img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .marquee-bill { display: flex; flex-direction: column; justify-content: center; gap: var(--sp-3); min-width: 0; }
+    .kicker {
+      font-family: var(--font-mono);
+      font-size: 0.74rem; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase;
+      color: var(--accent-ink);
+      display: inline-flex; align-items: center; gap: 0.6em;
     }
-
-    h1 {
-      margin: 0;
-      font-size: clamp(1.6rem, 3vw, 2.4rem);
+    .kicker::before {
+      content: ""; width: 0.55em; height: 0.55em; border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 0 0 var(--accent);
+      animation: bulb 2.4s var(--ease-quart) infinite;
     }
-
-    .sub {
-      margin: 8px 0 0;
-      color: var(--muted);
-      font-size: 0.98rem;
-      max-width: 72ch;
-    }
-
-    .grid {
-      padding: 24px 24px 28px;
-      display: grid;
-      gap: 16px;
-      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-    }
-
-    .card {
-      border: 1px solid var(--line);
-      border-radius: 14px;
-      padding: 18px;
-      background: rgba(9, 14, 24, 0.76);
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
-    }
-
-    .card:hover {
-      transform: translateY(-4px);
-      border-color: rgba(130, 190, 255, 0.46);
-      box-shadow: 0 14px 34px rgba(2, 8, 18, 0.55);
-    }
-
-    .pill {
-      align-self: flex-start;
-      font-size: 0.72rem;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      font-weight: 700;
-      color: #0c1426;
-      background: linear-gradient(90deg, var(--brand), var(--brand-2));
-      padding: 5px 9px;
-      border-radius: 999px;
-    }
-
-    .card h2 {
-      margin: 0;
-      font-size: 1.15rem;
-    }
-
-    .card p {
-      margin: 0;
-      color: var(--muted);
-      line-height: 1.45;
-      flex-grow: 1;
-    }
-
-    .btn {
-      text-decoration: none;
-      color: #07111f;
-      background: linear-gradient(90deg, #70dcff, #c29aff);
-      border: none;
-      border-radius: 10px;
-      padding: 10px 14px;
+    @keyframes bulb { 0%, 100% { opacity: 1; } 45% { opacity: 0.35; } }
+    .marquee-title {
+      font-family: var(--font-display);
       font-weight: 800;
-      text-align: center;
-      letter-spacing: 0.02em;
+      font-size: clamp(2rem, 5.2vw, 3.4rem);
+      line-height: 0.98;
+      letter-spacing: -0.02em;
+      margin: 0;
+      text-wrap: balance;
+    }
+    .marquee-logline { color: var(--ink-2); font-size: 1.05rem; max-width: 46ch; margin: 0; text-wrap: pretty; }
+    .marquee-meta { font-family: var(--font-mono); font-size: 0.74rem; letter-spacing: 0.06em; color: var(--ink-3); text-transform: uppercase; }
+    .marquee-actions { display: flex; align-items: center; gap: var(--sp-4); margin-top: var(--sp-2); flex-wrap: wrap; }
+    .marquee-nav { display: inline-flex; align-items: center; gap: var(--sp-3); margin-left: auto; }
+    .dotnav { display: inline-flex; gap: 0.3rem; }
+    .dotnav button {
+      width: 24px; height: 24px; padding: 0; border: 0; background: transparent;
+      cursor: pointer; display: inline-grid; place-items: center;
+    }
+    .dotnav button::before {
+      content: ""; width: 0.7rem; height: 0.7rem; border-radius: 50%;
+      border: 1px solid var(--ink-3); background: transparent;
+      transition: background 0.14s var(--ease-quart), border-color 0.14s var(--ease-quart);
+    }
+    .dotnav button[aria-current="true"]::before { background: var(--accent); border-color: var(--accent); }
+    .stepper { display: inline-flex; gap: 0.35rem; }
+    .stepper button, .m-ctrl {
+      font-family: var(--font-mono); font-size: 0.9rem; line-height: 1;
+      width: 2rem; height: 2rem; border: 1px solid var(--rule); background: var(--paper);
+      color: var(--ink); cursor: pointer; border-radius: 2px;
+      display: inline-grid; place-items: center;
+      transition: border-color 0.14s var(--ease-quart), color 0.14s var(--ease-quart);
+    }
+    .stepper button:hover, .m-ctrl:hover { border-color: var(--ink); color: var(--accent-ink); }
+    .m-ctrl[aria-pressed="true"] { border-color: var(--accent); color: var(--accent-ink); }
+
+    /* Buttons */
+    .btn {
+      font-family: var(--font-body); font-weight: 600; font-size: 0.95rem;
+      text-decoration: none; cursor: pointer;
+      display: inline-flex; align-items: center; gap: 0.5em;
+      padding: 0.7rem 1.15rem; border-radius: 2px; border: 1px solid var(--ink);
+      background: var(--ink); color: var(--paper);
+      transition: background 0.16s var(--ease-quart), color 0.16s var(--ease-quart), transform 0.16s var(--ease-quart);
+    }
+    .btn .arw { color: var(--accent); transition: transform 0.16s var(--ease-quart); }
+    .btn:hover { background: var(--accent-ink); border-color: var(--accent-ink); }
+    .btn:hover .arw { color: var(--paper); transform: translateX(3px); }
+    .btn.ghost { background: transparent; color: var(--ink); border-color: var(--rule); }
+    .btn.ghost:hover { background: transparent; border-color: var(--ink); color: var(--accent-ink); }
+
+    /* ---------- Controls ---------- */
+    .controls {
+      margin-top: var(--sp-6);
+      display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--sp-4) var(--sp-6);
+      justify-content: space-between;
+    }
+    .find { flex: 1 1 280px; min-width: 220px; }
+    .find label {
+      display: block; font-family: var(--font-mono); font-size: 0.68rem; letter-spacing: 0.12em;
+      text-transform: uppercase; color: var(--ink-3); margin-bottom: 0.4rem;
+    }
+    .find input {
+      width: 100%; background: transparent; border: none; border-bottom: 1.5px solid var(--ink);
+      padding: 0.45rem 0; font-family: var(--font-display); font-weight: 600; font-size: 1.35rem;
+      color: var(--ink); outline: none;
+    }
+    .find input::placeholder { color: var(--ink-3); font-weight: 600; }
+    .find input:focus { border-color: var(--accent); }
+
+    .filters { display: flex; flex-wrap: wrap; align-items: center; gap: 0.2rem 1rem; }
+    .filters .lbl { font-family: var(--font-mono); font-size: 0.68rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-3); margin-right: 0.25rem; }
+    .filter {
+      font-family: var(--font-mono); font-size: 0.82rem; letter-spacing: 0.02em;
+      background: transparent; border: none; cursor: pointer; color: var(--ink-3);
+      padding: 0.3rem 0; position: relative;
+      transition: color 0.14s var(--ease-quart);
+    }
+    .filter::after {
+      content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px;
+      background: var(--accent); transform: scaleX(0); transform-origin: left;
+      transition: transform 0.18s var(--ease-expo);
+    }
+    .filter:hover { color: var(--ink); }
+    .filter[aria-pressed="true"] { color: var(--ink); font-weight: 600; }
+    .filter[aria-pressed="true"]::after { transform: scaleX(1); }
+
+    /* ---------- Programme index ---------- */
+    .index-head {
+      margin-top: var(--sp-7);
+      display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-4);
+      border-bottom: 2px solid var(--ink); padding-bottom: var(--sp-3);
+    }
+    .index-head h2 { font-family: var(--font-display); font-weight: 800; font-size: clamp(1.1rem, 2.4vw, 1.5rem); letter-spacing: -0.01em; margin: 0; text-transform: uppercase; }
+    .index-head .count { font-family: var(--font-mono); font-size: 0.8rem; letter-spacing: 0.06em; color: var(--ink-3); }
+    .index-head .count b { color: var(--accent-ink); }
+
+    .programme {
+      margin-top: var(--sp-5);
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(238px, 1fr));
+      gap: clamp(1.1rem, 2.5vw, 1.9rem) clamp(1rem, 2vw, 1.5rem);
+    }
+    .title-card { display: flex; flex-direction: column; text-decoration: none; min-width: 0; }
+    .title-card .poster {
+      position: relative; aspect-ratio: 16 / 10; background: var(--paper-3);
+      border: 1px solid var(--rule); overflow: hidden;
+      transition: transform 0.32s var(--ease-expo), border-color 0.2s var(--ease-quart), box-shadow 0.32s var(--ease-expo);
+    }
+    .title-card .poster img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .title-card .idx {
+      position: absolute; top: 0; left: 0; z-index: 2;
+      font-family: var(--font-mono); font-weight: 600; font-size: 0.74rem; letter-spacing: 0.04em;
+      color: var(--ink); background: var(--paper); padding: 0.28rem 0.5rem;
+      border-right: 1px solid var(--rule); border-bottom: 1px solid var(--rule);
+    }
+    .title-card .flag {
+      position: absolute; top: 0; right: 0; z-index: 2;
+      font-family: var(--font-mono); font-weight: 600; font-size: 0.64rem; letter-spacing: 0.12em; text-transform: uppercase;
+      color: var(--paper); background: var(--accent); padding: 0.28rem 0.55rem;
+    }
+    .title-card .enter {
+      position: absolute; left: 0; right: 0; bottom: 0; z-index: 2;
+      display: flex; align-items: center; justify-content: space-between;
+      font-family: var(--font-mono); font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase;
+      color: var(--paper); background: var(--accent-ink);
+      padding: 0.45rem 0.6rem;
+      transform: translateY(101%);
+      transition: transform 0.26s var(--ease-expo);
+    }
+    .caption { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--sp-3); margin-top: 0.7rem; }
+    .caption h3 { font-family: var(--font-display); font-weight: 700; font-size: 1.04rem; line-height: 1.12; letter-spacing: -0.01em; margin: 0; }
+    .caption .genre { font-family: var(--font-mono); font-size: 0.66rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3); white-space: nowrap; flex-shrink: 0; padding-top: 0.22em; }
+
+    .title-card:hover .poster, .title-card:focus-visible .poster {
+      transform: translateY(-4px);
+      border-color: var(--accent);
+      box-shadow: 0 14px 28px oklch(0.215 0.018 60 / 0.16);
+    }
+    .title-card:hover .enter, .title-card:focus-visible .enter { transform: none; }
+    .title-card:hover .caption h3 { color: var(--accent-ink); }
+
+    .noresult {
+      display: none; grid-column: 1 / -1; padding: var(--sp-7) 0; text-align: left;
+      border-top: 1px solid var(--rule);
+    }
+    .noresult.show { display: block; }
+    .noresult p { font-family: var(--font-display); font-weight: 700; font-size: 1.3rem; color: var(--ink); margin: 0 0 var(--sp-4); }
+
+    /* ---------- Entrance choreography ---------- */
+    .title-card { opacity: 0; transform: translateY(14px); }
+    .title-card.in { animation: rise 0.5s var(--ease-expo) forwards; animation-delay: calc(var(--i, 0) * 38ms); }
+    @keyframes rise { to { opacity: 1; transform: none; } }
+
+    /* ---------- Colophon ---------- */
+    footer {
+      margin-top: var(--sp-8);
+      border-top: 2px solid var(--ink);
+      padding-top: var(--sp-4);
+      display: flex; flex-wrap: wrap; gap: var(--sp-3) var(--sp-6); justify-content: space-between;
+      font-family: var(--font-mono); font-size: 0.72rem; letter-spacing: 0.05em; color: var(--ink-3);
+    }
+    footer a { color: var(--ink); text-decoration: none; border-bottom: 1px solid var(--rule); }
+    footer a:hover { border-color: var(--accent); color: var(--accent-ink); }
+
+    .noscript { border: 1px solid var(--rule); padding: var(--sp-4); margin-top: var(--sp-5); }
+    .noscript ul { columns: 14rem 2; gap: var(--sp-5); }
+
+    /* ---------- Responsive ---------- */
+    @media (max-width: 760px) {
+      .marquee { grid-template-columns: 1fr; gap: var(--sp-5); }
+      .marquee-stage { order: -1; }
+      .masthead .colophon { text-align: left; }
+      .marquee-nav { margin-left: 0; }
+    }
+    @media (max-width: 380px) {
+      .caption { flex-direction: column; align-items: flex-start; gap: var(--sp-1); }
+      .caption .genre { white-space: normal; padding-top: 0; }
     }
 
-    .btn:hover { filter: brightness(1.05); }
-
-    .coming {
-      opacity: 0.78;
-      border-style: dashed;
-    }
-
-    .coming .btn {
-      pointer-events: none;
-      opacity: 0.55;
+    @media (prefers-reduced-motion: reduce) {
+      .title-card { opacity: 1; transform: none; }
+      .title-card.in { animation: none; }
+      .marquee-stage .frame { transition: opacity 0.001ms; }
+      .kicker::before { animation: none; }
+      .title-card .poster, .btn, .btn .arw, .filter::after { transition-duration: 0.001ms; }
+      *, *::before, *::after { animation-duration: 0.001ms !important; }
     }
   </style>
 </head>
 <body>
-  <main class="app">
-    <section class="hero">
-      <div class="eyebrow">Game Launcher</div>
-      <h1>Choose your game</h1>
-      <p class="sub">A modern mini-arcade with dedicated game folders. Pick a title below and jump in instantly.</p>
+  <div class="shell">
+    <header class="masthead">
+      <h1 class="wordmark">THE&nbsp;ARCADE<span class="reel">.</span></h1>
+      <div class="colophon">
+        Repertory programme<br />
+        Nº 01 · <b>16 titles</b> in rotation<br />
+        Browser only · no installs
+      </div>
+    </header>
+
+    <!-- Featured marquee (rotates through flagship titles) -->
+    <section class="marquee" aria-label="Now showing" aria-roledescription="carousel">
+      <div class="marquee-stage" id="stage"><!-- frames injected --></div>
+      <div class="marquee-bill">
+        <span class="kicker" id="m-kicker">Now Showing</span>
+        <div class="bill-text" aria-live="polite" aria-atomic="true">
+          <h2 class="marquee-title" id="m-title">Stellar Siege</h2>
+          <p class="marquee-logline" id="m-log">Mine, build, and crush a live opponent in fully procedural 3D real-time strategy.</p>
+          <p class="marquee-meta mono" id="m-meta">RTS · 3D</p>
+        </div>
+        <div class="marquee-actions">
+          <a class="btn" id="m-play" href="./stellar-siege/"><span>Enter</span> <span class="arw" aria-hidden="true">▸</span></a>
+          <div class="marquee-nav">
+            <button type="button" id="m-toggle" class="m-ctrl" aria-pressed="false" aria-label="Pause auto-rotation">❚❚</button>
+            <div class="stepper">
+              <button type="button" id="m-prev" aria-label="Previous title">‹</button>
+              <button type="button" id="m-next" aria-label="Next title">›</button>
+            </div>
+            <div class="dotnav" id="m-dots" aria-label="Choose featured title"></div>
+          </div>
+        </div>
+      </div>
     </section>
 
-    <section class="grid">
-      <article class="card">
-        <span class="pill">3D Multiplayer RTS</span>
-        <h2>Stellar Siege</h2>
-        <p>StarCraft-style real-time strategy in fully procedural 3D â€” harvest minerals &amp; vespene, build a base, train Drones, Troopers, Strikers &amp; Siege Tanks, and crush a live opponent in 1v1 online play (peer-to-peer via room code, no server). Includes a solo sandbox.</p>
-        <a class="btn" href="./stellar-siege/">Play Stellar Siege</a>
-      </article>
+    <!-- Controls -->
+    <div class="controls">
+      <div class="find">
+        <label for="find">Find a title</label>
+        <input id="find" type="search" autocomplete="off" placeholder="Search the programme…" />
+      </div>
+      <div class="filters" id="filters" role="group" aria-label="Filter by genre">
+        <span class="lbl">Genre</span>
+        <button class="filter" data-filter="all" aria-pressed="true">All</button>
+        <button class="filter" data-filter="action" aria-pressed="false">Action</button>
+        <button class="filter" data-filter="shooter" aria-pressed="false">Shooter</button>
+        <button class="filter" data-filter="strategy" aria-pressed="false">Strategy</button>
+        <button class="filter" data-filter="rpg" aria-pressed="false">RPG</button>
+        <button class="filter" data-filter="fighting" aria-pressed="false">Fighting</button>
+        <button class="filter" data-filter="classic" aria-pressed="false">Classic</button>
+        <button class="filter" data-filter="casual" aria-pressed="false">Casual</button>
+      </div>
+    </div>
 
-      <article class="card">
-        <span class="pill">Arcade Shooter</span>
-        <h2>Asteroids</h2>
-        <p>Classic space survival with thrust, split asteroids, score progression, and quick restarts.</p>
-        <a class="btn" href="./asteroids/">Play Asteroids</a>
-      </article>
+    <main>
+      <div class="index-head">
+        <h2>The Programme</h2>
+        <div class="count" aria-live="polite"><b id="count">16</b> / 16 showing</div>
+      </div>
 
-      <article class="card">
-        <span class="pill">Fighting</span>
-        <h2>Mortal Combat 1: Neo Exchange</h2>
-        <p>Modernized one-on-one combat with character selection and intense special moves.</p>
-        <a class="btn" href="./mortal-combat-1/">Play Mortal Combat</a>
-      </article>
+      <section class="programme" id="programme" aria-label="All titles"><!-- tiles injected --></section>
 
-      <article class="card">
-        <span class="pill">FPS</span>
-        <h2>DOOM</h2>
-        <p>Retro raycasting FPS â€” explore a demon-infested base, blast enemies with your shotgun, and reach the exit alive.</p>
-        <a class="btn" href="./doom/">Play DOOM</a>
-      </article>
+      <div class="noresult" id="noresult" role="status" aria-atomic="true">
+        <p>No title under that billing.</p>
+        <button class="btn ghost" id="clear" type="button">Clear search and filters</button>
+      </div>
 
-      <article class="card">
-        <span class="pill">Arcade Classic</span>
-        <h2>Snake: Childhood Remix</h2>
-        <p>Guide your neon snake, scale speed with each bite, and chase your personal high score.</p>
-        <a class="btn" href="./snake/">Play Snake</a>
-      </article>
+      <noscript>
+        <div class="noscript">
+          <p class="mono">Enable JavaScript for the full programme. Direct entrances:</p>
+          <ul>
+            <li><a href="./stellar-siege/">Stellar Siege</a></li>
+            <li><a href="./asteroids/">Asteroids</a></li>
+            <li><a href="./mortal-combat-1/">Mortal Combat: Neo Exchange</a></li>
+            <li><a href="./doom/">DOOM</a></li>
+            <li><a href="./snake/">Snake: Childhood Remix</a></li>
+            <li><a href="./pong/">Pong: Neon Rally</a></li>
+            <li><a href="./breakout/">Breakout: Prism Crash</a></li>
+            <li><a href="./river-raid/">River Raid</a></li>
+            <li><a href="./fintech-heroes/">Fintech Heroes</a></li>
+            <li><a href="./hollow-crown/">Echoes of the Hollow Crown</a></li>
+            <li><a href="./space-invaders/">Space Invaders: Neon Siege</a></li>
+            <li><a href="./voyager-game/">Star Trek Voyager</a></li>
+            <li><a href="./voyager-game-v2/">Star Trek Voyager: Definitive Edition</a></li>
+            <li><a href="./mars-colony/">Red Frontier: Mars Colony</a></li>
+            <li><a href="./jetpack-rush/">Jetpack Rush: Neon Run</a></li>
+            <li><a href="./grass-frenzy/">Grass Frenzy</a></li>
+          </ul>
+        </div>
+      </noscript>
+    </main>
 
-      <article class="card">
-        <span class="pill">Arcade Duel</span>
-        <h2>Pong: Neon Rally</h2>
-        <p>Face a smart CPU paddle in a polished neon take on Pong, first to seven points wins.</p>
-        <a class="btn" href="./pong/">Play Pong</a>
-      </article>
+    <footer>
+      <span>The Arcade · a personal repertory of browser games</span>
+      <span>Set the soundtrack from the music panel · <a href="https://przemekzur.github.io/games/">przemekzur.github.io/games</a></span>
+    </footer>
+  </div>
 
-      <article class="card">
-        <span class="pill">Arcade Action</span>
-        <h2>Breakout: Prism Crash</h2>
-        <p>Shatter neon brick walls, manage your lives, and push through accelerating levels.</p>
-        <a class="btn" href="./breakout/">Play Breakout</a>
-      </article>
+  <script>
+    (function () {
+      "use strict";
 
-      <article class="card">
-        <span class="pill">Vertical Shooter</span>
-        <h2>River Raid</h2>
-        <p>Modern re-imagining of the classic â€” fly your jet over a glowing river, blast helis, boats &amp; planes, and don't run out of fuel.</p>
-        <a class="btn" href="./river-raid/">Play River Raid</a>
-      </article>
+      var GAMES = [
+        { slug: "stellar-siege",   art: "stellar-siege.svg",   title: "Stellar Siege",                 genre: "RTS · 3D",       tags: "strategy multiplayer", flagship: true,
+          log: "Mine, build, and crush a live opponent in fully procedural 3D real-time strategy." },
+        { slug: "asteroids",       art: "asteroids.svg",       title: "Asteroids",                     genre: "Shooter",        tags: "action shooter classic",
+          log: "Thrust, drift, and split the rocks before they split you." },
+        { slug: "mortal-combat-1", art: "mortal-combat-1.svg", title: "Mortal Combat: Neo Exchange",   genre: "Fighting",       tags: "fighting",
+          log: "One on one, character select, and special moves that bite." },
+        { slug: "doom",            art: "doom.svg",            title: "DOOM",                          genre: "FPS",            tags: "action shooter", flagship: true,
+          log: "Raycast a demon-infested base with a shotgun and bad intentions." },
+        { slug: "snake",           art: "snake.svg",           title: "Snake: Childhood Remix",        genre: "Classic",        tags: "classic casual",
+          log: "Your childhood snake, faster with every bite." },
+        { slug: "pong",            art: "pong.svg",            title: "Pong: Neon Rally",              genre: "Duel",           tags: "classic",
+          log: "A smart CPU paddle and a neon rally to seven." },
+        { slug: "breakout",        art: "breakout.svg",        title: "Breakout: Prism Crash",         genre: "Arcade",         tags: "action classic",
+          log: "Shatter prism walls through accelerating levels." },
+        { slug: "river-raid",      art: "river-raid.svg",      title: "River Raid",                    genre: "Shoot 'em up",   tags: "action shooter",
+          log: "Fly the glowing river, blast the fleet, watch your fuel." },
+        { slug: "fintech-heroes",  art: "fintech-heroes.svg",  title: "Fintech Heroes",                genre: "Strategy RPG",   tags: "strategy rpg",
+          log: "Pick a champion and battle market monsters across a fintech realm." },
+        { slug: "hollow-crown",    art: "hollow-crown.svg",    title: "Echoes of the Hollow Crown",    genre: "Action RPG",     tags: "rpg action", flagship: true,
+          log: "Recover three sigils, then duel the sovereign behind the Rift Gate." },
+        { slug: "space-invaders",  art: "space-invaders.svg",  title: "Space Invaders: Neon Siege",    genre: "Shooter",        tags: "action shooter classic",
+          log: "Waves, powerups, combo scoring, and a leaderboard that remembers." },
+        { slug: "voyager-game",    art: "voyager.svg",         title: "Star Trek Voyager",             genre: "Space Strategy", tags: "strategy",
+          log: "Command the USS Voyager through the Delta Quadrant in 3D." },
+        { slug: "voyager-game-v2", art: "voyager-game-v2.svg", title: "Star Trek Voyager: Definitive Edition", genre: "Space Strategy", tags: "strategy",
+          log: "Ten branching chapters home, with choices that stick." },
+        { slug: "mars-colony",     art: "mars-colony.svg",     title: "Red Frontier: Mars Colony",     genre: "Colony Sim",     tags: "strategy", flagship: true,
+          log: "Terraform the red planet and push the atmosphere to one hundred percent." },
+        { slug: "jetpack-rush",    art: "jetpack-rush.svg",    title: "Jetpack Rush: Neon Run",        genre: "Endless Runner", tags: "action casual", flagship: true,
+          log: "One button, endless neon, dodge everything, bank the distance." },
+        { slug: "grass-frenzy",    art: "grass-frenzy.svg",    title: "Grass Frenzy",                  genre: "Casual",         tags: "casual classic", isNew: true,
+          log: "A happy cow, golden stars, and puddles to dodge. It only speeds up." }
+      ];
 
-      <article class="card">
-        <span class="pill">Turn Strategy RPG</span>
-        <h2>Fintech Heroes: Ledger of Dominion</h2>
-        <p>Heroes-style fantasy strategy in a fintech realm â€” choose a champion, uncover story chapters, and battle market monsters.</p>
-        <a class="btn" href="./fintech-heroes/">Play Fintech Heroes</a>
-      </article>
+      var pad = function (n) { return (n < 10 ? "0" : "") + n; };
+      var esc = function (s) { return String(s).replace(/[&<>"]/g, function (c) {
+        return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); };
 
-      <article class="card">
-        <span class="pill">Fantasy Action RPG</span>
-        <h2>Echoes of the Hollow Crown</h2>
-        <p>Cinematic top-down RPG adventure â€” choose a champion, recover the three sigils of the vale, and duel the sovereign behind the Rift Gate.</p>
-        <a class="btn" href="./hollow-crown/">Play Hollow Crown</a>
-      </article>
+      /* ---- Render the programme index ---- */
+      var programme = document.getElementById("programme");
+      var frag = document.createDocumentFragment();
+      GAMES.forEach(function (g, i) {
+        var a = document.createElement("a");
+        a.className = "title-card in";
+        a.href = "./" + g.slug + "/";
+        a.style.setProperty("--i", i);
+        a.setAttribute("data-title", g.title);
+        a.setAttribute("data-tags", g.tags);
+        a.setAttribute("data-log", g.log);
+        a.innerHTML =
+          '<div class="poster">' +
+            '<span class="idx mono">' + pad(i + 1) + '</span>' +
+            (g.isNew ? '<span class="flag">New</span>' : '') +
+            '<img src="./art/' + g.art + '" alt="' + esc(g.title) + ' poster" loading="lazy" />' +
+            '<span class="enter"><span>Enter</span><span aria-hidden="true">▸</span></span>' +
+          '</div>' +
+          '<div class="caption">' +
+            '<h3>' + esc(g.title) + '</h3>' +
+            '<span class="genre mono">' + esc(g.genre) + '</span>' +
+          '</div>';
+        frag.appendChild(a);
+      });
+      programme.appendChild(frag);
 
-      <article class="card">
-        <span class="pill">Arcade Shooter</span>
-        <h2>Space Invaders: Neon Siege</h2>
-        <p>Defend Earth in this flashy modern take â€” multiple waves, powerups, combo scoring, and a persistent leaderboard.</p>
-        <a class="btn" href="./space-invaders/">Play Neon Siege</a>
-      </article>
+      /* ---- Marquee ---- */
+      var flagships = GAMES.filter(function (g) { return g.flagship; });
+      var stage = document.getElementById("stage");
+      var dots = document.getElementById("m-dots");
+      var mTitle = document.getElementById("m-title");
+      var mLog = document.getElementById("m-log");
+      var mMeta = document.getElementById("m-meta");
+      var mPlay = document.getElementById("m-play");
+      var mToggle = document.getElementById("m-toggle");
+      var current = 0, timer = null, userPaused = false;
+      var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-      <article class="card">
-        <span class="pill">3D Space Strategy</span>
-        <h2>Star Trek Voyager</h2>
-        <p>Command the USS Voyager through the Delta Quadrant â€” 3D space exploration with Three.js-powered visuals and tactical gameplay.</p>
-        <a class="btn" href="./voyager-game/">Play Voyager</a>
-      </article>
+      flagships.forEach(function (g, i) {
+        var fr = document.createElement("div");
+        fr.className = "frame" + (i === 0 ? " is-active" : "");
+        fr.setAttribute("aria-hidden", i === 0 ? "false" : "true");
+        // Poster is decorative here: the active title is named by #m-title and the dot.
+        fr.innerHTML = '<img src="./art/' + g.art + '" alt="" />';
+        stage.appendChild(fr);
 
-      <article class="card">
-        <span class="pill">3D Space Strategy</span>
-        <h2>Star Trek Voyager â€” Definitive Edition</h2>
-        <p>The v2 journey home: 10-chapter branching story with persistent choices, a unique enemy fleet for every faction, animated warp pylons, and dynamic faction combat AI.</p>
-        <a class="btn" href="./voyager-game-v2/">Play Definitive Edition</a>
-      </article>
+        var d = document.createElement("button");
+        d.type = "button";
+        d.setAttribute("aria-label", g.title);
+        d.setAttribute("aria-current", i === 0 ? "true" : "false");
+        d.addEventListener("click", function () { show(i, true); });
+        dots.appendChild(d);
+      });
 
-      <article class="card">
-        <span class="pill">3D Colony Strategy</span>
-        <h2>Red Frontier â€” Mars Colony</h2>
-        <p>Terraform the red planet in fully procedural 3D â€” build power, life support &amp; domes across a Martian landscape, research tech, survive dust storms and meteor strikes, and raise the atmosphere to 100%.</p>
-        <a class="btn" href="./mars-colony/">Play Red Frontier</a>
-      </article>
+      function show(i, fromUser) {
+        current = (i + flagships.length) % flagships.length;
+        var g = flagships[current];
+        stage.querySelectorAll(".frame").forEach(function (f, fi) {
+          var on = fi === current;
+          f.classList.toggle("is-active", on);
+          f.setAttribute("aria-hidden", on ? "false" : "true");
+        });
+        dots.querySelectorAll("button").forEach(function (b, bi) { b.setAttribute("aria-current", bi === current ? "true" : "false"); });
+        mTitle.textContent = g.title;
+        mLog.textContent = g.log;
+        mMeta.textContent = g.genre;
+        mPlay.href = "./" + g.slug + "/";
+        mPlay.setAttribute("aria-label", "Enter " + g.title);
+        if (fromUser) restart();
+      }
+      function advance() { show(current + 1); }
+      function restart() { if (timer) { clearInterval(timer); timer = null; } if (!reduce && !userPaused) { timer = setInterval(advance, 7000); } }
+      function pauseClock() { if (timer) { clearInterval(timer); timer = null; } }
 
-      <article class="card">
-        <span class="pill">Endless Runner</span>
-        <h2>Jetpack Rush: Neon Run</h2>
-        <p>One-button jetpack endless runner â€” hold to fly, dodge zappers, lasers &amp; missiles, grab coins and power-ups (shield, magnet, x2, turbo vehicle), and push your best distance.</p>
-        <a class="btn" href="./jetpack-rush/">Play Jetpack Rush</a>
-      </article>
-      <article class="card">
-        <h2>Grass Frenzy</h2>
-        <p>Play a happy cow catching clovers and golden stars while dodging mud puddles. Speeds up the longer you graze!</p>
-        <a class="btn" href="./grass-frenzy/">Play Grass Frenzy</a>
-      </article>
-    </section>
-  </main>
+      function setPaused(p) {
+        userPaused = p;
+        mToggle.setAttribute("aria-pressed", p ? "true" : "false");
+        mToggle.setAttribute("aria-label", p ? "Resume auto-rotation" : "Pause auto-rotation");
+        mToggle.textContent = p ? "▶" : "❚❚";
+        if (p) { pauseClock(); } else { restart(); }
+      }
+
+      document.getElementById("m-next").addEventListener("click", function () { show(current + 1, true); });
+      document.getElementById("m-prev").addEventListener("click", function () { show(current - 1, true); });
+      mToggle.addEventListener("click", function () { setPaused(!userPaused); });
+      if (reduce) { mToggle.style.display = "none"; } // nothing to pause without auto-rotation
+
+      var marqueeEl = document.querySelector(".marquee");
+      // Pause on hover AND on keyboard focus, so focused controls don't change underfoot.
+      marqueeEl.addEventListener("mouseenter", pauseClock);
+      marqueeEl.addEventListener("mouseleave", restart);
+      marqueeEl.addEventListener("focusin", pauseClock);
+      marqueeEl.addEventListener("focusout", function (e) { if (!marqueeEl.contains(e.relatedTarget)) restart(); });
+
+      show(0);
+      restart();
+
+      /* ---- Search + filters ---- */
+      var cards = Array.prototype.slice.call(programme.querySelectorAll(".title-card"));
+      var find = document.getElementById("find");
+      var filters = Array.prototype.slice.call(document.querySelectorAll(".filter"));
+      var noresult = document.getElementById("noresult");
+      var countEl = document.getElementById("count");
+      var active = "all";
+
+      function norm(s) { return (s || "").toLowerCase(); }
+      function apply() {
+        var q = norm(find.value).trim();
+        var shown = 0;
+        cards.forEach(function (card) {
+          var title = norm(card.getAttribute("data-title"));
+          var tags = norm(card.getAttribute("data-tags"));
+          var log = norm(card.getAttribute("data-log"));
+          var matchFilter = active === "all" || tags.indexOf(active) !== -1;
+          var matchSearch = !q || title.indexOf(q) !== -1 || tags.indexOf(q) !== -1 || log.indexOf(q) !== -1;
+          var ok = matchFilter && matchSearch;
+          card.style.display = ok ? "" : "none";
+          if (ok) shown++;
+        });
+        countEl.textContent = shown;
+        noresult.classList.toggle("show", shown === 0);
+      }
+
+      find.addEventListener("input", apply);
+      filters.forEach(function (f) {
+        f.addEventListener("click", function () {
+          active = f.getAttribute("data-filter");
+          filters.forEach(function (x) { x.setAttribute("aria-pressed", x === f ? "true" : "false"); });
+          apply();
+        });
+      });
+      document.getElementById("clear").addEventListener("click", function () {
+        find.value = ""; active = "all";
+        filters.forEach(function (x) { x.setAttribute("aria-pressed", x.getAttribute("data-filter") === "all" ? "true" : "false"); });
+        apply();
+      });
+
+      apply();
+    })();
+  </script>
   <script src="./shared/arcade-bgm.js"></script>
 </body>
 </html>

@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 400" role="img" aria-label="Red Frontier: Mars Colony cover art">
+  <defs>
+    <linearGradient id="mc2-sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3a1410"/><stop offset="0.6" stop-color="#5a2418"/><stop offset="1" stop-color="#7a3320"/>
+    </linearGradient>
+    <linearGradient id="mc2-ground" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#b04a2a"/><stop offset="1" stop-color="#6e2c18"/>
+    </linearGradient>
+    <radialGradient id="mc2-dome" cx="0.4" cy="0.3" r="0.8">
+      <stop offset="0" stop-color="#9fe8ff" stop-opacity="0.7"/><stop offset="1" stop-color="#3a8aa8" stop-opacity="0.25"/>
+    </radialGradient>
+    <style>
+      @keyframes mc2Sun{0%,100%{opacity:.7}50%{opacity:1}}
+      @keyframes mc2Glow{0%,100%{opacity:.5}50%{opacity:.9}}
+      @keyframes mc2Dust{from{transform:translateX(0)}to{transform:translateX(40px)}}
+      .mc2-sun{animation:mc2Sun 4s ease-in-out infinite}
+      .mc2-glow{animation:mc2Glow 3s ease-in-out infinite}
+      .mc2-dust{animation:mc2Dust 6s linear infinite alternate}
+    </style>
+  </defs>
+  <rect width="640" height="400" fill="url(#mc2-sky)"/>
+  <circle class="mc2-sun" cx="520" cy="90" r="42" fill="#ffcaa0"/>
+  <!-- distant ridge -->
+  <path d="M0 230 L120 200 L240 224 L380 196 L520 222 L640 200 L640 260 L0 260 Z" fill="#8a3a22" opacity="0.7"/>
+  <!-- ground -->
+  <path d="M0 250 L640 250 L640 400 L0 400 Z" fill="url(#mc2-ground)"/>
+  <!-- domes -->
+  <g>
+    <ellipse cx="180" cy="300" rx="78" ry="62" fill="url(#mc2-dome)" stroke="#9fe8ff" stroke-width="2"/>
+    <path d="M120 300 a60 60 0 0 1 120 0" fill="none" stroke="#cdeeff" stroke-opacity="0.4" stroke-width="1.5"/>
+    <circle class="mc2-glow" cx="180" cy="312" r="14" fill="#5dffb4"/>
+  </g>
+  <g>
+    <ellipse cx="440" cy="312" rx="64" ry="50" fill="url(#mc2-dome)" stroke="#9fe8ff" stroke-width="2"/>
+    <circle class="mc2-glow" style="animation-delay:1s" cx="440" cy="320" r="11" fill="#5ad1ff"/>
+  </g>
+  <!-- connecting tube -->
+  <rect x="252" y="300" width="120" height="22" rx="11" fill="#caa088" stroke="#9fe8ff" stroke-width="1.5"/>
+  <!-- solar panel -->
+  <g class="mc2-glow" transform="translate(560 320)"><rect x="-22" y="-14" width="44" height="28" fill="#1a3a6a" stroke="#5ad1ff" stroke-width="1.5"/><line x1="0" y1="-14" x2="0" y2="14" stroke="#5ad1ff"/><line x1="-22" y1="0" x2="22" y2="0" stroke="#5ad1ff"/></g>
+  <!-- atmosphere bar -->
+  <g transform="translate(40 50)">
+    <rect width="180" height="14" rx="7" fill="#2a1410" stroke="#ff9a6a" stroke-width="1.5"/>
+    <rect class="mc2-glow" width="116" height="14" rx="7" fill="#5dffb4"/>
+    <text x="190" y="12" font-family="monospace" font-size="13" fill="#ffd0b0">ATM 64%</text>
+  </g>
+  <!-- dust -->
+  <g class="mc2-dust" fill="#ffcaa0" opacity="0.3"><circle cx="60" cy="360" r="2"/><circle cx="200" cy="380" r="1.6"/><circle cx="360" cy="370" r="2.2"/></g>
+</svg>
