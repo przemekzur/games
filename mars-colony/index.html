@@ -411,7 +411,7 @@ const ICONS={
  * ============================================================= */
 const G = {
   res:{power:60,oxygen:140,water:140,food:140,materials:280,science:0,credits:240},
-  pop:3, popCap:0, morale:62, moraleTarget:62, colonies:0,
+  pop:0, popCap:0, morale:62, moraleTarget:62, colonies:0,  // no crew until the first Habitat is built (robotic prep only)
   tf:{temp:0,oxygen:0,pressure:0},
   sol:1, todFrac:0, speed:1, paused:false,
   buildings:[], techDone:{}, selected:null, demolish:false,
@@ -1222,9 +1222,9 @@ const OBJECTIVES=[
   {id:'oxygen',title:'Manufacture air',hint:'Build an Oxygenator to split CO₂ and water into breathable oxygen.',
     done:()=>hasB('moxie'),reward:{science:30},
     orion:'Oxygen generation confirmed. The first thing a Martian ever breathes is something we built for them. I find that worth remembering.'},
-  {id:'habitat',title:'Shelter the crew',hint:'Build a Habitat Dome on the plains. It houses colonists but consumes O₂, water, food and power.',
+  {id:'habitat',title:'Settle the first crew',hint:'Build your first Habitat Dome on the plains. With power and life support staged, the crew can finally come down from orbit.',
     done:()=>hasB('habitat'),reward:{credits:50},
-    orion:'Habitat pressurised. People can live here now, not merely survive. The distinction matters more than the engineering does.'},
+    orion:'First habitat sealed and pressurised. The crew is coming down from orbit — Mars stops being a worksite now and starts becoming a home.'},
   {id:'food',title:'Grow your own food',hint:'Build a Hydro Farm so the colony feeds itself instead of waiting on Earth resupply.',
     done:()=>hasB('greenhouse'),reward:{science:30},
     orion:'Hydroponics running. The sol a colony grows its own food is the sol it stops being an experiment and starts being a home.'},
@@ -1292,9 +1292,9 @@ function showIntro(replay){
   mc.innerHTML=`<div class="emoji">🛰️</div>
    <h2>PROJECT RED FRONTIER</h2>
    <div class="who"><b>You — Mission Systems Architect.</b> Earth handed you the keys to humanity’s first real foothold on another world. The hardware is down. Bringing it to life is on you.</div>
-   <p class="story">For three launch windows, robotic cargo missions have been landing ahead of you — burying water ice, staging supply caches, and printing the first landing pads across the plains. The colony was <i>prepared</i>. It was never <i>switched on</i>.</p>
+   <p class="story">For three launch windows, robotic cargo missions have been landing ahead of you — burying water ice, printing landing pads, and bringing a first solar array online. The site is <i>prepared</i>, but no one lives here yet. The crew is still in orbit, waiting on you.</p>
    <p class="story">Working beside you is <b style="color:var(--cyan)">ORION</b> — Orbital Reasoning &amp; Infrastructure Operations Network — the AI that runs operations when Earth is twenty light-minutes away. It will track your directives and speak up when it matters.</p>
-   <p class="story">Get the colony breathing, watered, fed and self-sufficient. This is Sol 1.</p>
+   <p class="story">Get water and air flowing, then build the first Habitat to bring the crew down. Make Mars breathe, feed itself, and stand on its own. This is Sol 1.</p>
    <div class="mbtns"><button class="btn" id="introGo">Begin Sol 1 ▸</button></div>`;
   $('#modal').classList.add('show');G.paused=true;
   for(const id of['sp1','sp2','sp3'])$('#'+id)?.classList.remove('on');$('#sp0')?.classList.add('on');
@@ -1310,7 +1310,7 @@ function showIntro(replay){
 const TUT=[
   {t:'Welcome to Mars, Commander 🚀',d:"Your mission: keep your colonists alive and grow the settlement. The long game is to terraform Mars — or evolve your civilization all the way to the stars. Here's a 30-second tour."},
   {sel:'#resbar',t:'① Your resources',d:'Up top you track Power, O₂, Water, Food, Materials, Science & Credits — plus population & morale. Watch the small per-sol numbers: keep them positive. A pulsing red chip means you are about to run out.'},
-  {sel:'#dock',t:'② Build facilities',d:'Pick a building down here, then click a tile on the planet. Some need specific terrain (the tooltip shows where). Begin with power (Solar) + a Habitat for housing, then an Oxygenator, Ice Extractor and Hydro Farm. Drag anywhere to spin the globe.'},
+  {sel:'#dock',t:'② Build facilities',d:'Pick a building down here, then click a tile on the planet. Some need specific terrain (the tooltip shows where). Your landers already staged power — get life support going with an Ice Extractor and Oxygenator, then build the first Habitat to bring the crew down. Drag anywhere to spin the globe.'},
   {sel:'#leftcol',t:'③ Manage your colony',d:'📊 overview & goals · 🎯 mission log (your current objective) · 🧪 research inventions · 🪐 evolution, colony ships & warp drive · 📦 Earth supply (needs a Spaceport) · ⛏️ demolish · ❔ help.'},
   {t:"You're ready! 🌅",d:'Keep everyone breathing, watered and fed — happy colonists grow faster and work harder. Build a Research Lab to unlock inventions, then choose your path: terraform the planet, or reach for the stars. Good luck, Commander!'},
 ];
@@ -1516,15 +1516,15 @@ function start(){
   initScene();buildResBar();bindTools();
   const loaded=load();
   if(!loaded){
-    // find a couple of flat plains tiles near the equator for the starter colony
-    let placed=0;
-    for(let gz=GRID/2-3;gz<GRID/2+3&&placed<2;gz++)for(let gx=0;gx<GRID&&placed<2;gx++){
+    // Robotic prep only: the cargo missions left a single Solar Array online.
+    // No crew shelter yet — the player builds the first Habitat to settle the crew.
+    for(let gz=GRID/2-3,placed=0;gz<GRID/2+3&&!placed;gz++)for(let gx=0;gx<GRID&&!placed;gx++){
       if(biomeAt(gx,gz)==='plains'&&tileSlope(gx,gz)<2&&!tileOccupied[idx(gx,gz)]){
-        placeBuilding(placed===0?'solar':'habitat',gx,gz);placed++;
+        placeBuilding('solar',gx,gz);placed=1;
       }
     }
     G.buildings.forEach(o=>{o.anim=1;o.mesh.scale.y=1;if(o.builder){scene.remove(o.builder);o.builder=null;}});
-    toast('Welcome, Commander. Build power & life support to grow your colony.','good');
+    toast('Robotic landers have prepped the site. Get life support online, then build the first Habitat to bring the crew down.','good');
   }
   // frame camera on the colony
   const aim=(G.buildings[0]?G.buildings[0].dir:gridToDir(0,GRID/2)).clone().normalize();
