@@ -2,41 +2,41 @@
 
 ## Use after
 
-Use this task only after PR #11, `Red Frontier — Campaign Spine v4: manifest recap and Mars handoff polish`, is merged into `main`.
+Use this task only after PR #12, `Red Frontier — Campaign Spine v5: activatable Habitat Shell`, is merged into `main`.
 
-If PR #11 is not merged, stop and report that PR #11 must be merged first.
+If PR #12 is not merged, stop and report that PR #12 must be merged first.
 
 Do not admin-merge the gating PR yourself unless Przemek explicitly asks you to do that.
 
-Expected v4 baseline:
+Expected v5 baseline:
 
-- Earth cargo manifest choice exists.
-- Hub shows selected kits and left-behind kit on the Mars card.
-- Earth has a read-only manifest recap after completion.
-- Mars receipt/ORION copy reflects omitted kits.
-- Mars still applies only selected kit effects.
+- Habitat Shell Kit creates an activatable Mars shell pallet.
+- Activating it arms a one-time first-Habitat benefit.
+- The first Habitat consumes/forfeits the shell either way.
+- Save/reload preserves shell state.
+- Mars standalone and no-kit flows still work.
 
 ## Branch
 
 Create a new branch from latest `main`:
 
-`feat/red-frontier-habitat-shell-v5`
+`feat/red-frontier-drone-pattern-v6`
 
 ## PR title
 
-`Red Frontier — Campaign Spine v5: activatable Habitat Shell`
+`Red Frontier — Campaign Spine v6: Mars drone pattern prototype`
 
 ## Goal
 
-Give the Earth cargo tradeoff one concrete Mars mechanic.
+Give the Construction Drone Pattern its first concrete Mars payoff.
 
-Today the Habitat Shell Kit mostly affects first-Habitat cost. This task should turn it into a visible, activatable Mars object that changes the first colony step.
+Today the Drone Pattern is mostly a crate/story promise. This task should turn it into a small Mars-side prototype: one visible drone core that can deploy one tiny helper job.
 
 Player feeling:
 
-> I chose Habitat Shell on Earth, and now Mars gives me an actual staged shelter component I can use.
+> Earth validated the drone pattern, and Mars can now wake one simple construction helper.
 
-Keep this to one mechanic. Do not add Mars robots yet.
+Keep this as one mechanic. No full robot economy yet.
 
 ## Target files
 
@@ -46,87 +46,97 @@ Likely changed:
 - `red-frontier-earth/index.html` only if kit text needs tiny copy alignment
 - `index.html` only if hub copy needs tiny wording
 
-Do not touch `shared/red-frontier-missions.js`.
+Do not touch `shared/red-frontier-missions.js` unless absolutely necessary.
 
 ## Scope
 
-### 1. Mars: replace/upgrade Habitat Shell discount into an activatable shell
+### 1. Mars: Drone Pattern Core becomes activatable
 
-If `rf_campaign_v1.cargo.habitatShellKit === true`, spawn a visible `Folded Habitat Shell` or `Habitat Shell Pallet` near the starter cargo cache.
+If `rf_campaign_v1.cargo.constructionDronePattern === true`, the existing Drone Pattern Core marker should be activatable.
 
-The shell should be interactable or otherwise clearly activatable through existing Mars UI patterns.
+Activation should wake or fabricate one small Mars construction helper.
 
-Activation should give a concrete benefit to the first Habitat.
+Keep it visually simple:
 
-Preferred implementation:
-
-- Player activates the Habitat Shell.
-- Activation consumes/marks the shell as used.
-- The first Habitat build receives the shell benefit.
-- Benefit should be simple and obvious:
-  - reduced first Habitat cost, or
-  - instant partial construction credit, or
-  - converts the shell marker into a Habitat if this is safe with the existing building system.
-
-Safest acceptable version:
-
-- Activating the shell sets `campaign.habitatShellActivated = true`.
-- First Habitat cost is reduced by a clear amount, e.g. `-40 materials`.
-- Once the first Habitat is built, set `campaign.habitatShellUsed = true`.
-- The shell marker changes visual state or disappears.
-
-If converting the shell directly into a working Habitat is safe, do it. If it risks breaking missions/save compatibility, use the activation + discount model.
-
-### 2. Mars: make activation readable
-
-Add clear feedback when the player activates the shell.
+- small rover/drone mesh,
+- cyan eye/light,
+- starts near the cargo cache or drone core,
+- clear ORION line on activation.
 
 Example ORION line:
 
-`Habitat shell unfolded. Not a home yet, but statistically better than dying outside.`
+`Construction pattern accepted. I have fabricated one helper drone. Try not to assign it philosophy.`
 
-UI/feedback should make it clear that:
+### 2. One authored helper job only
 
-- the shell came from Earth cargo,
-- it affects the first Habitat only,
-- it is one-time use.
+The helper drone should perform exactly one tiny job.
 
-### 3. Mars: save/reload state
+Preferred job:
 
-Persist all needed state in the Mars save payload.
+`stabilise-cargo-pad`
 
-Required flags, names can vary:
+Behavior:
 
-- `campaign.habitatShellActivated`
-- `campaign.habitatShellUsed`
+- Drone moves from the Drone Pattern Core to the cargo cache / nearby pad marker.
+- Works for about 2–4 seconds.
+- Leaves a small visible result, e.g. reinforced cargo pad, anchor posts, beacon ring, or compact foundation marker.
+- Grants a small one-time benefit, such as:
+  - +20 materials, or
+  - +10 credits and +10 materials, or
+  - improves cargo cache visual state only if avoiding balance changes is safer.
 
-Reload behavior:
+The job must complete once and not repeat on reload.
 
-- If shell was not activated, marker remains activatable.
-- If shell was activated but first Habitat not built, benefit remains available.
-- If shell was used, marker should not reactivate or duplicate benefit.
-- No bonus duplication on reload.
+### 3. Minimal job runner allowed, but no full system
 
-Existing old saves must load safely.
+You may implement a tiny local Mars job runner if needed.
 
-### 4. Mars: no Habitat Shell kit case
+Keep it smaller than the Earth robot system:
 
-If Habitat Shell Kit was not selected on Earth:
+- one active drone,
+- one job,
+- no queue UI,
+- no autonomy modes,
+- no multiple drones,
+- no job selection UI.
 
-- no activatable shell marker,
-- no first-Habitat shell benefit,
-- normal Habitat cost/flow,
-- optional dry ORION omitted-kit line from v4 remains enough.
+If copying a compact pattern from Earth is cleaner, do that locally in `mars-colony/index.html`.
 
-Do not add penalties.
+Do not move robot code into `shared/` in this iteration unless the implementation becomes dramatically simpler and remains low risk.
 
-### 5. Earth / hub copy alignment
+### 4. Save/reload state
+
+Persist drone state in the Mars save payload.
+
+Required behavior:
+
+- If Drone Pattern Kit was not selected: no drone core activation, no drone.
+- If selected but not activated: core remains activatable.
+- If activated but job not finished: either restore a safe activated state or complete conservatively without duplication. Prefer restoring if simple.
+- If job finished: result marker remains, benefit does not duplicate, core cannot reactivate.
+
+Suggested flags, names can vary:
+
+- `campaign.dronePatternActivated`
+- `campaign.droneHelperJobDone`
+
+No duplicate rewards on reload.
+
+### 5. No mission-chain dependency yet
+
+Do not alter the Mars mission chain.
+
+The helper drone is a cargo payoff, not a required objective.
+
+Mars must remain playable if the player ignores the drone core.
+
+### 6. Earth / hub copy alignment
 
 Only update copy if current kit descriptions are misleading.
 
 Suggested kit text:
 
-`Habitat Shell Kit — stages a fold-out shelter shell for the first Mars habitat.`
+`Construction Drone Pattern — fabricates one Mars helper drone for a cargo-pad stabilisation job.`
 
 Do not add new cargo choices.
 
@@ -134,63 +144,66 @@ Do not add new cargo choices.
 
 Do not add:
 
-- Mars construction drones,
-- robot job system on Mars,
-- cargo weights,
-- cargo economy,
+- multiple Mars drones,
+- robot queue UI,
+- autonomy modes,
+- reusable robot job economy,
 - new cargo kits,
 - cargo re-selection,
-- multiple Earth endings,
+- cargo weights,
 - factions,
 - Moon,
 - asteroids,
-- autonomy,
 - dialogue trees,
 - external assets,
 - build step.
 
 ## Acceptance criteria
 
-### Mars with Habitat Shell Kit selected
+### Mars with Construction Drone Pattern selected
 
-- Mars spawns a visible Habitat Shell marker/pallet.
-- Player can activate it or otherwise clearly use it.
-- Activation gives clear feedback.
-- First Habitat receives a one-time benefit.
-- Benefit cannot be duplicated.
-- Save/reload preserves shell state correctly before activation, after activation, and after use if practical.
+- Drone Pattern Core appears as before.
+- Player can activate it.
+- A visible helper drone appears/wakes.
+- Drone performs one small job.
+- Job leaves a visible completed result.
+- Any reward/benefit applies once only.
+- Save/reload does not duplicate drone, job result, or reward.
 - Mission tracker still works.
 
-### Mars without Habitat Shell Kit
+### Mars without Construction Drone Pattern
 
-- No shell marker appears.
-- First Habitat uses normal cost/flow.
+- No drone activation is available.
+- No helper drone appears.
 - Mars remains playable.
 
 ### Compatibility
 
 - Mars standalone with no Earth payload behaves normally.
 - Old Mars saves load safely.
-- Old all-kit Earth payload still enables the shell.
+- Old all-kit Earth payload enables the drone pattern.
+- Habitat Shell v5 behavior still works.
 - No console errors.
 
 ## Manual test checklist
 
 1. Clear Red Frontier localStorage keys.
-2. Complete Earth selecting Habitat Shell Kit.
+2. Complete Earth selecting Construction Drone Pattern.
 3. Launch Mars.
-4. Confirm shell marker appears.
-5. Activate shell.
-6. Confirm ORION/feedback line appears.
-7. Build first Habitat.
-8. Confirm shell benefit applies once.
-9. Save and reload before/after shell use if practical.
-10. Complete Earth omitting Habitat Shell Kit.
-11. Launch Mars.
-12. Confirm no shell marker and normal Habitat flow.
-13. Launch Mars standalone with no Earth payload.
-14. Confirm standalone behavior unchanged.
-15. Confirm no console errors.
+4. Confirm Drone Pattern Core can be activated.
+5. Activate it.
+6. Confirm helper drone appears.
+7. Confirm helper job runs and completes.
+8. Confirm visible job result remains.
+9. Confirm reward/benefit applies once.
+10. Save and reload before/after job completion if practical.
+11. Complete Earth omitting Construction Drone Pattern.
+12. Launch Mars.
+13. Confirm no drone activation/helper appears.
+14. Launch Mars standalone with no Earth payload.
+15. Confirm standalone behavior unchanged.
+16. Confirm Habitat Shell v5 still works if selected.
+17. Confirm no console errors.
 
 ## PR requirements
 
@@ -205,6 +218,6 @@ PR must include:
 
 ## Design rule
 
-One cargo kit, one real mechanic.
+One cargo kit, one helper action.
 
-Make Habitat Shell feel tangible before adding Mars robots or deeper cargo systems.
+Make the drone pattern tangible without turning Mars into a robot-management game yet.
