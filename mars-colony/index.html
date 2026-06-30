@@ -814,7 +814,16 @@ function makeBuildingMesh(key){
 /* ============================================================= *
  *  PLACEMENT                                                     *
  * ============================================================= */
-function effCost(b){const m=G.bonus.buildCost||1;const o={};for(const[k,v]of Object.entries(b.cost))o[k]=Math.ceil(v*m);return o;}
+function habitatDiscountActive(){return !!(G.campaign&&G.campaign.habitatShellReady&&!G.campaign.habitatDiscountUsed);}
+function effCost(b){
+  const m=G.bonus.buildCost||1;const o={};
+  for(const[k,v]of Object.entries(b.cost))o[k]=Math.ceil(v*m);
+  if(b===BUILDINGS.habitat&&habitatDiscountActive()){            // Earth habitat-shell kit: first dome is cheaper
+    if(o.materials!=null)o.materials=Math.max(0,o.materials-40);
+    if(o.credits!=null)o.credits=Math.max(0,o.credits-20);
+  }
+  return o;
+}
 function canAfford(cost){return Object.entries(cost).every(([k,v])=>G.res[k]>=v);}
 function spend(cost){for(const[k,v]of Object.entries(cost))G.res[k]-=v;}
 function biomeOK(key,gx,gz){const b=BUILDINGS[key];return !b.biomes||b.biomes.includes(biomeAt(gx,gz));}
@@ -822,7 +831,9 @@ function biomeOK(key,gx,gz){const b=BUILDINGS[key];return !b.biomes||b.biomes.in
 function placeBuilding(key,gx,gz){
   const b=BUILDINGS[key];const cost=effCost(b);
   if(!canAfford(cost)){toast("Not enough resources",'bad');return false;}
+  const usedHabitatShell=(b===BUILDINGS.habitat&&habitatDiscountActive());
   spend(cost);
+  if(usedHabitatShell){G.campaign.habitatDiscountUsed=true;toast('🏠 Habitat shell kit consumed — first dome assembled at reduced cost.','disc');buildDock();}
   const dir=gridToDir(gx,gz);const pos=dir.clone().multiplyScalar(R+heightAt(dir));
   const mesh=makeBuildingMesh(key);mesh.position.copy(pos);orientToNormal(mesh,dir);mesh.scale.y=0.01;
   scene.add(mesh);
@@ -1055,6 +1066,7 @@ function refreshDock(){
 function showBuildTip(e,key){
   const b=BUILDINGS[key];let rows='';
   if(b.cost)rows+=`<div class="row"><span>Cost</span><b>${Object.entries(effCost(b)).map(([k,v])=>v+' '+k).join(', ')}</b></div>`;
+  if(b===BUILDINGS.habitat&&habitatDiscountActive())rows+=`<div class="row"><span style="color:var(--cyan)">Cape Helios shell</span><b style="color:var(--cyan)">first dome −40 mat</b></div>`;
   if(b.power)rows+=`<div class="row"><span>Power</span><b>+${b.power.day??b.power.flat}${b.power.day!==undefined?' (sun)':''}</b></div>`;
   if(b.prod)for(const[k,v]of Object.entries(b.prod))rows+=`<div class="row"><span>${k}</span><b>+${v}/sol</b></div>`;
   if(b.use)for(const[k,v]of Object.entries(b.use))rows+=`<div class="row"><span>${k}</span><b>−${v}/sol</b></div>`;
@@ -1364,34 +1376,67 @@ function gameOver(won,kind){
 }
 
 /* ---------- save/load ---------- */
-/* ---------- Earth→Mars campaign continuity ---------- */
-let cargoCache=null;
-function spawnCargoCache(){
-  if(cargoCache)return;
+/* ---------- Earth→Mars campaign continuity (Spine v2: concrete cargo) ---------- */
+let cargoKitsSpawned=false, surveyTile=null;
+// nearest extractor-valid (polar/lowland) tile to the colony — where the survey pack flagged ice
+function findSurveyTile(){
+  const ref=G.buildings[0];const c=(ref?ref.dir.clone():gridToDir(0,GRID/2)).normalize();
+  let best=null,bestDot=-2;
+  for(let gz=0;gz<GRID;gz++)for(let gx=0;gx<GRID;gx++){
+    const bio=biomeAt(gx,gz);
+    if((bio==='polar'||bio==='lowland')&&!tileOccupied[idx(gx,gz)]&&tileSlope(gx,gz)<=3.2){
+      const d=gridToDir(gx,gz).dot(c); if(d>bestDot){bestDot=d;best={gx,gz};}
+    }
+  }
+  return best;
+}
+// Visible cargo-kit markers + survey marker. Runs every session so continuity persists across reloads.
+function spawnCargoKits(){
+  if(cargoKitsSpawned)return; cargoKitsSpawned=true;
   const ref=G.buildings[0];
-  let sdir,pos,t1;
-  if(ref){pos=ref.pos.clone();t1=ref.t1.clone();sdir=ref.dir.clone().normalize();}
-  else{sdir=gridToDir(0,GRID/2).normalize();pos=sdir.clone().multiplyScalar(R+heightAt(sdir));t1=tangentBasis(sdir).t1;}
-  let site=pos.clone().addScaledVector(t1,3.4);          // beside the starter array
-  const ndir=site.clone().normalize();site=ndir.clone().multiplyScalar(R+heightAt(ndir));
-  const g=new THREE.Group();g.position.copy(site);orientToNormal(g,ndir);
-  const crate=(w,h,d,c,x,y,z)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat(c,0.85,0.15));m.position.set(x,y,z);m.castShadow=m.receiveShadow=true;g.add(m);};
-  crate(1.6,1.1,1.6,0xb5753a,0,0.55,0);
-  crate(1.0,0.9,1.0,0x9a6230,1.35,0.45,0.3);
-  crate(0.8,0.7,0.8,0xc98a4a,-0.4,0.85,-1.1);
-  const mast=new THREE.Mesh(new THREE.CylinderGeometry(0.08,0.12,2.2,8),mat(0x8a929c,0.6,0.5));mast.position.set(-1.1,1.1,0.7);mast.castShadow=true;g.add(mast);
-  const lamp=new THREE.Mesh(new THREE.SphereGeometry(0.18,10,8),new THREE.MeshBasicMaterial({color:0x5fd0e6}));lamp.position.set(-1.1,2.3,0.7);g.add(lamp);
-  scene.add(g);cargoCache=g;
+  let pos,t1,t2,sdir;
+  if(ref){pos=ref.pos.clone();t1=ref.t1.clone();t2=ref.t2.clone();sdir=ref.dir.clone().normalize();}
+  else{sdir=gridToDir(0,GRID/2).normalize();pos=sdir.clone().multiplyScalar(R+heightAt(sdir));const tb=tangentBasis(sdir);t1=tb.t1;t2=tb.t2;}
+  const box=(g,w,h,d,c,x,y,z,em,ei)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat(c,0.85,0.15,em||0,ei||0.6));m.position.set(x,y,z);g.add(m);return m;};
+  const placeKit=(a,b,build)=>{                          // a/b = offsets along the two surface tangents
+    let site=pos.clone().addScaledVector(t1,a).addScaledVector(t2,b);
+    const nd=site.clone().normalize();site=nd.clone().multiplyScalar(R+heightAt(nd));
+    const g=new THREE.Group();g.position.copy(site);orientToNormal(g,nd);build(g);
+    g.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});scene.add(g);return g;
+  };
+  // Power Kit Crate — battery pallet
+  placeKit(3.3,-1.6,g=>{box(g,1.7,0.6,1.2,0x4a4a52,0,0.3,0);for(let i=0;i<3;i++)box(g,0.36,0.7,0.9,0xffc24d,(i-1)*0.47,0.9,0,0x553300,0.5);});
+  // Habitat Shell Crate — folded dome shell on a pallet
+  placeKit(3.7,1.3,g=>{box(g,2.0,0.5,1.6,0x7a4a30,0,0.25,0);const d=new THREE.Mesh(new THREE.SphereGeometry(0.9,16,10,0,Math.PI*2,0,Math.PI*0.5),glass(0xffb888,0x224466));d.scale.set(1,0.45,1);d.position.y=0.5;g.add(d);});
+  // Drone Pattern Core — crate with a glowing cyan core (future promise)
+  placeKit(1.1,2.7,g=>{box(g,1.2,1.0,1.2,0x33414e,0,0.5,0);const core=new THREE.Mesh(new THREE.IcosahedronGeometry(0.34,0),mat(0x0a2630,0.3,0.4,0x2f8fb0,1.3));core.position.y=1.15;g.add(core);});
+  // Survey Marker — at the flagged ice tile
+  surveyTile=findSurveyTile();
+  if(surveyTile){
+    const sd=gridToDir(surveyTile.gx,surveyTile.gz);const sp=sd.clone().multiplyScalar(R+heightAt(sd));
+    const g=new THREE.Group();g.position.copy(sp);orientToNormal(g,sd);
+    const ring=new THREE.Mesh(new THREE.RingGeometry(1.1,1.4,20),new THREE.MeshBasicMaterial({color:0x66c8ff,transparent:true,opacity:0.5,side:THREE.DoubleSide}));ring.rotation.x=-Math.PI/2;ring.position.y=0.06;g.add(ring);
+    const mast=new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.09,2.0,8),mat(0x8a929c,0.6,0.5));mast.position.y=1.0;g.add(mast);
+    const flag=new THREE.Mesh(new THREE.BoxGeometry(0.7,0.4,0.04),mat(0x66c8ff,0.5,0.3,0x224a66,0.7));flag.position.set(0.42,1.7,0);g.add(flag);
+    g.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});scene.add(g);
+  }
+  // survey pack improves the early water-objective hint (re-applied each session so reload keeps it)
+  if(surveyTile){const w=OBJECTIVES.find(o=>o.id==='water');if(w)w.hint='A Cape Helios survey marker flags a shallow ice seam — build the Ice Extractor on the marked tile.';}
 }
 function applyEarthCargo(){
-  spawnCargoCache();                            // visible continuity marker — every session
-  if(G.campaign.earthCargoApplied)return;       // bonus + ORION beat: once per Mars save
-  G.res.materials+=60;G.res.credits+=40;G.res.science+=20;G.res.water+=20;
+  spawnCargoKits();                             // visible markers + survey hint — every session
+  if(G.campaign.earthCargoApplied)return;       // itemized effects + receipt: once per Mars save
+  const c=(G.earthCargo&&G.earthCargo.cargo)||{};
+  if(c.powerKit)G.res.credits+=20;
+  if(c.waterSurvey)G.res.water+=20;
+  if(c.constructionDronePattern)G.res.science+=20;
+  if(c.habitatShellKit)G.campaign.habitatShellReady=true;   // arms the first-Habitat discount (consumed on build)
   G.campaign.earthCargoApplied=true;
   G.story.earthCargoReceived=true;              // fire-once story beat (persisted via the story save path)
-  updateResBar();
-  toast('📦 Cape Helios cargo received: +60 materials, +40 credits, +20 science, +20 water','disc');
-  setTimeout(()=>orion('Cape Helios cargo telemetry confirmed. Power kit, survey package, and construction-drone pattern arrived within acceptable damage margins. I will avoid sounding surprised.'),1600);
+  updateResBar();buildDock();                   // dock cost text reflects the habitat-shell discount
+  toast('📦 Cape Helios cargo unpacked — Power Kit · Water Survey · Habitat Shell · Drone Pattern','disc');
+  setTimeout(()=>orion('Cape Helios cargo telemetry confirmed — power kit, survey pack and a habitat shell are unpacked. The drone-pattern core is filed; once Mars has fabrication, we can print our own construction units. I will avoid sounding surprised.'),1400);
+  if(c.waterSurvey&&surveyTile)setTimeout(()=>orion('Survey pack mapped a shallow ice seam. Not magic. Just better homework — the marker is on your map.'),5400);
 }
 
 function save(){const data={res:G.res,pop:G.pop,morale:G.morale,colonies:G.colonies,tf:G.tf,sol:G.sol,todFrac:G.todFrac,techDone:G.techDone,milestones:G.milestones,interstellar:G.interstellar,mission:G.mission,story:G.story,campaign:G.campaign,buildings:G.buildings.map(o=>({key:o.key,gx:o.gx,gz:o.gz}))};
