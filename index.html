@@ -285,6 +285,16 @@
     .caption h3 { font-family: var(--font-display); font-weight: 700; font-size: 1.04rem; line-height: 1.12; letter-spacing: -0.01em; margin: 0; }
     .caption .genre { font-family: var(--font-mono); font-size: 0.66rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3); white-space: nowrap; flex-shrink: 0; padding-top: 0.22em; }
 
+    /* Red Frontier campaign recap — shown on the Mars card when an Earth manifest exists */
+    .cargo-status {
+      display: flex; flex-direction: column; gap: 0.12rem; margin-top: 0.45rem;
+      font-family: var(--font-mono); font-size: 0.62rem; letter-spacing: 0.03em; line-height: 1.4;
+    }
+    .cargo-status .cs-on  { color: var(--accent-ink); }
+    .cargo-status .cs-on::before  { content: "▸ "; }
+    .cargo-status .cs-off { color: var(--ink-3); }
+    .cargo-status .cs-off::before { content: "· "; }
+
     .title-card:hover .poster, .title-card:focus-visible .poster {
       transform: translateY(-4px);
       border-color: var(--accent);
@@ -510,6 +520,32 @@
         frag.appendChild(a);
       });
       programme.appendChild(frag);
+
+      /* ---- Red Frontier campaign recap on the Mars card ----
+         If the Earth prequel wrote a cargo manifest, surface the choice (and what
+         was left behind) on the Mars colony tile. No payload → card stays normal. */
+      var RF_KITS = [
+        { id: "powerKit",                 name: "Power Kit" },
+        { id: "waterSurvey",              name: "Water Survey" },
+        { id: "habitatShellKit",          name: "Habitat Shell" },
+        { id: "constructionDronePattern", name: "Drone Pattern" }
+      ];
+      try {
+        var rf = JSON.parse(localStorage.getItem("rf_campaign_v1"));
+        if (rf && rf.earthComplete && rf.cargo) {
+          var sel = RF_KITS.filter(function (k) { return rf.cargo[k.id]; }).map(function (k) { return k.name; });
+          var omit = RF_KITS.filter(function (k) { return !rf.cargo[k.id]; }).map(function (k) { return k.name; });
+          var marsCard = programme.querySelector('.title-card[href="./mars-colony/"]');
+          if (marsCard) {
+            var box = document.createElement("div");
+            box.className = "cargo-status";
+            box.innerHTML =
+              '<span class="cs-on">Earth cargo authorised: ' + esc(sel.join(" · ") || "none") + '</span>' +
+              (omit.length ? '<span class="cs-off">Left behind: ' + esc(omit.join(" · ")) + '</span>' : '');
+            marsCard.appendChild(box);
+          }
+        }
+      } catch (e) { /* no/garbled payload — leave the card untouched */ }
 
       /* ---- Marquee ---- */
       var flagships = GAMES.filter(function (g) { return g.flagship; });

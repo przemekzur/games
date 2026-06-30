@@ -1450,6 +1450,9 @@ function applyEarthCargo(){
   setTimeout(()=>orion(`Cape Helios cargo telemetry confirmed — ${bits.length?bits.join(', ')+' unpacked':'a sparse manifest'}, within damage margins. I will avoid sounding surprised.`),1400);
   if(c.constructionDronePattern)setTimeout(()=>orion('The drone-pattern core is intact and filed. Once Mars has fabrication, we can print our own construction units.'),5400);
   if(c.waterSurvey&&surveyTile)setTimeout(()=>orion('Survey pack mapped a shallow ice seam. Not magic. Just better homework — the marker is on your map.'),9000);
+  // dry note for whatever was left behind on Earth — no penalty beyond the missing effect
+  const gap=[c.powerKit?null:'Power Kit',c.waterSurvey?null:'Water Survey Kit',c.habitatShellKit?null:'Habitat Shell Kit',c.constructionDronePattern?null:'Drone Pattern'].filter(Boolean);
+  if(gap.length)setTimeout(()=>orion(`Manifest gap noted: ${gap.join(', ')} absent. I will pretend this was a strategic decision.`),12600);
 }
 
 function save(){const data={res:G.res,pop:G.pop,morale:G.morale,colonies:G.colonies,tf:G.tf,sol:G.sol,todFrac:G.todFrac,techDone:G.techDone,milestones:G.milestones,interstellar:G.interstellar,mission:G.mission,story:G.story,campaign:G.campaign,buildings:G.buildings.map(o=>({key:o.key,gx:o.gx,gz:o.gz}))};

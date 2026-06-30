@@ -748,28 +748,54 @@ function updateHUD(){
 
 /* ---------- modals ---------- */
 function showIntro(){
+  const prior=priorManifest();
+  const priorNote=prior?`<p class="story" style="color:var(--cyan);font-size:12px">A previous run already authorised a Mars cargo manifest. Review it below, or replay the yard to authorise a new one.</p>`:'';
+  const recapBtn=prior?`<button class="btn cy" id="introRecap">Review authorised cargo</button>`:'';
   $('#mcard').innerHTML=`<div class="emoji">🛰️</div><h2>CAPE HELIOS</h2>
    <div class="who"><b>Earth — Project Red Frontier, before Mars.</b> You are the engineer sent to recommission an abandoned launch yard. Nothing flies until this place works again.</div>
    <p class="story">The floodlights are dark. The solar field is dead. Somewhere in the control shack, an old operations AI sits dormant, waiting for a trickle of power. Wake it, scavenge what you can, restore the grid, and authorise the first robotic cargo program bound for Mars.</p>
    <p class="story" style="color:var(--muted);font-size:12px">Move with <b style="color:var(--ink)">WASD</b>, look with <b style="color:var(--ink)">mouse-drag</b>, and press <b style="color:var(--ink)">E</b> to interact when a marker glows.</p>
-   <div class="mbtns"><button class="btn go" id="introGo">Step onto the yard ▸</button></div>`;
+   ${priorNote}
+   <div class="mbtns"><button class="btn go" id="introGo">Step onto the yard ▸</button>${recapBtn}</div>`;
   $('#modal').classList.add('show');
   $('#introGo').onclick=()=>{$('#modal').classList.remove('show');G.started=true;
     setTimeout(()=>sys('Cape Helios: perimeter clear. Head to the control terminal and wake ORION.'),500);};
+  if(prior)$('#introRecap').onclick=()=>showManifestRecap();
 }
 function showComplete(cargo){
   cargo=cargo||{};
   const picked=KITS.filter(k=>cargo[k.id]);
+  const left=KITS.filter(k=>!cargo[k.id]);
   const list=picked.map(k=>`${k.emoji} ${k.name}`).join(' &nbsp;·&nbsp; ')||'(empty manifest)';
+  const leftLine=left.length?`<p class="story" style="color:var(--muted);font-size:12px">Left behind at Cape Helios: <b style="color:var(--ink)">${left.map(k=>`${k.emoji} ${k.name}`).join(' · ')}</b>.</p>`:'';
   $('#mcard').innerHTML=`<div class="emoji">🚀</div><h2>CARGO PROGRAM AUTHORISED</h2>
    <p class="story">Cape Helios is alive again — grid restored, fabrication bay running, drone pattern validated. A <b>limited</b> Mars cargo package (<b>${picked.length} of 4</b> kits) is authorised for the next launch window:</p>
    <div class="who" style="border-left-color:var(--cyan)">${list}</div>
+   ${leftLine}
    <p class="story">It will land on Mars and prepare the site before the first crew arrives — and Mars will remember exactly what you chose to send.</p>
    <div class="who" style="border-left-color:var(--cyan)">ORION: "Manifest locked — we could not send everything. Mars will work with what we chose. The next time we speak, it may be across twenty light-minutes of vacuum."</div>
    <div class="tbc">Continue in Part II — Red Frontier: Mars Colony</div>
    <div class="mbtns"><a class="btn" href="../mars-colony/">Play the Mars colony →</a><button class="btn cy" id="again">Replay the yard</button></div>`;
   $('#modal').classList.add('show');
   $('#again').onclick=()=>location.reload();
+}
+// The last authorised manifest, if a prior run completed the prequel (read-only recap source).
+function priorManifest(){try{const p=JSON.parse(localStorage.getItem('rf_campaign_v1'));return(p&&p.earthComplete&&p.cargo)?p.cargo:null;}catch(e){return null;}}
+// Review-only recap of the last authorised manifest (no re-pick). Reachable from the intro on reload.
+function showManifestRecap(){
+  const cargo=priorManifest();if(!cargo){showIntro();return;}
+  const picked=KITS.filter(k=>cargo[k.id]);
+  const left=KITS.filter(k=>!cargo[k.id]);
+  const pl=picked.map(k=>`${k.emoji} ${k.name}`).join(' &nbsp;·&nbsp; ')||'(empty manifest)';
+  const leftLine=left.length?`<p class="story" style="color:var(--muted);font-size:12px">Left behind at Cape Helios: <b style="color:var(--ink)">${left.map(k=>`${k.emoji} ${k.name}`).join(' · ')}</b>.</p>`:'';
+  $('#mcard').innerHTML=`<div class="emoji">📦</div><h2>AUTHORISED MANIFEST</h2>
+   <p class="story">The last Mars cargo program you authorised (<b>${picked.length} of 4</b> kits):</p>
+   <div class="who" style="border-left-color:var(--cyan)">${pl}</div>
+   ${leftLine}
+   <div class="tbc">Manifest locked — Mars reads it on arrival</div>
+   <div class="mbtns"><a class="btn" href="../mars-colony/">Play the Mars colony →</a><button class="btn cy" id="recapBack">Back</button></div>`;
+  $('#modal').classList.add('show');
+  $('#recapBack').onclick=()=>showIntro();
 }
 
 /* ---------- audio ---------- */
