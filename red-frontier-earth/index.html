@@ -160,7 +160,7 @@ const G={
   started:false, over:false,
   // mission flags (mission `done` predicates read these)
   orionAwake:false, inverterRepaired:false, batteryConnected:false, cratesLooted:0,
-  powerOn:false, workshopOnline:false, droneDeployed:false, authorised:false,
+  powerOn:false, workshopOnline:false, droneDeployed:false, foundationPrinted:false, authorised:false,
   droneState:'none', droneProgress:0, droneT:0,   // scripted drone task
 };
 const CRATE_COUNT=3;
@@ -184,9 +184,9 @@ const MISSIONS=[
     intro:'Power holds. The fabrication bay is next — bring it online and we can actually build something.',
     done:g=>g.workshopOnline},
   {id:'drone', title:'Deploy first construction drone',
-    hint:'Spend salvage at the drone bay to wake a dormant construction unit and let it print a foundation.',
-    intro:'There is a construction unit dormant in the bay. We have the power and tooling to wake it now — deploy it and let it prove it can build.',
-    done:g=>g.droneDeployed},
+    hint:'Deploy the dormant construction unit at the bay and let it print the first cargo foundation.',
+    intro:'There is a construction unit dormant in the bay. We have the power and tooling to wake it now — deploy it and let it finish printing a foundation before we commit to anything.',
+    done:g=>g.foundationPrinted},
   {id:'auth', title:'Authorise robotic cargo program',
     hint:'Return to the ORION terminal and authorise the Mars cargo program.',
     intro:'Everything is nominal — power, tooling, and a working pair of hands. Return to my terminal and authorise the robotic cargo program. After that… Mars.',
@@ -604,7 +604,7 @@ function deployDrone(bay){
   G.droneState='moving';G.droneProgress=0;G.droneT=0;
   sys('Construction drone deployed. Routing to print site…');beep(620,0.12);
   orion('Construction unit online. It has one arm, half a navigation stack, and more discipline than most launch committees. Good enough.');
-  checkMissions();                                    // completes M05 → next objective is authorise
+  updateHUD();                                        // M05 completes later, when the foundation is printed
 }
 function finishConstruction(){
   G.droneState='done';
@@ -615,8 +615,10 @@ function finishConstruction(){
   scene.add(slab);
   if(foundationMarker)foundationMarker.material.opacity=0;
   $('#droneprog').classList.remove('show');beep(520,0.16);
-  sys('Foundation printed. Cargo pad marker set.');
+  G.foundationPrinted=true;                            // NOW M05 completes (gates authorisation)
+  sys('Foundation printed. Cargo pad marker set. Construction pattern validated.');
   orion('Foundation down — level, anchored, ours. Crude work, but it is the first thing built on this site by something other than human hands. Mars will need that pattern.');
+  checkMissions();                                     // M05 → M06 Authorise robotic cargo program
 }
 
 /* ---------- HUD ---------- */
