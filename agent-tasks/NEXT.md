@@ -2,156 +2,195 @@
 
 ## Use after
 
-Use this task only after PR #10, `Red Frontier — Campaign Spine v3: Earth cargo manifest choice`, is merged into `main`.
+Use this task only after PR #11, `Red Frontier — Campaign Spine v4: manifest recap and Mars handoff polish`, is merged into `main`.
 
-If PR #10 is not merged, stop and report that PR #10 must be merged first.
+If PR #11 is not merged, stop and report that PR #11 must be merged first.
 
 Do not admin-merge the gating PR yourself unless Przemek explicitly asks you to do that.
 
-Expected v3 baseline:
+Expected v4 baseline:
 
-- Earth shows a cargo manifest before final authorisation.
-- Player chooses exactly 3 of 4 cargo kits.
-- Earth writes selected kits into `rf_campaign_v1.cargo`.
-- Mars applies only selected kit effects.
-- Mars standalone still works.
+- Earth cargo manifest choice exists.
+- Hub shows selected kits and left-behind kit on the Mars card.
+- Earth has a read-only manifest recap after completion.
+- Mars receipt/ORION copy reflects omitted kits.
+- Mars still applies only selected kit effects.
 
 ## Branch
 
 Create a new branch from latest `main`:
 
-`feat/red-frontier-manifest-recap-v4`
+`feat/red-frontier-habitat-shell-v5`
 
 ## PR title
 
-`Red Frontier — Campaign Spine v4: manifest recap and Mars handoff polish`
+`Red Frontier — Campaign Spine v5: activatable Habitat Shell`
 
 ## Goal
 
-Make the Earth cargo choice visible across the handoff.
+Give the Earth cargo tradeoff one concrete Mars mechanic.
 
-Today the manifest choice works mechanically. This task should make the player understand what they chose, what they left behind, and what Mars will receive.
+Today the Habitat Shell Kit mostly affects first-Habitat cost. This task should turn it into a visible, activatable Mars object that changes the first colony step.
 
 Player feeling:
 
-> I made a tradeoff on Earth, and the game remembers that tradeoff before Mars begins.
+> I chose Habitat Shell on Earth, and now Mars gives me an actual staged shelter component I can use.
+
+Keep this to one mechanic. Do not add Mars robots yet.
 
 ## Target files
 
 Likely changed:
 
-- `index.html`
-- `red-frontier-earth/index.html`
-- `mars-colony/index.html` only for small copy/recap polish if needed
+- `mars-colony/index.html`
+- `red-frontier-earth/index.html` only if kit text needs tiny copy alignment
+- `index.html` only if hub copy needs tiny wording
 
 Do not touch `shared/red-frontier-missions.js`.
 
 ## Scope
 
-### 1. Hub: surface selected manifest on the Mars card
+### 1. Mars: replace/upgrade Habitat Shell discount into an activatable shell
 
-If `rf_campaign_v1` exists and contains cargo choices, the hub should show a compact status on the Red Frontier Mars card.
+If `rf_campaign_v1.cargo.habitatShellKit === true`, spawn a visible `Folded Habitat Shell` or `Habitat Shell Pallet` near the starter cargo cache.
 
-Example:
+The shell should be interactable or otherwise clearly activatable through existing Mars UI patterns.
 
-`Earth cargo authorised: Power Kit · Habitat Shell · Drone Pattern`
+Activation should give a concrete benefit to the first Habitat.
 
-Also show a small line for the missing kit:
+Preferred implementation:
 
-`Left behind: Water Survey Kit`
+- Player activates the Habitat Shell.
+- Activation consumes/marks the shell as used.
+- The first Habitat build receives the shell benefit.
+- Benefit should be simple and obvious:
+  - reduced first Habitat cost, or
+  - instant partial construction credit, or
+  - converts the shell marker into a Habitat if this is safe with the existing building system.
 
-Keep it short. Do not build a campaign launcher.
+Safest acceptable version:
 
-If no Earth payload exists, hub behavior should remain normal.
+- Activating the shell sets `campaign.habitatShellActivated = true`.
+- First Habitat cost is reduced by a clear amount, e.g. `-40 materials`.
+- Once the first Habitat is built, set `campaign.habitatShellUsed = true`.
+- The shell marker changes visual state or disappears.
 
-### 2. Earth: final modal should show selected and omitted kits
+If converting the shell directly into a working Habitat is safe, do it. If it risks breaking missions/save compatibility, use the activation + discount model.
 
-Earth completion modal already lists selected kits. Add or polish one short line showing what was left behind.
+### 2. Mars: make activation readable
 
-Example:
+Add clear feedback when the player activates the shell.
 
-`Left behind at Cape Helios: Water Survey Kit.`
+Example ORION line:
 
-If all four kits are present from an old payload or debug path, handle it gracefully.
+`Habitat shell unfolded. Not a home yet, but statistically better than dying outside.`
 
-### 3. Earth: add a small manifest replay affordance after completion
+UI/feedback should make it clear that:
 
-Add a simple way to review the last authorised manifest from the Earth page after completion.
+- the shell came from Earth cargo,
+- it affects the first Habitat only,
+- it is one-time use.
 
-Preferred small solution:
+### 3. Mars: save/reload state
 
-- On reload, if `rf_campaign_v1` exists, the intro or terminal can mention the previous manifest.
-- Or add a small button near the final/terminal state: `Review authorised cargo`.
+Persist all needed state in the Mars save payload.
 
-Keep it tiny. No edit/re-pick after completion in this task.
+Required flags, names can vary:
 
-### 4. Mars: polish intro/receipt copy for omitted kits
+- `campaign.habitatShellActivated`
+- `campaign.habitatShellUsed`
 
-When Mars detects Earth cargo, it should list received kits only.
+Reload behavior:
 
-Add one dry ORION line or receipt note for omitted kits if easy:
+- If shell was not activated, marker remains activatable.
+- If shell was activated but first Habitat not built, benefit remains available.
+- If shell was used, marker should not reactivate or duplicate benefit.
+- No bonus duplication on reload.
 
-`Manifest gap noted: Water Survey Kit absent. I will pretend this was a strategic decision.`
+Existing old saves must load safely.
 
-Do not add missing-kit penalties beyond simply not applying that kit effect.
+### 4. Mars: no Habitat Shell kit case
+
+If Habitat Shell Kit was not selected on Earth:
+
+- no activatable shell marker,
+- no first-Habitat shell benefit,
+- normal Habitat cost/flow,
+- optional dry ORION omitted-kit line from v4 remains enough.
+
+Do not add penalties.
+
+### 5. Earth / hub copy alignment
+
+Only update copy if current kit descriptions are misleading.
+
+Suggested kit text:
+
+`Habitat Shell Kit — stages a fold-out shelter shell for the first Mars habitat.`
+
+Do not add new cargo choices.
 
 ## Hard no
 
 Do not add:
 
-- cargo re-selection,
+- Mars construction drones,
+- robot job system on Mars,
 - cargo weights,
 - cargo economy,
 - new cargo kits,
-- Mars robots,
-- activatable Habitat shell yet,
-- autonomy,
+- cargo re-selection,
+- multiple Earth endings,
+- factions,
 - Moon,
 - asteroids,
-- factions,
+- autonomy,
 - dialogue trees,
 - external assets,
 - build step.
 
 ## Acceptance criteria
 
-### Hub
+### Mars with Habitat Shell Kit selected
 
-- With selected cargo payload, Mars card shows selected kits.
-- Hub also shows omitted kit if one exists.
-- With no Earth payload, hub remains normal.
-- Both Red Frontier cards still launch.
+- Mars spawns a visible Habitat Shell marker/pallet.
+- Player can activate it or otherwise clearly use it.
+- Activation gives clear feedback.
+- First Habitat receives a one-time benefit.
+- Benefit cannot be duplicated.
+- Save/reload preserves shell state correctly before activation, after activation, and after use if practical.
+- Mission tracker still works.
 
-### Earth
+### Mars without Habitat Shell Kit
 
-- Completion modal lists selected kits.
-- Completion modal or review path shows omitted kit.
-- Existing Earth mission flow still works.
-- `rf_campaign_v1` still writes correctly.
+- No shell marker appears.
+- First Habitat uses normal cost/flow.
+- Mars remains playable.
 
-### Mars
+### Compatibility
 
-- Mars still applies only selected kit effects.
-- Mars receipt/intro remains accurate.
-- Omitted kit is not applied or spawned.
-- Save/reload does not duplicate effects or ORION lines.
-- Standalone Mars remains unchanged.
+- Mars standalone with no Earth payload behaves normally.
+- Old Mars saves load safely.
+- Old all-kit Earth payload still enables the shell.
+- No console errors.
 
 ## Manual test checklist
 
 1. Clear Red Frontier localStorage keys.
-2. Complete Earth with one kit omitted.
-3. Confirm final modal lists selected kits and omitted kit.
-4. Return to hub.
-5. Confirm Mars card shows selected kits and omitted kit.
-6. Launch Mars.
-7. Confirm Mars receipt/intro matches selected kits.
-8. Confirm omitted kit effect does not appear.
-9. Save and reload Mars.
-10. Confirm no duplicate cargo effects.
-11. Clear Earth payload.
-12. Confirm hub and Mars standalone behave normally.
-13. Confirm no console errors.
+2. Complete Earth selecting Habitat Shell Kit.
+3. Launch Mars.
+4. Confirm shell marker appears.
+5. Activate shell.
+6. Confirm ORION/feedback line appears.
+7. Build first Habitat.
+8. Confirm shell benefit applies once.
+9. Save and reload before/after shell use if practical.
+10. Complete Earth omitting Habitat Shell Kit.
+11. Launch Mars.
+12. Confirm no shell marker and normal Habitat flow.
+13. Launch Mars standalone with no Earth payload.
+14. Confirm standalone behavior unchanged.
+15. Confirm no console errors.
 
 ## PR requirements
 
@@ -166,6 +205,6 @@ PR must include:
 
 ## Design rule
 
-This is handoff polish, not a new system.
+One cargo kit, one real mechanic.
 
-Make the choice readable before adding more Mars mechanics.
+Make Habitat Shell feel tangible before adding Mars robots or deeper cargo systems.
