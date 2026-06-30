@@ -423,6 +423,7 @@ const G = {
   milestones:{},
   mission:{idx:0},       // campaign objective chain progress
   story:{},              // fired ORION story-beat flags
+  campaign:{},           // cross-episode flags (e.g. earthCargoApplied)
 };
 
 /* ============================================================= *
@@ -1290,6 +1291,7 @@ function showIntro(replay){
    <h2>PROJECT RED FRONTIER</h2>
    <div class="who"><b>You — Mission Systems Architect.</b> Earth handed you the keys to humanity’s first real foothold on another world. The hardware is down. Bringing it to life is on you.</div>
    <p class="story">For three launch windows, robotic cargo missions have been landing ahead of you — burying water ice, printing landing pads, and bringing a first solar array online. The site is <i>prepared</i>, but no one lives here yet. The crew is still in orbit, waiting on you.</p>
+   ${G.earthCargo?`<div class="who" style="border-left-color:var(--cyan)">Telemetry from <b>Cape Helios</b>: the robotic cargo package you authorised on Earth — power kit, water-survey kit, construction-drone pattern, habitat shell kit — has touched down beside the array.</div>`:''}
    <p class="story">Working beside you is <b style="color:var(--cyan)">ORION</b> — Orbital Reasoning &amp; Infrastructure Operations Network — the AI that runs operations when Earth is twenty light-minutes away. It will track your directives and speak up when it matters.</p>
    <p class="story">Get water and air flowing, then build the first Habitat to bring the crew down. Make Mars breathe, feed itself, and stand on its own. This is Sol 1.</p>
    <div class="mbtns"><button class="btn" id="introGo">Begin Sol 1 ▸</button></div>`;
@@ -1362,14 +1364,44 @@ function gameOver(won,kind){
 }
 
 /* ---------- save/load ---------- */
-function save(){const data={res:G.res,pop:G.pop,morale:G.morale,colonies:G.colonies,tf:G.tf,sol:G.sol,todFrac:G.todFrac,techDone:G.techDone,milestones:G.milestones,interstellar:G.interstellar,mission:G.mission,story:G.story,buildings:G.buildings.map(o=>({key:o.key,gx:o.gx,gz:o.gz}))};
+/* ---------- Earth→Mars campaign continuity ---------- */
+let cargoCache=null;
+function spawnCargoCache(){
+  if(cargoCache)return;
+  const ref=G.buildings[0];
+  let sdir,pos,t1;
+  if(ref){pos=ref.pos.clone();t1=ref.t1.clone();sdir=ref.dir.clone().normalize();}
+  else{sdir=gridToDir(0,GRID/2).normalize();pos=sdir.clone().multiplyScalar(R+heightAt(sdir));t1=tangentBasis(sdir).t1;}
+  let site=pos.clone().addScaledVector(t1,3.4);          // beside the starter array
+  const ndir=site.clone().normalize();site=ndir.clone().multiplyScalar(R+heightAt(ndir));
+  const g=new THREE.Group();g.position.copy(site);orientToNormal(g,ndir);
+  const crate=(w,h,d,c,x,y,z)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat(c,0.85,0.15));m.position.set(x,y,z);m.castShadow=m.receiveShadow=true;g.add(m);};
+  crate(1.6,1.1,1.6,0xb5753a,0,0.55,0);
+  crate(1.0,0.9,1.0,0x9a6230,1.35,0.45,0.3);
+  crate(0.8,0.7,0.8,0xc98a4a,-0.4,0.85,-1.1);
+  const mast=new THREE.Mesh(new THREE.CylinderGeometry(0.08,0.12,2.2,8),mat(0x8a929c,0.6,0.5));mast.position.set(-1.1,1.1,0.7);mast.castShadow=true;g.add(mast);
+  const lamp=new THREE.Mesh(new THREE.SphereGeometry(0.18,10,8),new THREE.MeshBasicMaterial({color:0x5fd0e6}));lamp.position.set(-1.1,2.3,0.7);g.add(lamp);
+  scene.add(g);cargoCache=g;
+}
+function applyEarthCargo(){
+  spawnCargoCache();                            // visible continuity marker — every session
+  if(G.campaign.earthCargoApplied)return;       // bonus + ORION beat: once per Mars save
+  G.res.materials+=60;G.res.credits+=40;G.res.science+=20;G.res.water+=20;
+  G.campaign.earthCargoApplied=true;
+  G.story.earthCargoReceived=true;              // fire-once story beat (persisted via the story save path)
+  updateResBar();
+  toast('📦 Cape Helios cargo received: +60 materials, +40 credits, +20 science, +20 water','disc');
+  setTimeout(()=>orion('Cape Helios cargo telemetry confirmed. Power kit, survey package, and construction-drone pattern arrived within acceptable damage margins. I will avoid sounding surprised.'),1600);
+}
+
+function save(){const data={res:G.res,pop:G.pop,morale:G.morale,colonies:G.colonies,tf:G.tf,sol:G.sol,todFrac:G.todFrac,techDone:G.techDone,milestones:G.milestones,interstellar:G.interstellar,mission:G.mission,story:G.story,campaign:G.campaign,buildings:G.buildings.map(o=>({key:o.key,gx:o.gx,gz:o.gz}))};
   localStorage.setItem(SAVE_KEY,JSON.stringify(data));toast('💾 Colony saved','good');}
 function load(){
   try{const d=JSON.parse(localStorage.getItem(SAVE_KEY));if(!d)return false;
     Object.assign(G.res,d.res);G.pop=d.pop;G.morale=d.morale??62;G.colonies=d.colonies||0;Object.assign(G.tf,d.tf);
     G.sol=d.sol;G.todFrac=d.todFrac;G.techDone=d.techDone||{};G.milestones=d.milestones||{};G.interstellar=d.interstellar||false;
     // campaign state — safe defaults so older saves (pre-Iteration-1) still load
-    G.mission=(d.mission&&typeof d.mission.idx==='number')?d.mission:{idx:0};G.story=d.story||{};
+    G.mission=(d.mission&&typeof d.mission.idx==='number')?d.mission:{idx:0};G.story=d.story||{};G.campaign=d.campaign||{};
     for(const b of d.buildings){if(!inGrid(b.gx,b.gz))continue;
       const dir=gridToDir(b.gx,b.gz).normalize();const pos=dir.clone().multiplyScalar(R+heightAt(dir));
       const mesh=makeBuildingMesh(b.key);mesh.position.copy(pos);orientToNormal(mesh,dir);scene.add(mesh);
@@ -1512,6 +1544,9 @@ function boot(){let pct=0;const lbar=$('#lbar');const iv=setInterval(()=>{pct=Ma
 function start(){
   initScene();buildResBar();bindTools();
   const loaded=load();
+  // Campaign spine: detect an authorised Earth cargo package (optional; Mars stays standalone without it)
+  let ep=null;try{ep=JSON.parse(localStorage.getItem('rf_campaign_v1'));}catch(e){}
+  G.earthCargo=(ep&&ep.earthComplete)?ep:null;
   if(!loaded){
     // Robotic prep only: the cargo missions left a single Solar Array online.
     // No crew shelter yet — the player builds the first Habitat to settle the crew.
@@ -1528,6 +1563,7 @@ function start(){
   cam.phi=Math.acos(THREE.MathUtils.clamp(aim.y,-1,1));cam.theta=Math.atan2(aim.z,aim.x);updateCamera();
   buildDock();computeRates();updateResBar();
   reconcileCampaignSilent(); // sync objectives/story to the current colony (starter buildings or loaded save) silently
+  if(G.earthCargo)applyEarthCargo(); // Earth→Mars continuity: cache marker (always) + one-time bonus & ORION beat
   setTimeout(()=>{const l=$('#loader');l.style.opacity=0;setTimeout(()=>l.remove(),600);$('#hud').style.display='flex';$('#leftcol').style.display='flex';$('#mtrack').classList.add('show');},250);
   setInterval(()=>{if(!G.over){updateResBar();refreshDock();updateCampaign();if(sidePanel==='info')renderInfo();}},400);
   animate();
