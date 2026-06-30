@@ -255,6 +255,7 @@
 
 <script type="module">
 import * as THREE from 'three';
+import { getCurrentMission, isComplete, advanceCompletedMissions, reconcileMissionState, missionRows, fireStoryBeats } from '../shared/red-frontier-missions.js';
 
 /* ============================================================= *
  *  RED FRONTIER — 3D Mars colonization strategy (single file)    *
@@ -1249,39 +1250,35 @@ const STORY=[
 function applyReward(r){if(r)for(const[k,v]of Object.entries(r))G.res[k]=(G.res[k]||0)+v;}
 function updateTracker(){
   const t=$('#mtrackTitle'),p=$('#mtrackProg'),box=$('#mtrack');if(!t||!box)return;
-  const n=OBJECTIVES.length,i=G.mission.idx;
-  if(i>=n){box.querySelector('.mt-ic').textContent='✓';t.textContent='All initial directives complete';p.textContent=`${n}/${n}`;}
-  else{box.querySelector('.mt-ic').textContent='◷';t.textContent=OBJECTIVES[i].title;p.textContent=`${i}/${n}`;}
+  const n=OBJECTIVES.length;
+  if(isComplete(OBJECTIVES,G.mission)){box.querySelector('.mt-ic').textContent='✓';t.textContent='All initial directives complete';p.textContent=`${n}/${n}`;}
+  else{box.querySelector('.mt-ic').textContent='◷';t.textContent=getCurrentMission(OBJECTIVES,G.mission).title;p.textContent=`${G.mission.idx}/${n}`;}
 }
 // advance past objectives & seed story flags WITHOUT messages/rewards (used on load of an existing colony)
 function reconcileCampaignSilent(){
-  while(G.mission.idx<OBJECTIVES.length&&OBJECTIVES[G.mission.idx].done())G.mission.idx++;
-  for(const s of STORY)if(s.when())G.story[s.id]=true;
+  reconcileMissionState(OBJECTIVES,G.mission,G);
+  fireStoryBeats(STORY,G.story,G,null,false); // seed already-true beats silently
   updateTracker();
 }
 // live progression — called from the periodic UI tick (runs whether or not the sim is paused)
 function updateCampaign(){
-  if(!G.mission)return;let advanced=false;
-  while(G.mission.idx<OBJECTIVES.length&&OBJECTIVES[G.mission.idx].done()){
-    const o=OBJECTIVES[G.mission.idx];applyReward(o.reward);
-    toast(`🎯 Objective complete — ${o.title}`,'good');beep(820,0.12);
-    if(o.orion)orion(o.orion);
-    G.mission.idx++;advanced=true;
-    if(G.mission.idx>=OBJECTIVES.length)setTimeout(()=>orion('All initial directives are complete. The mission is yours to define now, Architect — make this planet breathable, or make it a launch point for the rest of the system.'),1400);
-  }
-  for(const s of STORY){if(!G.story[s.id]&&s.when()){G.story[s.id]=true;orion(s.line);}}
-  if(advanced)updateTracker();
+  if(!G.mission)return;
+  advanceCompletedMissions(OBJECTIVES,G.mission,G,{
+    onComplete:(m)=>{ if(m.reward)applyReward(m.reward); toast(`🎯 Objective complete — ${m.title}`,'good'); beep(820,0.12); if(m.orion)orion(m.orion); },
+    onAllComplete:()=>setTimeout(()=>orion('All initial directives are complete. The mission is yours to define now, Architect — make this planet breathable, or make it a launch point for the rest of the system.'),1400),
+    onAdvance:()=>updateTracker(),
+  });
+  fireStoryBeats(STORY,G.story,G,(b)=>orion(b.line));
   if(sidePanel==='missions')renderMissions();
 }
 function renderMissions(){
   let html=`<h3>🎯 Mission Log <span class="close" id="sclose">✕</span></h3>
   <p class="sub">Project Red Frontier · Sol ${G.sol}. Directives relayed by ORION.</p>`;
-  OBJECTIVES.forEach((o,i)=>{
-    const done=i<G.mission.idx,active=i===G.mission.idx;
-    html+=`<div class="mlog ${done?'done':active?'active':''}"><div class="mdot">${done?'✓':active?'▸':(i+1)}</div>
-      <div><div class="mtt">${o.title}</div>${active?`<div class="mhint">${o.hint}</div>`:''}</div></div>`;
-  });
-  if(G.mission.idx>=OBJECTIVES.length)html+=`<p class="sub" style="margin-top:13px">✓ Initial directives complete. Free build from here — terraform Mars, or reach for the stars.</p>`;
+  for(const r of missionRows(OBJECTIVES,G.mission)){
+    html+=`<div class="mlog ${r.status==='done'?'done':r.status==='active'?'active':''}"><div class="mdot">${r.status==='done'?'✓':r.status==='active'?'▸':(r.index+1)}</div>
+      <div><div class="mtt">${r.title}</div>${r.status==='active'?`<div class="mhint">${r.hint}</div>`:''}</div></div>`;
+  }
+  if(isComplete(OBJECTIVES,G.mission))html+=`<p class="sub" style="margin-top:13px">✓ Initial directives complete. Free build from here — terraform Mars, or reach for the stars.</p>`;
   html+=`<div style="margin-top:14px"><button class="btn" id="replayIntro">▶ Replay mission briefing</button></div>`;
   side.innerHTML=html;$('#sclose').onclick=closeSide;$('#replayIntro').onclick=()=>{closeSide();showIntro(true);};
 }

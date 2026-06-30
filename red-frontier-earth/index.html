@@ -136,6 +136,7 @@
 
 <script type="module">
 import * as THREE from 'three';
+import { getCurrentMission, isComplete, advanceCompletedMissions, missionRows } from '../shared/red-frontier-missions.js';
 
 /* ============================================================= *
  *  RED FRONTIER — THE LONG LAUNCH (Earth prequel vertical slice) *
@@ -147,18 +148,36 @@ import * as THREE from 'three';
 const G={
   res:{scrap:0,electronics:0,power:0,trust:8,compute:0},
   powerOn:false, powerLevel:0,           // 0..1 visual ramp once the grid is restored
-  mission:0,                              // index into MISSIONS
+  mission:{idx:0},                        // shared mission-chain state {idx}
   started:false, over:false,
-  inverterRepaired:false, batteryConnected:false, cratesLooted:0,
+  // mission flags (mission `done` predicates read these)
+  orionAwake:false, inverterRepaired:false, batteryConnected:false, cratesLooted:0,
+  powerOn:false, workshopOnline:false, authorised:false,
 };
 const CRATE_COUNT=3;
 
+// Data-driven mission chain (shared schema). `done(g)` reads flags on the game state;
+// `intro` is ORION's line when the mission becomes the active objective.
 const MISSIONS=[
-  {id:'wake', title:'Wake ORION', log:'Reach the ORION terminal and bring the dormant AI online.'},
-  {id:'scav', title:'Scavenge the yard', log:`Salvage scrap & electronics from the ${CRATE_COUNT} crates around the pad.`},
-  {id:'power',title:'Restore power', log:'Repair the solar inverter, then connect the battery to energise the grid.'},
-  {id:'shop', title:'Bring the workshop online', log:'Spend salvage at the fabrication-bay console to power it up.'},
-  {id:'auth', title:'Authorise robotic cargo program', log:'Return to the ORION terminal and authorise the Mars cargo program.'},
+  {id:'wake', title:'Wake ORION',
+    hint:'Reach the ORION terminal and bring the dormant AI online.',
+    done:g=>g.orionAwake},
+  {id:'scav', title:'Scavenge the yard',
+    hint:`Salvage scrap & electronics from the ${CRATE_COUNT} crates around the pad.`,
+    intro:'Inventory is thin. There are supply crates scattered across the apron — bring me scrap and electronics and I can work with it.',
+    done:g=>g.cratesLooted>=CRATE_COUNT},
+  {id:'power',title:'Restore power',
+    hint:'Repair the solar inverter, then connect the battery to energise the grid.',
+    intro:'The grid is dead. Repair the solar inverter, then connect the battery. I cannot run a launch program on backup cells forever.',
+    done:g=>g.powerOn},
+  {id:'shop', title:'Bring the workshop online',
+    hint:'Spend salvage at the fabrication-bay console to power it up.',
+    intro:'Power holds. The fabrication bay is next — bring it online and we can actually build something.',
+    done:g=>g.workshopOnline},
+  {id:'auth', title:'Authorise robotic cargo program',
+    hint:'Return to the ORION terminal and authorise the Mars cargo program.',
+    intro:'Everything is nominal. Return to my terminal and authorise the robotic cargo program. After that… Mars.',
+    done:g=>g.authorised},
 ];
 
 /* ---------- three.js ---------- */
@@ -353,9 +372,9 @@ function buildInteractables(){
     const ring=makeHotspot(0x5fd0e6);g.add(ring);
     scene.add(g);
     interactables.push({id:'orion',group:g,ring,radius:3.2,
-      label:()=>G.mission===0?'Wake ORION':'Authorise robotic cargo program',
-      available:()=>G.mission===0||G.mission===4,
-      action:()=>G.mission===0?wakeOrion():authorise()});
+      label:()=>G.mission.idx===0?'Wake ORION':'Authorise robotic cargo program',
+      available:()=>G.mission.idx===0||G.mission.idx===4,
+      action:()=>G.mission.idx===0?wakeOrion():authorise()});
     G.orionScreen=screen;
   }
   // ---- salvage crates (M02) ----
@@ -367,7 +386,7 @@ function buildInteractables(){
     const ring=makeHotspot(0xffc46b);g.add(ring);
     const obj={id:'crate'+i,group:g,ring,radius:2.4,looted:false,
       label:()=>'Salvage crate',
-      available:()=>G.mission===1&&!obj.looted,
+      available:()=>G.mission.idx===1&&!obj.looted,
       action:()=>lootCrate(obj)};
     interactables.push(obj);scene.add(g);
   });
@@ -381,7 +400,7 @@ function buildInteractables(){
     scene.add(g);
     interactables.push({id:'inverter',group:g,ring,radius:2.6,
       label:()=>'Repair solar inverter  (10 scrap · 4 elec)',
-      available:()=>G.mission===2&&!G.inverterRepaired,
+      available:()=>G.mission.idx===2&&!G.inverterRepaired,
       action:()=>repairInverter()});
   }
   // ---- battery unit (M03 step 2) ----
@@ -394,7 +413,7 @@ function buildInteractables(){
     scene.add(g);
     interactables.push({id:'battery',group:g,ring,radius:2.6,
       label:()=>G.inverterRepaired?'Connect battery & energise grid':'Repair the inverter first',
-      available:()=>G.mission===2&&G.inverterRepaired&&!G.batteryConnected,
+      available:()=>G.mission.idx===2&&G.inverterRepaired&&!G.batteryConnected,
       action:()=>connectBattery()});
   }
   // ---- workshop console (M04) ----
@@ -406,7 +425,7 @@ function buildInteractables(){
     scene.add(g);
     interactables.push({id:'shop',group:g,ring,radius:2.8,
       label:()=>'Bring workshop online  (8 scrap · 6 elec)',
-      available:()=>G.mission===3,
+      available:()=>G.mission.idx===3,
       action:()=>bringWorkshopOnline()});
   }
 }
@@ -472,35 +491,37 @@ function msg(text,kind){
   setTimeout(()=>{el.style.transition='opacity .6s';el.style.opacity=0;setTimeout(()=>el.remove(),600);},kind==='orion'?9000:5000);
   beep(kind==='orion'?540:360,0.07);
 }
-function advance(){G.mission++;updateHUD();
-  if(G.mission<MISSIONS.length)setTimeout(()=>orionForMission(G.mission),700);
+// Run the shared mission engine after any interaction sets a flag. Advancing to a new
+// objective surfaces that mission's ORION `intro`; finishing the chain authorises the program.
+function checkMissions(){
+  advanceCompletedMissions(MISSIONS,G.mission,G,{
+    onAdvance:(state)=>{const cur=getCurrentMission(MISSIONS,state);if(cur&&cur.intro)setTimeout(()=>orion(cur.intro),700);},
+    onAllComplete:()=>completeEarth(),
+  });
+  updateHUD();
 }
-function orionForMission(i){
-  const lines=[
-    null,
-    'Inventory is thin. There are supply crates scattered across the apron — bring me scrap and electronics and I can work with it.',
-    'The grid is dead. Repair the solar inverter, then connect the battery. I cannot run a launch program on backup cells forever.',
-    'Power holds. The fabrication bay is next — bring it online and we can actually build something.',
-    'Everything is nominal. Return to my terminal and authorise the robotic cargo program. After that… Mars.',
-  ];
-  if(lines[i])orion(lines[i]);
+function completeEarth(){
+  G.over=true;G.res.trust+=6;
+  try{localStorage.setItem('rf_earth_prequel_complete','true');}catch(e){}
+  beep(420,0.16);setTimeout(()=>beep(640,0.3),180);
+  showComplete();
 }
 
 function wakeOrion(){
-  G.res.compute+=3;G.res.trust+=4;
+  G.res.compute+=3;G.res.trust+=4;G.orionAwake=true;
   G.orionScreen.material.emissiveIntensity=3.0;
   sys('ORION terminal: booting from dormant storage…');
   setTimeout(()=>orion('…power trickle detected. Diagnostics running. I am ORION — Orbital Reasoning & Infrastructure Operations Network.'),500);
   setTimeout(()=>orion('It has been a long time since anyone was here. Cape Helios is offline. If we are doing this, we start with salvage.'),3200);
-  beep(720,0.14);advance();updateHUD();
+  beep(720,0.14);checkMissions();
 }
 function lootCrate(obj){
   obj.looted=true;G.res.scrap+=9;G.res.electronics+=5;G.cratesLooted++;
   obj.group.children[1].material.color.set(0x4a4034); // lid darkens (emptied)
   sys(`Salvaged crate ${G.cratesLooted}/${CRATE_COUNT}: +9 scrap, +5 electronics.`);
   beep(440,0.08);
-  if(G.cratesLooted>=CRATE_COUNT){orion('That will do. Now the hard part — making this place breathe again. Restore the grid.');advance();}
-  updateHUD();
+  if(G.cratesLooted>=CRATE_COUNT)orion('That will do. Now the hard part — making this place breathe again. Restore the grid.');
+  checkMissions();
 }
 function repairInverter(){
   if(G.res.scrap<10||G.res.electronics<4){sys('Not enough salvage to repair the inverter.');return;}
@@ -514,21 +535,16 @@ function connectBattery(){
   sys('Battery connected. Energising grid…');
   beep(300,0.2);setTimeout(()=>beep(600,0.25),200);
   orion('There it is. Power across the yard. Floodlights, solar field, fabrication bay — all yours.');
-  advance();updateHUD();
+  checkMissions();
 }
 function bringWorkshopOnline(){
   if(G.res.scrap<8||G.res.electronics<6){sys('The workshop needs 8 scrap and 6 electronics.');return;}
-  G.res.scrap-=8;G.res.electronics-=6;G.res.compute+=2;G.res.trust+=4;
+  G.res.scrap-=8;G.res.electronics-=6;G.res.compute+=2;G.res.trust+=4;G.workshopOnline=true;
   sys('Fabrication bay online. Tooling spun up.');beep(560,0.12);
   orion('Now we can actually manufacture. One thing left: authorise the program and we commit to Mars.');
-  advance();updateHUD();
+  checkMissions();
 }
-function authorise(){
-  G.over=true;G.res.trust+=6;
-  try{localStorage.setItem('rf_earth_prequel_complete','true');}catch(e){}
-  beep(420,0.16);setTimeout(()=>beep(640,0.3),180);
-  showComplete();
-}
+function authorise(){ G.authorised=true;checkMissions(); }
 
 /* ---------- HUD ---------- */
 const RES=[['scrap','Scrap'],['electronics','Elec'],['power','Power'],['trust','Trust'],['compute','AI Compute']];
@@ -540,12 +556,13 @@ function buildHUD(){
 function updateHUD(){
   for(const [k] of RES){const el=$('#cv-'+k);if(el)el.textContent=k==='power'?(G.powerOn?'ONLINE':'OFFLINE'):Math.floor(G.res[k]);}
   $('#chip-power')?.classList.toggle('on',G.powerOn);$('#chip-power')?.classList.toggle('off',!G.powerOn);
-  const i=G.mission,done=i>=MISSIONS.length;
-  $('#mtTitle').textContent=done?'Cargo program authorised':MISSIONS[i].title;
-  $('#mtProg').textContent=`${Math.min(i,MISSIONS.length)}/${MISSIONS.length}`;
+  const done=isComplete(MISSIONS,G.mission);
+  $('#mtTitle').textContent=done?'Cargo program authorised':getCurrentMission(MISSIONS,G.mission).title;
+  $('#mtProg').textContent=`${Math.min(G.mission.idx,MISSIONS.length)}/${MISSIONS.length}`;
   $('#mtrack').querySelector('.ic').textContent=done?'✓':'◷';
-  MISSIONS.forEach((m,k)=>{const row=$('#mrow-'+k);if(!row)return;row.className='mrow '+(k<i?'done':k===i?'active':'todo');
-    row.querySelector('.md').textContent=k<i?'✓':k===i?'▸':(k+1);});
+  for(const r of missionRows(MISSIONS,G.mission)){const row=$('#mrow-'+r.index);if(!row)continue;
+    row.className='mrow '+r.status;
+    row.querySelector('.md').textContent=r.status==='done'?'✓':r.status==='active'?'▸':(r.index+1);}
 }
 
 /* ---------- modals ---------- */
@@ -634,7 +651,7 @@ function loop(){
   // ambient animation
   if(rocketBeacon)rocketBeacon.material.opacity=0.5+Math.sin(t*3)*0.5;
   for(const d of dust){d.rotation.y+=dt*0.02;}
-  if(G.orionScreen&&G.mission>=1){G.orionScreen.material.emissiveIntensity=2.4+Math.sin(t*5)*0.6;}
+  if(G.orionScreen&&G.mission.idx>=1){G.orionScreen.material.emissiveIntensity=2.4+Math.sin(t*5)*0.6;}
 
   renderer.render(scene,camera);
 }
