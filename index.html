@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>The Arcade · Repertory Programme</title>
-  <meta name="description" content="A repertory programme of 16 hand-built browser games, from a 3D real-time strategy engine to a cow chasing clovers. One click, no installs." />
+  <meta name="description" content="A repertory programme of 18 hand-built browser games, from a 3D real-time strategy engine to a glowing loop puzzle. One click, no installs." />
   <meta name="theme-color" content="#f4eede" />
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -285,6 +285,16 @@
     .caption h3 { font-family: var(--font-display); font-weight: 700; font-size: 1.04rem; line-height: 1.12; letter-spacing: -0.01em; margin: 0; }
     .caption .genre { font-family: var(--font-mono); font-size: 0.66rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3); white-space: nowrap; flex-shrink: 0; padding-top: 0.22em; }
 
+    /* Red Frontier campaign recap — shown on the Mars card when an Earth manifest exists */
+    .cargo-status {
+      display: flex; flex-direction: column; gap: 0.12rem; margin-top: 0.45rem;
+      font-family: var(--font-mono); font-size: 0.62rem; letter-spacing: 0.03em; line-height: 1.4;
+    }
+    .cargo-status .cs-on  { color: var(--accent-ink); }
+    .cargo-status .cs-on::before  { content: "▸ "; }
+    .cargo-status .cs-off { color: var(--ink-3); }
+    .cargo-status .cs-off::before { content: "· "; }
+
     .title-card:hover .poster, .title-card:focus-visible .poster {
       transform: translateY(-4px);
       border-color: var(--accent);
@@ -347,7 +357,7 @@
       <h1 class="wordmark">THE&nbsp;ARCADE<span class="reel">.</span></h1>
       <div class="colophon">
         Repertory programme<br />
-        Nº 01 · <b>16 titles</b> in rotation<br />
+        Nº 01 · <b>18 titles</b> in rotation<br />
         Browser only · no installs
       </div>
     </header>
@@ -388,6 +398,7 @@
         <button class="filter" data-filter="action" aria-pressed="false">Action</button>
         <button class="filter" data-filter="shooter" aria-pressed="false">Shooter</button>
         <button class="filter" data-filter="strategy" aria-pressed="false">Strategy</button>
+        <button class="filter" data-filter="puzzle" aria-pressed="false">Puzzle</button>
         <button class="filter" data-filter="rpg" aria-pressed="false">RPG</button>
         <button class="filter" data-filter="fighting" aria-pressed="false">Fighting</button>
         <button class="filter" data-filter="classic" aria-pressed="false">Classic</button>
@@ -398,7 +409,7 @@
     <main>
       <div class="index-head">
         <h2>The Programme</h2>
-        <div class="count" aria-live="polite"><b id="count">16</b> / 16 showing</div>
+        <div class="count" aria-live="polite"><b id="count">18</b> / 18 showing</div>
       </div>
 
       <section class="programme" id="programme" aria-label="All titles"><!-- tiles injected --></section>
@@ -429,6 +440,7 @@
             <li><a href="./red-frontier-earth/">Red Frontier: The Long Launch</a></li>
             <li><a href="./jetpack-rush/">Jetpack Rush: Neon Run</a></li>
             <li><a href="./grass-frenzy/">Grass Frenzy</a></li>
+            <li><a href="./loop/">Loop</a></li>
           </ul>
         </div>
       </noscript>
@@ -478,7 +490,9 @@
         { slug: "jetpack-rush",    art: "jetpack-rush.svg",    title: "Jetpack Rush: Neon Run",        genre: "Endless Runner", tags: "action casual", flagship: true,
           log: "One button, endless neon, dodge everything, bank the distance." },
         { slug: "grass-frenzy",    art: "grass-frenzy.svg",    title: "Grass Frenzy",                  genre: "Casual",         tags: "casual classic", isNew: true,
-          log: "A happy cow, golden stars, and puddles to dodge. It only speeds up." }
+          log: "A happy cow, golden stars, and puddles to dodge. It only speeds up." },
+        { slug: "loop",            art: "loop.svg",            title: "Loop",                          genre: "Puzzle",         tags: "puzzle casual", isNew: true,
+          log: "Rotate glowing path tiles until every loose end closes into one seamless circuit." }
       ];
 
       var pad = function (n) { return (n < 10 ? "0" : "") + n; };
@@ -510,6 +524,32 @@
         frag.appendChild(a);
       });
       programme.appendChild(frag);
+
+      /* ---- Red Frontier campaign recap on the Mars card ----
+         If the Earth prequel wrote a cargo manifest, surface the choice (and what
+         was left behind) on the Mars colony tile. No payload → card stays normal. */
+      var RF_KITS = [
+        { id: "powerKit",                 name: "Power Kit" },
+        { id: "waterSurvey",              name: "Water Survey" },
+        { id: "habitatShellKit",          name: "Habitat Shell" },
+        { id: "constructionDronePattern", name: "Drone Pattern" }
+      ];
+      try {
+        var rf = JSON.parse(localStorage.getItem("rf_campaign_v1"));
+        if (rf && rf.earthComplete && rf.cargo) {
+          var sel = RF_KITS.filter(function (k) { return rf.cargo[k.id]; }).map(function (k) { return k.name; });
+          var omit = RF_KITS.filter(function (k) { return !rf.cargo[k.id]; }).map(function (k) { return k.name; });
+          var marsCard = programme.querySelector('.title-card[href="./mars-colony/"]');
+          if (marsCard) {
+            var box = document.createElement("div");
+            box.className = "cargo-status";
+            box.innerHTML =
+              '<span class="cs-on">Earth cargo authorised: ' + esc(sel.join(" · ") || "none") + '</span>' +
+              (omit.length ? '<span class="cs-off">Left behind: ' + esc(omit.join(" · ")) + '</span>' : '');
+            marsCard.appendChild(box);
+          }
+        }
+      } catch (e) { /* no/garbled payload — leave the card untouched */ }
 
       /* ---- Marquee ---- */
       var flagships = GAMES.filter(function (g) { return g.flagship; });
