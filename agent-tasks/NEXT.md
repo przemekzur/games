@@ -2,184 +2,156 @@
 
 ## Use after
 
-Use this task only after Campaign Spine v2 is merged into `main`.
+Use this task only after PR #10, `Red Frontier — Campaign Spine v3: Earth cargo manifest choice`, is merged into `main`.
 
-Expected v2 baseline:
+If PR #10 is not merged, stop and report that PR #10 must be merged first.
 
-- Mars reads per-kit flags from `rf_campaign_v1.cargo`.
-- Mars applies concrete per-kit effects.
-- Mars standalone mode still works without Earth payload.
-- Save/reload does not duplicate cargo effects.
+Do not admin-merge the gating PR yourself unless Przemek explicitly asks you to do that.
+
+Expected v3 baseline:
+
+- Earth shows a cargo manifest before final authorisation.
+- Player chooses exactly 3 of 4 cargo kits.
+- Earth writes selected kits into `rf_campaign_v1.cargo`.
+- Mars applies only selected kit effects.
+- Mars standalone still works.
 
 ## Branch
 
 Create a new branch from latest `main`:
 
-`feat/red-frontier-cargo-manifest-v3`
+`feat/red-frontier-manifest-recap-v4`
 
 ## PR title
 
-`Red Frontier — Campaign Spine v3: Earth cargo manifest choice`
+`Red Frontier — Campaign Spine v4: manifest recap and Mars handoff polish`
 
 ## Goal
 
-Add a minimal cargo-manifest choice to the Earth prequel.
+Make the Earth cargo choice visible across the handoff.
 
-Today Earth writes a fixed cargo package with all kits enabled. Mars already reads per-kit flags. This task should let the player choose a limited cargo package on Earth so different Earth completions create different Mars starts.
+Today the manifest choice works mechanically. This task should make the player understand what they chose, what they left behind, and what Mars will receive.
 
 Player feeling:
 
-> I cannot send everything. My Earth decision changes the Mars opening.
+> I made a tradeoff on Earth, and the game remembers that tradeoff before Mars begins.
 
 ## Target files
 
 Likely changed:
 
+- `index.html`
 - `red-frontier-earth/index.html`
-- `mars-colony/index.html` only for compatibility/polish if needed
-- `index.html` only if hub copy needs tiny wording
+- `mars-colony/index.html` only for small copy/recap polish if needed
 
-Do not touch `shared/red-frontier-missions.js` unless absolutely necessary.
+Do not touch `shared/red-frontier-missions.js`.
 
-## Cargo kits
+## Scope
 
-Use the existing four cargo keys:
+### 1. Hub: surface selected manifest on the Mars card
 
-- `powerKit`
-- `waterSurvey`
-- `constructionDronePattern`
-- `habitatShellKit`
+If `rf_campaign_v1` exists and contains cargo choices, the hub should show a compact status on the Red Frontier Mars card.
 
-## Required behavior
+Example:
 
-### Earth
+`Earth cargo authorised: Power Kit · Habitat Shell · Drone Pattern`
 
-Before final cargo-program authorisation, show a small cargo manifest choice.
+Also show a small line for the missing kit:
 
-Keep it simple:
+`Left behind: Water Survey Kit`
 
-- player chooses exactly 3 of 4 kits, or
-- player chooses 2 of 4 if the UI is cleaner.
+Keep it short. Do not build a campaign launcher.
 
-Preferred: choose exactly 3 of 4. This creates a real tradeoff without being too punishing.
+If no Earth payload exists, hub behavior should remain normal.
 
-The final `rf_campaign_v1` payload must write only the selected kits as `true`; unselected kits should be `false` or omitted consistently.
+### 2. Earth: final modal should show selected and omitted kits
 
-Example payload shape:
+Earth completion modal already lists selected kits. Add or polish one short line showing what was left behind.
 
-```js
-cargo: {
-  powerKit: true,
-  waterSurvey: false,
-  constructionDronePattern: true,
-  habitatShellKit: true
-}
-```
+Example:
 
-The completion modal should list the selected kits and clearly say the package is limited.
+`Left behind at Cape Helios: Water Survey Kit.`
 
-### Mars
+If all four kits are present from an old payload or debug path, handle it gracefully.
 
-Mars must continue to read the cargo flags defensively.
+### 3. Earth: add a small manifest replay affordance after completion
 
-If a kit is missing or false:
+Add a simple way to review the last authorised manifest from the Earth page after completion.
 
-- do not apply that kit effect,
-- do not spawn that kit marker,
-- do not mention that kit in the receipt.
+Preferred small solution:
 
-If old payloads exist where all four kits are true, they should still work.
+- On reload, if `rf_campaign_v1` exists, the intro or terminal can mention the previous manifest.
+- Or add a small button near the final/terminal state: `Review authorised cargo`.
 
-If no Earth payload exists, Mars remains standalone and unchanged.
+Keep it tiny. No edit/re-pick after completion in this task.
 
-## UI guidance
+### 4. Mars: polish intro/receipt copy for omitted kits
 
-Earth manifest UI can be a modal or terminal panel.
+When Mars detects Earth cargo, it should list received kits only.
 
-It should be clear and small:
+Add one dry ORION line or receipt note for omitted kits if easy:
 
-- Kit name
-- One-line Mars consequence
-- selected/unselected state
-- selected count, for example `Selected 2/3`
-- disabled confirm until the required number is selected
+`Manifest gap noted: Water Survey Kit absent. I will pretend this was a strategic decision.`
 
-Suggested kit descriptions:
+Do not add missing-kit penalties beyond simply not applying that kit effect.
 
-- Power Kit — stabilises early power and cargo reserve.
-- Water Survey Kit — marks a shallow ice seam near the landing site.
-- Habitat Shell Kit — reduces first Habitat deployment cost.
-- Construction Drone Pattern — delivers the validated drone fabrication core.
-
-No complex inventory.
-No cargo weights.
-No advanced balancing.
-
-## Scope limits
+## Hard no
 
 Do not add:
 
-- more cargo kits,
+- cargo re-selection,
 - cargo weights,
 - cargo economy,
-- multiple Earth endings,
+- new cargo kits,
 - Mars robots,
+- activatable Habitat shell yet,
 - autonomy,
-- factions,
 - Moon,
 - asteroids,
+- factions,
 - dialogue trees,
 - external assets,
 - build step.
 
-## Save/reload safety
-
-- Earth still writes `rf_earth_prequel_complete`.
-- Earth writes `rf_campaign_v1` with selected cargo.
-- Mars applies selected kit effects once per Mars save.
-- Mars reload does not duplicate effects.
-- Old Mars saves still load.
-- Old all-kit Earth payloads still work.
-
 ## Acceptance criteria
+
+### Hub
+
+- With selected cargo payload, Mars card shows selected kits.
+- Hub also shows omitted kit if one exists.
+- With no Earth payload, hub remains normal.
+- Both Red Frontier cards still launch.
 
 ### Earth
 
-- Earth prequel boots cleanly.
-- Existing mission flow still works.
-- Cargo manifest appears before final authorisation.
-- Player can select the required number of kits.
-- Player cannot confirm with too few or too many kits.
-- Final modal lists selected kits.
-- `rf_campaign_v1.cargo` reflects the selected kits.
+- Completion modal lists selected kits.
+- Completion modal or review path shows omitted kit.
+- Existing Earth mission flow still works.
+- `rf_campaign_v1` still writes correctly.
 
 ### Mars
 
-- Mars standalone still behaves unchanged.
-- Mars after Earth applies only selected kit effects.
-- Unselected kit effects do not appear.
-- Old all-kit payload still works.
+- Mars still applies only selected kit effects.
+- Mars receipt/intro remains accurate.
+- Omitted kit is not applied or spawned.
 - Save/reload does not duplicate effects or ORION lines.
-- No console errors.
+- Standalone Mars remains unchanged.
 
 ## Manual test checklist
 
 1. Clear Red Frontier localStorage keys.
-2. Complete Earth up to cargo authorisation.
-3. Confirm manifest appears.
-4. Try confirming with too few kits; confirm is blocked.
-5. Select the required number of kits.
-6. Authorise cargo.
-7. Confirm `rf_campaign_v1.cargo` matches selection.
-8. Launch Mars.
-9. Confirm only selected cargo effects appear.
-10. Save Mars.
-11. Reload Mars.
-12. Confirm effects do not duplicate.
-13. Test old all-true payload if practical.
-14. Clear Earth payload.
-15. Start Mars standalone.
-16. Confirm standalone behavior unchanged.
+2. Complete Earth with one kit omitted.
+3. Confirm final modal lists selected kits and omitted kit.
+4. Return to hub.
+5. Confirm Mars card shows selected kits and omitted kit.
+6. Launch Mars.
+7. Confirm Mars receipt/intro matches selected kits.
+8. Confirm omitted kit effect does not appear.
+9. Save and reload Mars.
+10. Confirm no duplicate cargo effects.
+11. Clear Earth payload.
+12. Confirm hub and Mars standalone behave normally.
+13. Confirm no console errors.
 
 ## PR requirements
 
@@ -194,4 +166,6 @@ PR must include:
 
 ## Design rule
 
-This is the first real strategic choice in the Earth to Mars spine. Keep it small, legible, and reliable.
+This is handoff polish, not a new system.
+
+Make the choice readable before adding more Mars mechanics.
