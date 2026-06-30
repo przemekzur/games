@@ -1299,11 +1299,17 @@ function renderMissions(){
 // Campaign intro — establishes the player (Mission Systems Architect), ORION, and the robotic-prep backstory.
 function showIntro(replay){
   const mc=$('#mcard');
+  let cargoNote='';
+  if(G.earthCargo){
+    const c=G.earthCargo.cargo||{};
+    const names=[c.powerKit&&'power kit',c.waterSurvey&&'water-survey kit',c.habitatShellKit&&'habitat shell kit',c.constructionDronePattern&&'construction-drone pattern'].filter(Boolean);
+    cargoNote=`<div class="who" style="border-left-color:var(--cyan)">Telemetry from <b>Cape Helios</b>: the cargo package you authorised on Earth — ${names.length?names.join(', '):'a limited manifest'} — has touched down beside the array.</div>`;
+  }
   mc.innerHTML=`<div class="emoji">🛰️</div>
    <h2>PROJECT RED FRONTIER</h2>
    <div class="who"><b>You — Mission Systems Architect.</b> Earth handed you the keys to humanity’s first real foothold on another world. The hardware is down. Bringing it to life is on you.</div>
    <p class="story">For three launch windows, robotic cargo missions have been landing ahead of you — burying water ice, printing landing pads, and bringing a first solar array online. The site is <i>prepared</i>, but no one lives here yet. The crew is still in orbit, waiting on you.</p>
-   ${G.earthCargo?`<div class="who" style="border-left-color:var(--cyan)">Telemetry from <b>Cape Helios</b>: the robotic cargo package you authorised on Earth — power kit, water-survey kit, construction-drone pattern, habitat shell kit — has touched down beside the array.</div>`:''}
+   ${cargoNote}
    <p class="story">Working beside you is <b style="color:var(--cyan)">ORION</b> — Orbital Reasoning &amp; Infrastructure Operations Network — the AI that runs operations when Earth is twenty light-minutes away. It will track your directives and speak up when it matters.</p>
    <p class="story">Get water and air flowing, then build the first Habitat to bring the crew down. Make Mars breathe, feed itself, and stand on its own. This is Sol 1.</p>
    <div class="mbtns"><button class="btn" id="introGo">Begin Sol 1 ▸</button></div>`;
@@ -1393,6 +1399,7 @@ function findSurveyTile(){
 // Visible cargo-kit markers + survey marker. Runs every session so continuity persists across reloads.
 function spawnCargoKits(){
   if(cargoKitsSpawned)return; cargoKitsSpawned=true;
+  const c=(G.earthCargo&&G.earthCargo.cargo)||{};   // only spawn markers for kits actually sent
   const ref=G.buildings[0];
   let pos,t1,t2,sdir;
   if(ref){pos=ref.pos.clone();t1=ref.t1.clone();t2=ref.t2.clone();sdir=ref.dir.clone().normalize();}
@@ -1405,23 +1412,25 @@ function spawnCargoKits(){
     g.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});scene.add(g);return g;
   };
   // Power Kit Crate — battery pallet
-  placeKit(3.3,-1.6,g=>{box(g,1.7,0.6,1.2,0x4a4a52,0,0.3,0);for(let i=0;i<3;i++)box(g,0.36,0.7,0.9,0xffc24d,(i-1)*0.47,0.9,0,0x553300,0.5);});
+  if(c.powerKit)placeKit(3.3,-1.6,g=>{box(g,1.7,0.6,1.2,0x4a4a52,0,0.3,0);for(let i=0;i<3;i++)box(g,0.36,0.7,0.9,0xffc24d,(i-1)*0.47,0.9,0,0x553300,0.5);});
   // Habitat Shell Crate — folded dome shell on a pallet
-  placeKit(3.7,1.3,g=>{box(g,2.0,0.5,1.6,0x7a4a30,0,0.25,0);const d=new THREE.Mesh(new THREE.SphereGeometry(0.9,16,10,0,Math.PI*2,0,Math.PI*0.5),glass(0xffb888,0x224466));d.scale.set(1,0.45,1);d.position.y=0.5;g.add(d);});
+  if(c.habitatShellKit)placeKit(3.7,1.3,g=>{box(g,2.0,0.5,1.6,0x7a4a30,0,0.25,0);const d=new THREE.Mesh(new THREE.SphereGeometry(0.9,16,10,0,Math.PI*2,0,Math.PI*0.5),glass(0xffb888,0x224466));d.scale.set(1,0.45,1);d.position.y=0.5;g.add(d);});
   // Drone Pattern Core — crate with a glowing cyan core (future promise)
-  placeKit(1.1,2.7,g=>{box(g,1.2,1.0,1.2,0x33414e,0,0.5,0);const core=new THREE.Mesh(new THREE.IcosahedronGeometry(0.34,0),mat(0x0a2630,0.3,0.4,0x2f8fb0,1.3));core.position.y=1.15;g.add(core);});
-  // Survey Marker — at the flagged ice tile
-  surveyTile=findSurveyTile();
-  if(surveyTile){
-    const sd=gridToDir(surveyTile.gx,surveyTile.gz);const sp=sd.clone().multiplyScalar(R+heightAt(sd));
-    const g=new THREE.Group();g.position.copy(sp);orientToNormal(g,sd);
-    const ring=new THREE.Mesh(new THREE.RingGeometry(1.1,1.4,20),new THREE.MeshBasicMaterial({color:0x66c8ff,transparent:true,opacity:0.5,side:THREE.DoubleSide}));ring.rotation.x=-Math.PI/2;ring.position.y=0.06;g.add(ring);
-    const mast=new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.09,2.0,8),mat(0x8a929c,0.6,0.5));mast.position.y=1.0;g.add(mast);
-    const flag=new THREE.Mesh(new THREE.BoxGeometry(0.7,0.4,0.04),mat(0x66c8ff,0.5,0.3,0x224a66,0.7));flag.position.set(0.42,1.7,0);g.add(flag);
-    g.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});scene.add(g);
+  if(c.constructionDronePattern)placeKit(1.1,2.7,g=>{box(g,1.2,1.0,1.2,0x33414e,0,0.5,0);const core=new THREE.Mesh(new THREE.IcosahedronGeometry(0.34,0),mat(0x0a2630,0.3,0.4,0x2f8fb0,1.3));core.position.y=1.15;g.add(core);});
+  // Water Survey Marker — at the flagged ice tile (only if the survey kit was sent)
+  if(c.waterSurvey){
+    surveyTile=findSurveyTile();
+    if(surveyTile){
+      const sd=gridToDir(surveyTile.gx,surveyTile.gz);const sp=sd.clone().multiplyScalar(R+heightAt(sd));
+      const g=new THREE.Group();g.position.copy(sp);orientToNormal(g,sd);
+      const ring=new THREE.Mesh(new THREE.RingGeometry(1.1,1.4,20),new THREE.MeshBasicMaterial({color:0x66c8ff,transparent:true,opacity:0.5,side:THREE.DoubleSide}));ring.rotation.x=-Math.PI/2;ring.position.y=0.06;g.add(ring);
+      const mast=new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.09,2.0,8),mat(0x8a929c,0.6,0.5));mast.position.y=1.0;g.add(mast);
+      const flag=new THREE.Mesh(new THREE.BoxGeometry(0.7,0.4,0.04),mat(0x66c8ff,0.5,0.3,0x224a66,0.7));flag.position.set(0.42,1.7,0);g.add(flag);
+      g.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});scene.add(g);
+      // survey pack improves the early water-objective hint (re-applied each session so reload keeps it)
+      const w=OBJECTIVES.find(o=>o.id==='water');if(w)w.hint='A Cape Helios survey marker flags a shallow ice seam — build the Ice Extractor on the marked tile.';
+    }
   }
-  // survey pack improves the early water-objective hint (re-applied each session so reload keeps it)
-  if(surveyTile){const w=OBJECTIVES.find(o=>o.id==='water');if(w)w.hint='A Cape Helios survey marker flags a shallow ice seam — build the Ice Extractor on the marked tile.';}
 }
 function applyEarthCargo(){
   spawnCargoKits();                             // visible markers + survey hint — every session
@@ -1434,9 +1443,13 @@ function applyEarthCargo(){
   G.campaign.earthCargoApplied=true;
   G.story.earthCargoReceived=true;              // fire-once story beat (persisted via the story save path)
   updateResBar();buildDock();                   // dock cost text reflects the habitat-shell discount
-  toast('📦 Cape Helios cargo unpacked — Power Kit · Water Survey · Habitat Shell · Drone Pattern','disc');
-  setTimeout(()=>orion('Cape Helios cargo telemetry confirmed — power kit, survey pack and a habitat shell are unpacked. The drone-pattern core is filed; once Mars has fabrication, we can print our own construction units. I will avoid sounding surprised.'),1400);
-  if(c.waterSurvey&&surveyTile)setTimeout(()=>orion('Survey pack mapped a shallow ice seam. Not magic. Just better homework — the marker is on your map.'),5400);
+  // receipt lists only the kits actually sent
+  const sent=[c.powerKit&&'Power Kit',c.waterSurvey&&'Water Survey',c.habitatShellKit&&'Habitat Shell',c.constructionDronePattern&&'Drone Pattern'].filter(Boolean);
+  toast('📦 Cape Helios cargo unpacked — '+(sent.join(' · ')||'empty manifest'),'disc');
+  const bits=[c.powerKit&&'a power kit',c.waterSurvey&&'a survey pack',c.habitatShellKit&&'a habitat shell',c.constructionDronePattern&&'a drone-pattern core'].filter(Boolean);
+  setTimeout(()=>orion(`Cape Helios cargo telemetry confirmed — ${bits.length?bits.join(', ')+' unpacked':'a sparse manifest'}, within damage margins. I will avoid sounding surprised.`),1400);
+  if(c.constructionDronePattern)setTimeout(()=>orion('The drone-pattern core is intact and filed. Once Mars has fabrication, we can print our own construction units.'),5400);
+  if(c.waterSurvey&&surveyTile)setTimeout(()=>orion('Survey pack mapped a shallow ice seam. Not magic. Just better homework — the marker is on your map.'),9000);
 }
 
 function save(){const data={res:G.res,pop:G.pop,morale:G.morale,colonies:G.colonies,tf:G.tf,sol:G.sol,todFrac:G.todFrac,techDone:G.techDone,milestones:G.milestones,interstellar:G.interstellar,mission:G.mission,story:G.story,campaign:G.campaign,buildings:G.buildings.map(o=>({key:o.key,gx:o.gx,gz:o.gz}))};

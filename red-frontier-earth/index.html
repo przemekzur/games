@@ -108,6 +108,15 @@
   .mcard .who{text-align:left;margin:14px 0;font-size:12.5px;color:var(--muted);line-height:1.6;border-left:2px solid var(--rust);padding-left:11px}
   .mcard p.story{text-align:left;font-size:13px;line-height:1.7;margin:0 0 13px;color:var(--ink)}
   .mcard .tbc{text-align:center;font-family:var(--mono);font-size:11px;letter-spacing:.14em;color:var(--rust-2);text-transform:uppercase;margin-top:14px}
+  .mcard .kits{display:flex;flex-direction:column;gap:7px;margin:12px 0 4px}
+  .mcard .kit{display:grid;grid-template-columns:22px 1fr;gap:9px;align-items:center;text-align:left;
+    border:1px solid var(--line);background:rgba(255,255,255,.03);color:var(--ink);padding:9px 11px;cursor:pointer;font-family:inherit;transition:.12s}
+  .mcard .kit:hover{border-color:var(--cyan)}
+  .mcard .kit.sel{border-color:var(--cyan);background:rgba(95,208,230,.12)}
+  .mcard .kit .kx{color:var(--cyan);font-size:15px;text-align:center}
+  .mcard .kit .kn{font-weight:700;font-size:12.5px}
+  .mcard .kit .kd{display:block;color:var(--muted);font-size:11px;margin-top:2px;line-height:1.4}
+  .mcard button.btn:disabled{opacity:.4;cursor:not-allowed}
   .mbtns{display:flex;gap:10px;justify-content:center;margin-top:18px}
   .btn{border:1px solid var(--line);background:rgba(255,255,255,.04);color:var(--ink);padding:9px 18px;cursor:pointer;font-size:13px;font-weight:700;font-family:var(--ui);transition:.15s}
   .btn:hover{filter:brightness(1.12)}
@@ -537,18 +546,49 @@ function checkMissions(){
   });
   updateHUD();
 }
+// Cargo manifest: the player picks CARGO_PICK of these 4 kits on Earth; Mars reads the per-kit flags.
+const KITS=[
+  {id:'powerKit',                emoji:'📦', name:'Power Kit',                mars:'Stabilises early power — adds a credits reserve.'},
+  {id:'waterSurvey',             emoji:'💧', name:'Water Survey Kit',        mars:'Marks a shallow ice seam near the landing site.'},
+  {id:'habitatShellKit',         emoji:'🏠', name:'Habitat Shell Kit',       mars:'Reduces the first Habitat deployment cost.'},
+  {id:'constructionDronePattern',emoji:'🤖', name:'Construction Drone Pattern', mars:'Delivers the validated drone fabrication core.'},
+];
+const CARGO_PICK=3;
+
+// Manifest choice — shown when the player authorises the program (M06 action). Confirm completes the mission.
+function showCargoManifest(){
+  const sel={powerKit:true,waterSurvey:true,habitatShellKit:true,constructionDronePattern:false}; // default 3 of 4
+  const render=()=>{
+    const count=Object.values(sel).filter(Boolean).length;
+    const rows=KITS.map(k=>`<button class="kit ${sel[k.id]?'sel':''}" data-kit="${k.id}"><span class="kx">${sel[k.id]?'☑':'☐'}</span><span><span class="kn">${k.emoji} ${k.name}</span><span class="kd">${k.mars}</span></span></button>`).join('');
+    $('#mcard').innerHTML=`<div class="emoji">📦</div><h2>CARGO MANIFEST</h2>
+      <p class="story">Mass to Mars is limited — you can send only <b>${CARGO_PICK} of 4</b> kits on the first robotic cargo run. Your choice shapes the Mars opening.</p>
+      <div class="kits">${rows}</div>
+      <div class="tbc">Selected ${count}/${CARGO_PICK}</div>
+      <div class="mbtns"><button class="btn cy" id="cargoGo" ${count===CARGO_PICK?'':'disabled'}>Authorise cargo program ▸</button></div>`;
+    $('#mcard').querySelectorAll('.kit').forEach(b=>b.onclick=()=>{
+      const id=b.dataset.kit;
+      if(!sel[id]&&count>=CARGO_PICK)return;   // can't exceed the pick limit
+      sel[id]=!sel[id];beep(440,0.05);render();
+    });
+    const go=$('#cargoGo');if(go)go.onclick=()=>{
+      G.cargoSel={...sel};$('#modal').classList.remove('show');
+      G.authorised=true;checkMissions();        // completes M06 → completeEarth()
+    };
+  };
+  render();$('#modal').classList.add('show');
+}
 function completeEarth(){
   G.over=true;G.res.trust+=6;
+  const cargo=G.cargoSel||{powerKit:true,waterSurvey:true,constructionDronePattern:true,habitatShellKit:true}; // fallback: all kits
   try{
     localStorage.setItem('rf_earth_prequel_complete','true');          // back-compat flag
     localStorage.setItem('rf_campaign_v1',JSON.stringify({             // structured spine payload for Mars
-      earthComplete:true, cargoAuthorised:true,
-      cargo:{ powerKit:true, waterSurvey:true, constructionDronePattern:true, habitatShellKit:true },
-      completedAt:Date.now()
+      earthComplete:true, cargoAuthorised:true, cargo, completedAt:Date.now()
     }));
   }catch(e){}
   beep(420,0.16);setTimeout(()=>beep(640,0.3),180);
-  showComplete();
+  showComplete(cargo);
 }
 
 function wakeOrion(){
@@ -588,7 +628,7 @@ function bringWorkshopOnline(){
   orion('Now we can actually manufacture — not just repair. And there is a construction unit dormant in the bay that could put that to use.');
   checkMissions();
 }
-function authorise(){ G.authorised=true;checkMissions(); }
+function authorise(){ showCargoManifest(); }   // pick the cargo manifest, then it completes the program
 
 /* ---------- first construction drone ---------- */
 function makeDrone(){
@@ -717,12 +757,15 @@ function showIntro(){
   $('#introGo').onclick=()=>{$('#modal').classList.remove('show');G.started=true;
     setTimeout(()=>sys('Cape Helios: perimeter clear. Head to the control terminal and wake ORION.'),500);};
 }
-function showComplete(){
+function showComplete(cargo){
+  cargo=cargo||{};
+  const picked=KITS.filter(k=>cargo[k.id]);
+  const list=picked.map(k=>`${k.emoji} ${k.name}`).join(' &nbsp;·&nbsp; ')||'(empty manifest)';
   $('#mcard').innerHTML=`<div class="emoji">🚀</div><h2>CARGO PROGRAM AUTHORISED</h2>
-   <p class="story">Cape Helios is alive again — grid restored, fabrication bay running, and the <b>construction-drone pattern validated</b>. The <b>Mars robotic cargo package is authorised</b> and manifested for the next launch window:</p>
-   <div class="who" style="border-left-color:var(--cyan)">📦 Power kit &nbsp;·&nbsp; 💧 Water-survey kit &nbsp;·&nbsp; 🤖 Construction-drone pattern &nbsp;·&nbsp; 🏠 Habitat shell kit</div>
-   <p class="story">It will land on Mars and prepare the site long before the first crew arrives — and Mars will remember it came from here.</p>
-   <div class="who" style="border-left-color:var(--cyan)">ORION: "Manifest locked. Mars will not receive just supplies — it will receive hands. The next time we speak, it may be across twenty light-minutes of vacuum."</div>
+   <p class="story">Cape Helios is alive again — grid restored, fabrication bay running, drone pattern validated. A <b>limited</b> Mars cargo package (<b>${picked.length} of 4</b> kits) is authorised for the next launch window:</p>
+   <div class="who" style="border-left-color:var(--cyan)">${list}</div>
+   <p class="story">It will land on Mars and prepare the site before the first crew arrives — and Mars will remember exactly what you chose to send.</p>
+   <div class="who" style="border-left-color:var(--cyan)">ORION: "Manifest locked — we could not send everything. Mars will work with what we chose. The next time we speak, it may be across twenty light-minutes of vacuum."</div>
    <div class="tbc">Continue in Part II — Red Frontier: Mars Colony</div>
    <div class="mbtns"><a class="btn" href="../mars-colony/">Play the Mars colony →</a><button class="btn cy" id="again">Replay the yard</button></div>`;
   $('#modal').classList.add('show');
