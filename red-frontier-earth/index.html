@@ -539,7 +539,14 @@ function checkMissions(){
 }
 function completeEarth(){
   G.over=true;G.res.trust+=6;
-  try{localStorage.setItem('rf_earth_prequel_complete','true');}catch(e){}
+  try{
+    localStorage.setItem('rf_earth_prequel_complete','true');          // back-compat flag
+    localStorage.setItem('rf_campaign_v1',JSON.stringify({             // structured spine payload for Mars
+      earthComplete:true, cargoAuthorised:true,
+      cargo:{ powerKit:true, waterSurvey:true, constructionDronePattern:true, habitatShellKit:true },
+      completedAt:Date.now()
+    }));
+  }catch(e){}
   beep(420,0.16);setTimeout(()=>beep(640,0.3),180);
   showComplete();
 }
@@ -712,9 +719,11 @@ function showIntro(){
 }
 function showComplete(){
   $('#mcard').innerHTML=`<div class="emoji">🚀</div><h2>CARGO PROGRAM AUTHORISED</h2>
-   <p class="story">Cape Helios is alive again. With ORION online, the grid restored, the fabrication bay running, and the <b>first construction-drone pattern validated</b>, Project Red Frontier can begin assembling and launching <b>robotic cargo missions</b> — the landers, power systems, and supply caches that will prepare Mars long before the first crew arrives.</p>
-   <div class="who" style="border-left-color:var(--cyan)">ORION: "The first construction-drone pattern holds. Mars will not receive just supplies — it will receive hands. The next time we speak, it may be across twenty light-minutes of vacuum."</div>
-   <div class="tbc">To be continued — Prepare Mars Cargo</div>
+   <p class="story">Cape Helios is alive again — grid restored, fabrication bay running, and the <b>construction-drone pattern validated</b>. The <b>Mars robotic cargo package is authorised</b> and manifested for the next launch window:</p>
+   <div class="who" style="border-left-color:var(--cyan)">📦 Power kit &nbsp;·&nbsp; 💧 Water-survey kit &nbsp;·&nbsp; 🤖 Construction-drone pattern &nbsp;·&nbsp; 🏠 Habitat shell kit</div>
+   <p class="story">It will land on Mars and prepare the site long before the first crew arrives — and Mars will remember it came from here.</p>
+   <div class="who" style="border-left-color:var(--cyan)">ORION: "Manifest locked. Mars will not receive just supplies — it will receive hands. The next time we speak, it may be across twenty light-minutes of vacuum."</div>
+   <div class="tbc">Continue in Part II — Red Frontier: Mars Colony</div>
    <div class="mbtns"><a class="btn" href="../mars-colony/">Play the Mars colony →</a><button class="btn cy" id="again">Replay the yard</button></div>`;
   $('#modal').classList.add('show');
   $('#again').onclick=()=>location.reload();
