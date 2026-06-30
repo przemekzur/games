@@ -88,6 +88,13 @@
   #prompt.show{opacity:1}
   #prompt b{display:inline-grid;place-items:center;min-width:22px;height:22px;padding:0 5px;margin-right:8px;background:var(--cyan);color:#06121a;font-family:var(--mono);font-weight:700;border-radius:3px}
 
+  /* drone construction progress, bottom-center */
+  #droneprog{position:absolute;left:50%;bottom:138px;transform:translateX(-50%);pointer-events:none;opacity:0;transition:opacity .2s;
+    background:var(--glass-2);border:1px solid var(--line);border-top:2px solid var(--cyan);padding:6px 14px;backdrop-filter:blur(8px);
+    font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--muted);white-space:nowrap}
+  #droneprog.show{opacity:1}
+  #droneprog b{color:var(--cyan);letter-spacing:0;margin:0 6px}
+
   /* controls hint, bottom-right */
   #ctrls{position:absolute;right:12px;bottom:14px;font-size:10.5px;color:var(--muted);font-family:var(--mono);text-align:right;line-height:1.7;background:var(--glass);border:1px solid var(--line);padding:7px 11px;backdrop-filter:blur(6px)}
   #ctrls b{color:var(--ink)}
@@ -125,6 +132,7 @@
   <div id="mlog" class="frame"><h3>Mission Log · Cape Helios</h3><div id="mlogRows"></div></div>
   <div id="feed"></div>
   <div id="prompt"></div>
+  <div id="droneprog"></div>
   <div id="ctrls"><b>WASD</b> move · <b>Mouse-drag</b> look · <b>Wheel</b> zoom · <b>E</b> interact</div>
 </div>
 
@@ -152,7 +160,8 @@ const G={
   started:false, over:false,
   // mission flags (mission `done` predicates read these)
   orionAwake:false, inverterRepaired:false, batteryConnected:false, cratesLooted:0,
-  powerOn:false, workshopOnline:false, authorised:false,
+  powerOn:false, workshopOnline:false, droneDeployed:false, foundationPrinted:false, authorised:false,
+  droneState:'none', droneProgress:0, droneT:0,   // scripted drone task
 };
 const CRATE_COUNT=3;
 
@@ -174,9 +183,13 @@ const MISSIONS=[
     hint:'Spend salvage at the fabrication-bay console to power it up.',
     intro:'Power holds. The fabrication bay is next — bring it online and we can actually build something.',
     done:g=>g.workshopOnline},
+  {id:'drone', title:'Deploy first construction drone',
+    hint:'Deploy the dormant construction unit at the bay and let it print the first cargo foundation.',
+    intro:'There is a construction unit dormant in the bay. We have the power and tooling to wake it now — deploy it and let it finish printing a foundation before we commit to anything.',
+    done:g=>g.foundationPrinted},
   {id:'auth', title:'Authorise robotic cargo program',
     hint:'Return to the ORION terminal and authorise the Mars cargo program.',
-    intro:'Everything is nominal. Return to my terminal and authorise the robotic cargo program. After that… Mars.',
+    intro:'Everything is nominal — power, tooling, and a working pair of hands. Return to my terminal and authorise the robotic cargo program. After that… Mars.',
     done:g=>g.authorised},
 ];
 
@@ -191,6 +204,9 @@ let player, playerYaw=0;
 const keys={};
 const dust=[];
 let rocketBeacon;
+// first construction drone (Iteration 3B) — one unit, one scripted task
+let drone=null, slab=null, foundationMarker=null;
+const DRONE_BAY=new THREE.Vector3(-13,0,7), FOUNDATION=new THREE.Vector3(3,0,1.5);
 
 const vw=()=>innerWidth||1280, vh=()=>innerHeight||720;
 
@@ -373,7 +389,7 @@ function buildInteractables(){
     scene.add(g);
     interactables.push({id:'orion',group:g,ring,radius:3.2,
       label:()=>G.mission.idx===0?'Wake ORION':'Authorise robotic cargo program',
-      available:()=>G.mission.idx===0||G.mission.idx===4,
+      available:()=>G.mission.idx===0||G.mission.idx===5,
       action:()=>G.mission.idx===0?wakeOrion():authorise()});
     G.orionScreen=screen;
   }
@@ -427,6 +443,26 @@ function buildInteractables(){
       label:()=>'Bring workshop online  (8 scrap · 6 elec)',
       available:()=>G.mission.idx===3,
       action:()=>bringWorkshopOnline()});
+  }
+  // ---- drone bay (M05: deploy first construction drone) ----
+  {
+    const g=new THREE.Group();g.position.copy(DRONE_BAY);
+    g.add(mesh(new THREE.CylinderGeometry(1.6,1.7,0.3,20),M(0x2a2e38,0.7,0.4),0,0.15,0));
+    g.add(mesh(new THREE.TorusGeometry(1.3,0.08,8,24),M(0x33414e,0.6,0.4),0,0.3,0).rotateX(Math.PI/2));
+    // folded "dormant unit" cue on the pad (replaced by the live drone on deploy)
+    const dorm=mesh(new THREE.BoxGeometry(1.1,0.5,1.4),M(0x202833,0.8,0.3),0,0.4,0);addGlow(dorm,0x123845,1.4);g.add(dorm);g.dorm=dorm;
+    const ring=makeHotspot(0x5fd0e6);g.add(ring);
+    scene.add(g);
+    interactables.push({id:'dronebay',group:g,ring,radius:2.8,
+      label:()=>'Deploy construction drone  (20 scrap · 10 elec · 1 AI)',
+      available:()=>G.mission.idx===4&&!G.droneDeployed,
+      action:()=>deployDrone(g)});
+  }
+  // ---- printed-foundation site marker (where the drone will build) ----
+  {
+    const m=mesh(new THREE.RingGeometry(1.5,1.7,4),new THREE.MeshBasicMaterial({color:0x5fd0e6,transparent:true,opacity:0.18,side:THREE.DoubleSide}));
+    m.rotation.x=-Math.PI/2;m.rotation.z=Math.PI/4;m.position.copy(FOUNDATION);m.position.y=0.05;
+    scene.add(m);foundationMarker=m;
   }
 }
 
@@ -516,9 +552,9 @@ function wakeOrion(){
   beep(720,0.14);checkMissions();
 }
 function lootCrate(obj){
-  obj.looted=true;G.res.scrap+=9;G.res.electronics+=5;G.cratesLooted++;
+  obj.looted=true;G.res.scrap+=16;G.res.electronics+=8;G.cratesLooted++;
   obj.group.children[1].material.color.set(0x4a4034); // lid darkens (emptied)
-  sys(`Salvaged crate ${G.cratesLooted}/${CRATE_COUNT}: +9 scrap, +5 electronics.`);
+  sys(`Salvaged crate ${G.cratesLooted}/${CRATE_COUNT}: +16 scrap, +8 electronics.`);
   beep(440,0.08);
   if(G.cratesLooted>=CRATE_COUNT)orion('That will do. Now the hard part — making this place breathe again. Restore the grid.');
   checkMissions();
@@ -541,10 +577,49 @@ function bringWorkshopOnline(){
   if(G.res.scrap<8||G.res.electronics<6){sys('The workshop needs 8 scrap and 6 electronics.');return;}
   G.res.scrap-=8;G.res.electronics-=6;G.res.compute+=2;G.res.trust+=4;G.workshopOnline=true;
   sys('Fabrication bay online. Tooling spun up.');beep(560,0.12);
-  orion('Now we can actually manufacture. One thing left: authorise the program and we commit to Mars.');
+  orion('Now we can actually manufacture — not just repair. And there is a construction unit dormant in the bay that could put that to use.');
   checkMissions();
 }
 function authorise(){ G.authorised=true;checkMissions(); }
+
+/* ---------- first construction drone ---------- */
+function makeDrone(){
+  const g=new THREE.Group();
+  g.add(mesh(new THREE.BoxGeometry(1.3,0.25,1.6),M(0x202833,0.7,0.4),0,0.2,0));   // chassis / treads
+  g.add(mesh(new THREE.BoxGeometry(1.1,0.5,1.4),M(0x3a4654,0.6,0.5),0,0.5,0));    // body
+  const eye=mesh(new THREE.SphereGeometry(0.16,12,10),new THREE.MeshBasicMaterial({color:0x5fd0e6}),0,0.72,0.72);g.add(eye);
+  const arm=new THREE.Group();arm.position.set(0.35,0.6,0.4);arm.rotation.x=-0.5;g.add(arm);
+  arm.add(mesh(new THREE.CylinderGeometry(0.07,0.07,0.9,6),M(0x8a929c,0.5,0.6),0,0.45,0));
+  arm.add(mesh(new THREE.BoxGeometry(0.22,0.22,0.22),M(0xff7536,0.5,0.4),0,0.95,0)); // tool head
+  const spark=mesh(new THREE.SphereGeometry(0.1,8,6),new THREE.MeshBasicMaterial({color:0xfff0b0}),0,1.05,0);spark.visible=false;arm.add(spark);
+  g.userData={eye,arm,spark};
+  return g;
+}
+function deployDrone(bay){
+  if(G.res.scrap<20||G.res.electronics<10||G.res.compute<1){sys('The drone needs 20 scrap, 10 electronics and 1 AI compute.');return;}
+  G.res.scrap-=20;G.res.electronics-=10;G.res.compute-=1;G.res.trust+=3;
+  G.droneDeployed=true;
+  if(bay&&bay.dorm)bay.dorm.visible=false;            // dormant cue → live unit
+  drone=makeDrone();drone.position.copy(DRONE_BAY);scene.add(drone);
+  G.droneState='moving';G.droneProgress=0;G.droneT=0;
+  sys('Construction drone deployed. Routing to print site…');beep(620,0.12);
+  orion('Construction unit online. It has one arm, half a navigation stack, and more discipline than most launch committees. Good enough.');
+  updateHUD();                                        // M05 completes later, when the foundation is printed
+}
+function finishConstruction(){
+  G.droneState='done';
+  slab=new THREE.Group();slab.position.copy(FOUNDATION);
+  slab.add(mesh(new THREE.BoxGeometry(3,0.3,3),M(0x46505c,0.85,0.2),0,0.15,0));
+  slab.add(mesh(new THREE.BoxGeometry(2.6,0.06,2.6),M(0x2a3340,0.5,0.3,0x2f8fb0,0.6),0,0.33,0)); // glowing print surface
+  for(const sx of [-1,1])for(const sz of [-1,1])slab.add(mesh(new THREE.BoxGeometry(0.2,0.5,0.2),M(0xff7536,0.5,0.3),sx*1.3,0.25,sz*1.3));
+  scene.add(slab);
+  if(foundationMarker)foundationMarker.material.opacity=0;
+  $('#droneprog').classList.remove('show');beep(520,0.16);
+  G.foundationPrinted=true;                            // NOW M05 completes (gates authorisation)
+  sys('Foundation printed. Cargo pad marker set. Construction pattern validated.');
+  orion('Foundation down — level, anchored, ours. Crude work, but it is the first thing built on this site by something other than human hands. Mars will need that pattern.');
+  checkMissions();                                     // M05 → M06 Authorise robotic cargo program
+}
 
 /* ---------- HUD ---------- */
 const RES=[['scrap','Scrap'],['electronics','Elec'],['power','Power'],['trust','Trust'],['compute','AI Compute']];
@@ -578,8 +653,8 @@ function showIntro(){
 }
 function showComplete(){
   $('#mcard').innerHTML=`<div class="emoji">🚀</div><h2>CARGO PROGRAM AUTHORISED</h2>
-   <p class="story">Cape Helios is alive again. With ORION online, the grid restored, and the fabrication bay running, Project Red Frontier can begin assembling and launching <b>robotic cargo missions</b> — the landers, power systems, and supply caches that will prepare Mars long before the first crew arrives.</p>
-   <div class="who" style="border-left-color:var(--cyan)">ORION: "First light at Cape Helios. We are no longer recovering a ruin — we are starting a launch program. The next time we speak, it may be across twenty light-minutes of vacuum."</div>
+   <p class="story">Cape Helios is alive again. With ORION online, the grid restored, the fabrication bay running, and the <b>first construction-drone pattern validated</b>, Project Red Frontier can begin assembling and launching <b>robotic cargo missions</b> — the landers, power systems, and supply caches that will prepare Mars long before the first crew arrives.</p>
+   <div class="who" style="border-left-color:var(--cyan)">ORION: "The first construction-drone pattern holds. Mars will not receive just supplies — it will receive hands. The next time we speak, it may be across twenty light-minutes of vacuum."</div>
    <div class="tbc">To be continued — Prepare Mars Cargo</div>
    <div class="mbtns"><a class="btn" href="../mars-colony/">Play the Mars colony →</a><button class="btn cy" id="again">Replay the yard</button></div>`;
   $('#modal').classList.add('show');
@@ -652,6 +727,26 @@ function loop(){
   if(rocketBeacon)rocketBeacon.material.opacity=0.5+Math.sin(t*3)*0.5;
   for(const d of dust){d.rotation.y+=dt*0.02;}
   if(G.orionScreen&&G.mission.idx>=1){G.orionScreen.material.emissiveIntensity=2.4+Math.sin(t*5)*0.6;}
+
+  // construction drone — one scripted task: drive to the print site, build, leave a foundation
+  if(drone){
+    const ud=drone.userData;
+    if(G.droneState==='moving'){
+      const dx=FOUNDATION.x-drone.position.x, dz=FOUNDATION.z-drone.position.z, d=Math.hypot(dx,dz);
+      if(d>1.7){const s=6*dt;drone.position.x+=dx/d*s;drone.position.z+=dz/d*s;drone.rotation.y=Math.atan2(dx,dz);}
+      else{G.droneState='building';G.droneT=0;G.droneProgress=0;$('#droneprog').classList.add('show');}
+    } else if(G.droneState==='building'){
+      G.droneT+=dt;G.droneProgress=Math.min(1,G.droneT/4.5);
+      ud.arm.rotation.x=-0.5+Math.sin(t*14)*0.35;
+      ud.spark.visible=Math.sin(t*40)>0;ud.spark.material.color.setHex(Math.random()<0.5?0xfff0b0:0xff9a4a);
+      const bars=Math.round(G.droneProgress*10);
+      $('#droneprog').innerHTML=`PRINTING FOUNDATION <b>${'▰'.repeat(bars)}${'▱'.repeat(10-bars)}</b> ${Math.round(G.droneProgress*100)}%`;
+      if(G.droneProgress>=1){ud.spark.visible=false;ud.arm.rotation.x=-0.5;finishConstruction();}
+    } else if(G.droneState==='done'){
+      drone.position.y=Math.abs(Math.sin(t*2))*0.04;
+    }
+    ud.eye.material.color.setHSL(0.52,0.8,0.5+Math.sin(t*5)*0.18); // pulsing cyan eye
+  }
 
   renderer.render(scene,camera);
 }
