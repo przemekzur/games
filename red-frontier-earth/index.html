@@ -161,7 +161,6 @@ const G={
   // mission flags (mission `done` predicates read these)
   orionAwake:false, inverterRepaired:false, batteryConnected:false, cratesLooted:0,
   powerOn:false, workshopOnline:false, droneDeployed:false, foundationPrinted:false, authorised:false,
-  droneState:'none', droneProgress:0, droneT:0,   // scripted drone task
 };
 const CRATE_COUNT=3;
 
@@ -207,6 +206,7 @@ let rocketBeacon;
 // first construction drone (Iteration 3B) — one unit, one scripted task
 let drone=null, slab=null, foundationMarker=null;
 const DRONE_BAY=new THREE.Vector3(-13,0,7), FOUNDATION=new THREE.Vector3(3,0,1.5);
+const jobs=[]; // active robot jobs (data-driven; see startJob/runJobs)
 
 const vw=()=>innerWidth||1280, vh=()=>innerHeight||720;
 
@@ -595,19 +595,59 @@ function makeDrone(){
   g.userData={eye,arm,spark};
   return g;
 }
+
+/* ---------- minimal robot job system ----------------------------------------
+ * A job is data: a `unit` (Object3D) drives from->to, then "works" for
+ * `duration` seconds, calling `onDone()` once. The main loop ticks every active
+ * job via runJobs(). One drone, one job today — but the shape generalises to
+ * more units/sites without per-task special-casing.
+ *   { id, unit, from, to, duration, label?, speed?, onDone?,
+ *     state:'moving'|'working'|'done', progress }
+ */
+function startJob(job){
+  job.state='moving'; job.progress=0;
+  job.unit.position.copy(job.from);
+  jobs.push(job);
+}
+function runJobs(dt,t){
+  for(const job of jobs){
+    const u=job.unit, ud=u.userData||{};
+    if(job.state==='moving'){
+      const dx=job.to.x-u.position.x, dz=job.to.z-u.position.z, d=Math.hypot(dx,dz);
+      if(d>1.7){const s=(job.speed||6)*dt; u.position.x+=dx/d*s; u.position.z+=dz/d*s; u.rotation.y=Math.atan2(dx,dz);}
+      else{job.state='working'; job.progress=0; if(job.label)$('#droneprog').classList.add('show');}
+    } else if(job.state==='working'){
+      job.progress=Math.min(1,job.progress+dt/job.duration);
+      if(ud.arm)ud.arm.rotation.x=-0.5+Math.sin(t*14)*0.35;                 // tool-arm motion
+      if(ud.spark){ud.spark.visible=Math.sin(t*40)>0; ud.spark.material.color.setHex(Math.random()<0.5?0xfff0b0:0xff9a4a);}
+      if(job.label){const bars=Math.round(job.progress*10);
+        $('#droneprog').innerHTML=`${job.label} <b>${'▰'.repeat(bars)}${'▱'.repeat(10-bars)}</b> ${Math.round(job.progress*100)}%`;}
+      if(job.progress>=1){
+        job.state='done';
+        if(ud.spark)ud.spark.visible=false; if(ud.arm)ud.arm.rotation.x=-0.5;
+        if(job.label)$('#droneprog').classList.remove('show');
+        if(job.onDone)job.onDone(job);
+      }
+    } else if(job.state==='done'){
+      u.position.y=Math.abs(Math.sin(t*2))*0.04;                           // idle hover
+    }
+    if(ud.eye)ud.eye.material.color.setHSL(0.52,0.8,0.5+Math.sin(t*5)*0.18); // pulsing cyan eye
+  }
+}
+
 function deployDrone(bay){
   if(G.res.scrap<20||G.res.electronics<10||G.res.compute<1){sys('The drone needs 20 scrap, 10 electronics and 1 AI compute.');return;}
   G.res.scrap-=20;G.res.electronics-=10;G.res.compute-=1;G.res.trust+=3;
   G.droneDeployed=true;
   if(bay&&bay.dorm)bay.dorm.visible=false;            // dormant cue → live unit
-  drone=makeDrone();drone.position.copy(DRONE_BAY);scene.add(drone);
-  G.droneState='moving';G.droneProgress=0;G.droneT=0;
+  drone=makeDrone();scene.add(drone);
+  startJob({ id:'print-foundation', unit:drone, from:DRONE_BAY, to:FOUNDATION,
+    duration:4.5, label:'PRINTING FOUNDATION', onDone:()=>finishConstruction() });
   sys('Construction drone deployed. Routing to print site…');beep(620,0.12);
   orion('Construction unit online. It has one arm, half a navigation stack, and more discipline than most launch committees. Good enough.');
   updateHUD();                                        // M05 completes later, when the foundation is printed
 }
 function finishConstruction(){
-  G.droneState='done';
   slab=new THREE.Group();slab.position.copy(FOUNDATION);
   slab.add(mesh(new THREE.BoxGeometry(3,0.3,3),M(0x46505c,0.85,0.2),0,0.15,0));
   slab.add(mesh(new THREE.BoxGeometry(2.6,0.06,2.6),M(0x2a3340,0.5,0.3,0x2f8fb0,0.6),0,0.33,0)); // glowing print surface
@@ -728,25 +768,8 @@ function loop(){
   for(const d of dust){d.rotation.y+=dt*0.02;}
   if(G.orionScreen&&G.mission.idx>=1){G.orionScreen.material.emissiveIntensity=2.4+Math.sin(t*5)*0.6;}
 
-  // construction drone — one scripted task: drive to the print site, build, leave a foundation
-  if(drone){
-    const ud=drone.userData;
-    if(G.droneState==='moving'){
-      const dx=FOUNDATION.x-drone.position.x, dz=FOUNDATION.z-drone.position.z, d=Math.hypot(dx,dz);
-      if(d>1.7){const s=6*dt;drone.position.x+=dx/d*s;drone.position.z+=dz/d*s;drone.rotation.y=Math.atan2(dx,dz);}
-      else{G.droneState='building';G.droneT=0;G.droneProgress=0;$('#droneprog').classList.add('show');}
-    } else if(G.droneState==='building'){
-      G.droneT+=dt;G.droneProgress=Math.min(1,G.droneT/4.5);
-      ud.arm.rotation.x=-0.5+Math.sin(t*14)*0.35;
-      ud.spark.visible=Math.sin(t*40)>0;ud.spark.material.color.setHex(Math.random()<0.5?0xfff0b0:0xff9a4a);
-      const bars=Math.round(G.droneProgress*10);
-      $('#droneprog').innerHTML=`PRINTING FOUNDATION <b>${'▰'.repeat(bars)}${'▱'.repeat(10-bars)}</b> ${Math.round(G.droneProgress*100)}%`;
-      if(G.droneProgress>=1){ud.spark.visible=false;ud.arm.rotation.x=-0.5;finishConstruction();}
-    } else if(G.droneState==='done'){
-      drone.position.y=Math.abs(Math.sin(t*2))*0.04;
-    }
-    ud.eye.material.color.setHSL(0.52,0.8,0.5+Math.sin(t*5)*0.18); // pulsing cyan eye
-  }
+  // robot jobs — tick the data-driven job list (drive → work → onDone)
+  runJobs(dt,t);
 
   renderer.render(scene,camera);
 }
