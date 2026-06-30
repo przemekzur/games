@@ -6,11 +6,11 @@ brand
 
 ## Users
 
-One owner-curator (Przemek) and the friends he sends the link to. They arrive on a phone or laptop, idle and curious, with no goal more specific than "show me something fun to play right now." Nobody installs anything; every title runs in the browser in one click. The hub is the front door to a personal collection of 16 hand-built games that range from a 3D real-time strategy engine to a cow eating clovers.
+One owner-curator (Przemek) and the friends he sends the link to. They arrive on a phone or laptop, idle and curious, with no goal more specific than "show me something fun to play right now." Nobody installs anything; every title runs in the browser in one click. The hub is the front door to a personal collection of 18 hand-built games that range from a 3D real-time strategy engine to a glowing loop puzzle.
 
 ## Product Purpose
 
-The Arcade Hub is a showcase, not a utility. Its job is to make a personal game collection feel curated and worth exploring, to seduce a visitor into clicking into a title, and to carry a consistent identity across 16 wildly different games. Success is a visitor who plays a game they did not arrive intending to play, and who remembers the place it came from.
+The Arcade Hub is a showcase, not a utility. Its job is to make a personal game collection feel curated and worth exploring, to seduce a visitor into clicking into a title, and to carry a consistent identity across 18 wildly different games. Success is a visitor who plays a game they did not arrive intending to play, and who remembers the place it came from.
 
 ## Brand Personality
 
@@ -21,7 +21,7 @@ Theatrical, curated, hand-set. The voice of a repertory cinema programme or a fe
 - Generic neon-on-black "gamer" aesthetics: glowing gradients, synthwave grids, RGB everything.
 - Glassmorphism: blurred translucent panels used as decoration.
 - Gradient text (`background-clip: text`) and other AI-slop tells.
-- Identical SaaS card grids: same-sized icon + heading + body, repeated 16 times.
+- Identical SaaS card grids: same-sized icon + heading + body, repeated 18 times.
 - Steam / itch.io storefront chrome. This is a programme, not a store.
 
 ## Design Principles

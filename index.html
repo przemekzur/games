@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>The Arcade · Repertory Programme</title>
-  <meta name="description" content="A repertory programme of 16 hand-built browser games, from a 3D real-time strategy engine to a cow chasing clovers. One click, no installs." />
+  <meta name="description" content="A repertory programme of 18 hand-built browser games, from a 3D real-time strategy engine to a glowing loop puzzle. One click, no installs." />
   <meta name="theme-color" content="#f4eede" />
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -357,7 +357,7 @@
       <h1 class="wordmark">THE&nbsp;ARCADE<span class="reel">.</span></h1>
       <div class="colophon">
         Repertory programme<br />
-        Nº 01 · <b>16 titles</b> in rotation<br />
+        Nº 01 · <b>18 titles</b> in rotation<br />
         Browser only · no installs
       </div>
     </header>
@@ -398,6 +398,7 @@
         <button class="filter" data-filter="action" aria-pressed="false">Action</button>
         <button class="filter" data-filter="shooter" aria-pressed="false">Shooter</button>
         <button class="filter" data-filter="strategy" aria-pressed="false">Strategy</button>
+        <button class="filter" data-filter="puzzle" aria-pressed="false">Puzzle</button>
         <button class="filter" data-filter="rpg" aria-pressed="false">RPG</button>
         <button class="filter" data-filter="fighting" aria-pressed="false">Fighting</button>
         <button class="filter" data-filter="classic" aria-pressed="false">Classic</button>
@@ -408,7 +409,7 @@
     <main>
       <div class="index-head">
         <h2>The Programme</h2>
-        <div class="count" aria-live="polite"><b id="count">16</b> / 16 showing</div>
+        <div class="count" aria-live="polite"><b id="count">18</b> / 18 showing</div>
       </div>
 
       <section class="programme" id="programme" aria-label="All titles"><!-- tiles injected --></section>
@@ -439,6 +440,7 @@
             <li><a href="./red-frontier-earth/">Red Frontier: The Long Launch</a></li>
             <li><a href="./jetpack-rush/">Jetpack Rush: Neon Run</a></li>
             <li><a href="./grass-frenzy/">Grass Frenzy</a></li>
+            <li><a href="./loop/">Loop</a></li>
           </ul>
         </div>
       </noscript>
@@ -488,7 +490,9 @@
         { slug: "jetpack-rush",    art: "jetpack-rush.svg",    title: "Jetpack Rush: Neon Run",        genre: "Endless Runner", tags: "action casual", flagship: true,
           log: "One button, endless neon, dodge everything, bank the distance." },
         { slug: "grass-frenzy",    art: "grass-frenzy.svg",    title: "Grass Frenzy",                  genre: "Casual",         tags: "casual classic", isNew: true,
-          log: "A happy cow, golden stars, and puddles to dodge. It only speeds up." }
+          log: "A happy cow, golden stars, and puddles to dodge. It only speeds up." },
+        { slug: "loop",            art: "loop.svg",            title: "Loop",                          genre: "Puzzle",         tags: "puzzle casual", isNew: true,
+          log: "Rotate glowing path tiles until every loose end closes into one seamless circuit." }
       ];
 
       var pad = function (n) { return (n < 10 ? "0" : "") + n; };

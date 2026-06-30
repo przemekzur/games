@@ -4,7 +4,7 @@ Visual system for the Arcade Hub launcher. Register: brand. Lane: repertory-cine
 
 ## Theme
 
-Light. The page is a printed programme on warm bone stock under gallery light; the 16 animated SVG covers are dark framed posters hung on it. Depth comes from the art and from hairline rules and restrained shadow, never from glow or glass.
+Light. The page is a printed programme on warm bone stock under gallery light; the 18 animated SVG covers are dark framed posters hung on it. Depth comes from the art and from hairline rules and restrained shadow, never from glow or glass.
 
 ## Color (OKLCH)
 
@@ -28,7 +28,7 @@ Three families, a magazine shape (display + neutral body + mono catalog voice). 
 
 - **Display** Bricolage Grotesque (700 / 800), `font-optical-sizing: auto`. Wordmark, marquee title, game titles, section heads. `text-wrap: balance`, tight tracking at large sizes.
 - **Body** Hanken Grotesk (400 / 500 / 600). Loglines, descriptions, buttons. `text-wrap: pretty` on prose; measure capped ~62ch.
-- **Mono** Martian Mono (400 / 600), letter-spacing 0.04–0.10em. Index numerals 01–16, genre codes, counts, soundtrack labels, colophon. Used sparingly as catalog voice.
+- **Mono** Martian Mono (400 / 600), letter-spacing 0.04–0.10em. Index numerals 01–18, genre codes, counts, soundtrack labels, colophon. Used sparingly as catalog voice.
 
 Scale: fluid `clamp()` for display only, ratio ≥1.25, `max ≤ 2.5× min`. Fixed rem for body/UI. Min body 16px.
 

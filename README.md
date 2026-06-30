@@ -20,9 +20,12 @@ A collection of browser games behind one launcher page, hosted on GitHub Pages.
 | [Space Invaders: Neon Siege](space-invaders/) | Arcade shooter | Vanilla JS / Canvas |
 | [Star Trek Voyager — Journey Home](voyager-game/) | 3D space strategy | Three.js + Vite |
 | [Star Trek Voyager — Definitive Edition](voyager-game-v2/) | 3D space strategy | Three.js + Vite |
+| [Red Frontier — The Long Launch](red-frontier-earth/) | Narrative prequel / campaign bridge | Vanilla JS |
 | [Red Frontier — Mars Colony](mars-colony/) | 3D colony / terraforming strategy | Three.js (CDN) |
 | [Jetpack Rush: Neon Run](jetpack-rush/) | Endless runner | Vanilla JS / Canvas |
 | [Stellar Siege](stellar-siege/) | 3D multiplayer RTS (StarCraft-like) | Three.js (CDN) + PeerJS lockstep |
+| [Grass Frenzy](grass-frenzy/) | Casual arcade | Vanilla JS / Canvas |
+| [Loop](loop/) | Thinking puzzle | Vanilla JS / Canvas |
 
 Most games are plain HTML/JS — open their folder's `index.html` or serve the repo
 root with any static server. The two Voyager games are Vite projects; see their
