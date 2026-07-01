@@ -62,8 +62,8 @@
   .res .v{font-family:var(--mono);font-weight:600;font-size:13px;letter-spacing:-.02em;line-height:1.1}
   .res .r{font-size:9.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-family:var(--mono)}
   .res .r.pos{color:var(--good)}.res .r.neg{color:var(--bad)}
-  .res.alert .v{color:var(--bad);animation:flick 2.4s ease-in-out infinite}
-  @keyframes flick{0%,100%{opacity:1}50%{opacity:.72}}
+  .res.alert{background:rgba(255,111,111,.10)}
+  .res.alert .v{color:var(--bad)}
   .spacer{flex:1}
   .clock{display:flex;align-items:center;gap:12px;padding:3px 4px 3px 14px;border-left:1px solid var(--line)}
   .clock .sol{font-family:var(--mono);font-weight:600;font-size:15px;letter-spacing:.04em}
@@ -419,6 +419,7 @@ const ICONS={
 const G = {
   res:{power:60,oxygen:140,water:140,food:140,materials:280,science:0,credits:240},
   pop:0, popCap:0, morale:62, moraleTarget:62, colonies:0,  // no crew until the first Habitat is built (robotic prep only)
+  crewArrived:false,     // the first Habitat brings the crew down — only then can the colony "die"
   tf:{temp:0,oxygen:0,pressure:0},
   sol:1, todFrac:0, speed:1, paused:false,
   buildings:[], techDone:{}, selected:null, demolish:false,
@@ -961,6 +962,9 @@ function placeBuilding(key,gx,gz){
   }
   G.buildings.push(obj);tileOccupied[idx(gx,gz)]=true;
   spawnPuff(pos,dir);beep(440,0.08);toast(`${b.name} — construction started`,'good');
+  // The first Habitat brings the crew down from orbit — seed the founding colonists.
+  if(key==='habitat'&&!G.crewArrived){G.pop=Math.max(G.pop,3);G.crewArrived=true;computeRates();updateResBar();
+    setTimeout(()=>toast('🧑‍🚀 The first crew descends from orbit — Mars is inhabited.','disc'),700);}
   if(key==='spaceport')toast('🚀 Spaceport online — Earth supply & launches unlocked!','disc');
   return true;
 }
@@ -1061,9 +1065,11 @@ function tickEconomy(dtSol){
   const lifeOK=G.res.oxygen>0&&G.res.water>0&&G.res.food>0;
   const growth=THREE.MathUtils.clamp(G.morale/70,0.3,1.5)*(G.techDone.culture?1.3:1);
   if(lifeOK&&G.pop<G.popCap)G.pop+=0.6*growth*dtSol;
-  else if(!lifeOK){G.pop-=1.2*dtSol;if(Math.random()<0.35*dtSol)toast("Colonists are suffering — fix life support!",'bad');}
+  else if(!lifeOK&&G.crewArrived){G.pop-=1.2*dtSol;if(Math.random()<0.35*dtSol)toast("Colonists are suffering — fix life support!",'bad');}
   G.pop=Math.max(0,Math.min(G.pop,G.popCap));
-  if(G.pop<0.5&&G.popCap>0&&!G.over)gameOver(false);
+  if(G.pop>=1)G.crewArrived=true;                       // crew is now on the surface
+  // only a colony that was actually crewed can be lost — an empty robotic site can't "perish"
+  if(G.crewArrived&&G.pop<0.5&&G.popCap>0&&!G.over)gameOver(false);
   if(G.bonusT>0){G.bonusT-=dtSol;if(G.bonusT<=0){G.bonus={};G.moraleBonus=0;}}
   updatePending(dtSol);
   checkMilestones();
@@ -1773,11 +1779,11 @@ function completeDroneJob(){
   save(true);
 }
 
-function save(silent){const data={res:G.res,pop:G.pop,morale:G.morale,colonies:G.colonies,tf:G.tf,sol:G.sol,todFrac:G.todFrac,techDone:G.techDone,milestones:G.milestones,interstellar:G.interstellar,mission:G.mission,story:G.story,campaign:G.campaign,events:G.events,buildings:G.buildings.map(o=>({key:o.key,gx:o.gx,gz:o.gz}))};
+function save(silent){const data={res:G.res,pop:G.pop,crewArrived:G.crewArrived,morale:G.morale,colonies:G.colonies,tf:G.tf,sol:G.sol,todFrac:G.todFrac,techDone:G.techDone,milestones:G.milestones,interstellar:G.interstellar,mission:G.mission,story:G.story,campaign:G.campaign,events:G.events,buildings:G.buildings.map(o=>({key:o.key,gx:o.gx,gz:o.gz}))};
   localStorage.setItem(SAVE_KEY,JSON.stringify(data));if(!silent)toast('💾 Colony saved','good');}
 function load(){
   try{const d=JSON.parse(localStorage.getItem(SAVE_KEY));if(!d)return false;
-    Object.assign(G.res,d.res);G.pop=d.pop;G.morale=d.morale??62;G.colonies=d.colonies||0;Object.assign(G.tf,d.tf);
+    Object.assign(G.res,d.res);G.pop=d.pop;G.crewArrived=d.crewArrived||d.pop>=1;G.morale=d.morale??62;G.colonies=d.colonies||0;Object.assign(G.tf,d.tf);
     G.sol=d.sol;G.todFrac=d.todFrac;G.techDone=d.techDone||{};G.milestones=d.milestones||{};G.interstellar=d.interstellar||false;
     // campaign state — safe defaults so older saves (pre-Iteration-1) still load
     G.mission=(d.mission&&typeof d.mission.idx==='number')?d.mission:{idx:0};G.story=d.story||{};G.campaign=d.campaign||{};
