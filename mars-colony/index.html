@@ -159,6 +159,12 @@
   .mcard h2{margin:10px 0 8px;font-size:23px;letter-spacing:.03em}
   .mcard p{color:var(--muted);font-size:13.5px;line-height:1.65;margin:0 0 20px}
   .mcard .mbtns{display:flex;gap:10px}
+  /* Sol Event choice buttons — stacked, label + consequence line */
+  .mcard .evbtns{flex-direction:column;gap:9px}
+  .mcard .evchoice{flex-direction:column;align-items:flex-start;gap:2px;padding:12px 14px;text-align:left}
+  .mcard .evchoice b{font-size:14px;color:var(--ink);letter-spacing:.02em}
+  .mcard .evchoice .evd{font-family:var(--mono);font-size:11px;color:var(--amber);letter-spacing:0}
+  .mcard .evchoice:hover b{color:var(--rust-2)}
 
   .hint{position:fixed;bottom:92px;left:50%;transform:translateX(-50%);pointer-events:none;
     font-size:12px;color:var(--ink);background:var(--glass-2);border:1px solid var(--line-2);
@@ -424,13 +430,14 @@ const G = {
   mission:{idx:0},       // campaign objective chain progress
   story:{},              // fired ORION story-beat flags
   campaign:{},           // cross-episode flags (e.g. earthCargoApplied)
+  events:{next:0,log:[]},// Sol Events: next-fire sol + ids already resolved
 };
 
 /* ============================================================= *
  *  THREE.JS SCENE                                                *
  * ============================================================= */
 let renderer,scene,camera,sun,sunPivot,ambient,hemi,terrain,cursor,starField,atmMesh;
-let phobos,deimos,sunMesh,sunHalo;
+let phobos,deimos,sunMesh,sunHalo,rimLight,atmMesh2,skyDome,cityLights;
 const clock=new THREE.Clock();
 const tileOccupied=new Array(GRID*GRID).fill(false);
 const dustParticles=[];
@@ -459,8 +466,10 @@ function initScene(){
   camera=new THREE.PerspectiveCamera(52,vw()/vh(),0.5,5000);
   G._vw=vw;G._vh=vh;
 
-  hemi=new THREE.HemisphereLight(0xffb070,0x2a0f06,0.4);scene.add(hemi);
-  ambient=new THREE.AmbientLight(0xff8855,0.18);scene.add(ambient);
+  hemi=new THREE.HemisphereLight(0xffb070,0x241028,0.46);scene.add(hemi);
+  ambient=new THREE.AmbientLight(0xff8855,0.16);scene.add(ambient);
+  // cool rim/fill from opposite the sun — gives the globe shape and a filmic cold-shadow side
+  rimLight=new THREE.DirectionalLight(0x5a6cff,0.5);rimLight.position.set(-R*3,-R*0.5,-R*2.4);scene.add(rimLight);
 
   sunPivot=new THREE.Object3D();scene.add(sunPivot);
   sun=new THREE.DirectionalLight(0xfff0e0,2.4);
@@ -476,10 +485,20 @@ function initScene(){
     new THREE.MeshBasicMaterial({color:0xff9a4a,transparent:true,opacity:0.18,blending:THREE.AdditiveBlending,depthWrite:false,fog:false}));
   sun.add(sunHalo);
 
-  buildTerrain();buildStars();buildMoons();buildCursor();initDust();initCamera();
+  buildSky();buildTerrain();buildStars();buildMoons();buildCursor();initDust();initCamera();
   addEventListeners();
 }
 
+/* ---------- deep-space sky backdrop ---------- */
+function buildSky(){
+  // huge inverted sphere with a painted gradient: ink-black zenith → faint aubergine → warm mars-limb haze
+  skyDome=new THREE.Mesh(new THREE.SphereGeometry(2600,32,24),new THREE.ShaderMaterial({
+    uniforms:{top:{value:new THREE.Color(0x05030a)},mid:{value:new THREE.Color(0x140a1e)},horiz:{value:new THREE.Color(0x3a1524)}},
+    vertexShader:`varying vec3 vP;void main(){vP=normalize(position);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
+    fragmentShader:`varying vec3 vP;uniform vec3 top,mid,horiz;void main(){float h=vP.y*0.5+0.5;vec3 c=mix(horiz,mid,smoothstep(0.0,0.42,h));c=mix(c,top,smoothstep(0.4,0.95,h));gl_FragColor=vec4(c,1.0);}`,
+    side:THREE.BackSide,depthWrite:false,fog:false}));
+  scene.add(skyDome);
+}
 /* ---------- planet ---------- */
 function buildTerrain(){
   const geo=new THREE.SphereGeometry(R,200,150);
@@ -522,21 +541,36 @@ function buildTerrain(){
     new THREE.MeshBasicMaterial({color:0xff8a4a,wireframe:true,transparent:true,opacity:0.05}));
   scene.add(grid);
 
-  // Fresnel atmosphere rim glow
+  // Fresnel atmosphere rim glow — tight bright limb
   atmMesh=new THREE.Mesh(new THREE.SphereGeometry(R*1.14,64,48),new THREE.ShaderMaterial({
     uniforms:{glow:{value:new THREE.Color(0xff7a3c)},strength:{value:1.0}},
     vertexShader:`varying vec3 vN;void main(){vN=normalize(normalMatrix*normal);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
     fragmentShader:`varying vec3 vN;uniform vec3 glow;uniform float strength;void main(){float i=pow(max(0.0,0.72-dot(vN,vec3(0.0,0.0,1.0))),2.2)*strength;gl_FragColor=vec4(glow,1.0)*i;}`,
     side:THREE.BackSide,blending:THREE.AdditiveBlending,transparent:true,depthWrite:false}));
   scene.add(atmMesh);
+  // wider, softer haze bloom around the limb — reads as a real atmosphere from orbit
+  atmMesh2=new THREE.Mesh(new THREE.SphereGeometry(R*1.30,48,36),new THREE.ShaderMaterial({
+    uniforms:{glow:{value:new THREE.Color(0xff6a7a)},strength:{value:1.0}},
+    vertexShader:`varying vec3 vN;void main(){vN=normalize(normalMatrix*normal);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
+    fragmentShader:`varying vec3 vN;uniform vec3 glow;uniform float strength;void main(){float i=pow(max(0.0,0.62-dot(vN,vec3(0.0,0.0,1.0))),3.4)*0.5*strength;gl_FragColor=vec4(glow,1.0)*i;}`,
+    side:THREE.BackSide,blending:THREE.AdditiveBlending,transparent:true,depthWrite:false}));
+  scene.add(atmMesh2);
 }
 
 function buildStars(){
-  const n=3000,geo=new THREE.BufferGeometry(),arr=[],col=[];
+  const n=3400,geo=new THREE.BufferGeometry(),arr=[],col=[];
   const c=new THREE.Color();
+  // tilted galactic band: stars concentrate near a plane, rest scattered — reads as a faint Milky Way
+  const bandN=new THREE.Vector3(0.3,1,0.5).normalize();
   for(let i=0;i<n;i++){
-    const v=new THREE.Vector3().randomDirection().multiplyScalar(1600);arr.push(v.x,v.y,v.z);
-    c.setHSL(0.05+Math.random()*0.12,0.4,0.6+Math.random()*0.4);col.push(c.r,c.g,c.b);
+    let v=new THREE.Vector3().randomDirection();
+    if(i%2===0){ // pull half the stars toward the band plane
+      const along=v.clone().addScaledVector(bandN,-v.dot(bandN));
+      v=v.lerp(along.normalize(),0.72+Math.random()*0.22);
+    }
+    v.multiplyScalar(1600);arr.push(v.x,v.y,v.z);
+    const warm=Math.random();
+    c.setHSL(0.55-warm*0.5,0.35*Math.random(),0.62+Math.random()*0.38);col.push(c.r,c.g,c.b);
   }
   geo.setAttribute('position',new THREE.Float32BufferAttribute(arr,3));
   geo.setAttribute('color',new THREE.Float32BufferAttribute(col,3));
@@ -1319,6 +1353,80 @@ function renderMissions(){
   side.innerHTML=html;$('#sclose').onclick=closeSide;$('#replayIntro').onclick=()=>{closeSide();showIntro(true);};
 }
 
+/* ============================================================= *
+ *  SOL EVENTS — periodic dilemmas with real consequences        *
+ * ============================================================= */
+const SOL_EVENTS=[
+  {id:'ice',emoji:'🧊',title:'SUBSURFACE ICE BREACH',
+   story:'Ground radar just lit up under Sector 7 — a fat vein of water ice, far shallower than any survey predicted. Command wants a call before the drill crew commits.',
+   choices:[
+     {label:'Pump it now',detail:'+80 water · −10 power',fx:{water:80,power:-10},toast:'💧 Ice vein tapped — reservoirs surging.'},
+     {label:'Cap & core it',detail:'+45 science',fx:{science:45},toast:'🔬 Ice vein cored and catalogued.',orion:'Discipline. That seam will still be there once we understand it.'}]},
+  {id:'flare',emoji:'☀️',title:'SOLAR FLARE INBOUND',
+   story:'ORION reads a class-X flare cresting the limb. Radiation spike in ~40 minutes. We can safe the grid, or keep production running and gamble on the shielding.',
+   choices:[
+     {label:'Safe the grid',detail:'−20 power, no damage',fx:{power:-20},toast:'🛡️ Non-essentials powered down — flare rode out clean.'},
+     {label:'Keep running',detail:'−30 materials, +35 science',fx:{materials:-30,science:35},toast:'⚡ Flare data captured — some panels scorched.',orion:'Bold. The physics dataset is excellent. The maintenance backlog is not.'}]},
+  {id:'earth',emoji:'📡',title:'TRANSMISSION FROM EARTH',
+   story:'A crewed transfer window opens early. Earth offers to reroute three specialists to your colony — or, if you would rather not stretch life support yet, a discretionary funding grant.',
+   choices:[
+     {label:'Welcome the crew',detail:'+8 morale · +15 science',fx:{morale:8,science:15},toast:'🤝 New specialists inbound — spirits up.',orion:'More hands, more minds. Also more oxygen demand. Worth it.'},
+     {label:'Request funding',detail:'+70 credits',fx:{credits:70},toast:'💳 Earth wires a discretionary grant.'}]},
+  {id:'meteor',emoji:'🪨',title:'METEOR SHOWER',
+   story:'A debris stream is grazing the colony’s orbit. A few fragments will reach the surface. Deploy the mobile shielding, or hold materials and take your chances.',
+   choices:[
+     {label:'Deploy shielding',detail:'−15 materials, safe',fx:{materials:-15},toast:'🛡️ Shielding deployed — impacts absorbed.'},
+     {label:'Take the chance',detail:'−40 materials, +25 science',fx:{materials:-40,science:25},toast:'☄️ A dome cracked, but the fragments are priceless samples.',orion:'The repair crews and I have… notes.'}]},
+  {id:'seam',emoji:'💎',title:'RARE MINERAL SEAM',
+   story:'Excavation for a foundation exposed a seam threaded with rare metals. Sell the yield to Earth’s markets, or reserve it as colony feedstock.',
+   choices:[
+     {label:'Sell to Earth',detail:'+70 credits · −10 power',fx:{credits:70,power:-10},toast:'💰 Ore convoy sold — credits banked.'},
+     {label:'Reserve feedstock',detail:'+50 materials',fx:{materials:50},toast:'🏗️ Ore stockpiled for construction.'}]},
+  {id:'lichen',emoji:'🌱',title:'ENGINEERED LICHEN TRIAL',
+   story:'The lab has a cold-hardy lichen strain ready. Release it into the regolith to seed the atmosphere, or keep it contained and study it further.',
+   choices:[
+     {label:'Seed the regolith',detail:'+atmosphere · −20 water',fx:{water:-20,tfOxygen:2.5},toast:'🌱 Lichen seeded — a first breath of oxygen.',orion:'Terraforming, one microbe at a time. This is how worlds begin.'},
+     {label:'Keep studying',detail:'+40 science',fx:{science:40},toast:'🔬 Strain sequenced and archived.'}]},
+  {id:'signal',emoji:'🛰️',title:'ANOMALOUS SIGNAL',
+   story:'A structured burst repeats on a dead frequency. Almost certainly a reflection off Phobos… almost. Chase it down, or log it and move on.',
+   choices:[
+     {label:'Investigate',detail:'+50 science · −10 power',fx:{science:50,power:-10},toast:'📡 Signal traced — it was Phobos. Probably.',orion:'Probably. I have flagged the frequency. For science. Only science.'},
+     {label:'Log and move on',detail:'+12 credits',fx:{credits:12},toast:'🗒️ Signal logged for later.'}]},
+];
+function evApply(d){
+  for(const k of ['credits','materials','water','power','science','food','oxygen'])if(d[k])G.res[k]=Math.max(0,(G.res[k]||0)+d[k]);
+  if(d.morale)G.morale=THREE.MathUtils.clamp(G.morale+d.morale,0,100);
+  if(d.tfOxygen)G.tf.oxygen=(G.tf.oxygen||0)+d.tfOxygen;
+  if(d.tfTemp)G.tf.temp=(G.tf.temp||0)+d.tfTemp;
+  updateResBar();
+}
+function scheduleNextEvent(){G.events.next=G.sol+3+Math.floor(Math.random()*3);}   // ~every 3–5 sols
+function showEvent(ev){
+  G.paused=true;const mc=$('#mcard');
+  mc.innerHTML=`<div class="emoji">${ev.emoji}</div><h2>${ev.title}</h2>
+   <div class="who" style="border-left-color:var(--amber)">SOL ${G.sol} · PRIORITY DISPATCH</div>
+   <p class="story">${ev.story}</p>
+   <div class="mbtns evbtns">${ev.choices.map((c,i)=>`<button class="btn evchoice" data-i="${i}"><b>${c.label}</b><span class="evd">${c.detail}</span></button>`).join('')}</div>`;
+  $('#modal').classList.add('show');
+  for(const id of['sp1','sp2','sp3'])$('#'+id)?.classList.remove('on');$('#sp0')?.classList.add('on');
+  mc.querySelectorAll('.evchoice').forEach(b=>b.onclick=()=>{
+    const c=ev.choices[+b.dataset.i];evApply(c.fx||{});
+    if(c.toast)toast(c.toast,'disc');if(c.orion)setTimeout(()=>orion(c.orion),700);
+    beep(660,0.09);$('#modal').classList.remove('show');setSpeed(1);
+    G.events.log.push(ev.id);scheduleNextEvent();save(true);
+  });
+}
+function maybeFireEvent(){
+  if(G.over||G.paused||G.pop<=0)return;                       // events begin once the colony is crewed
+  if($('#modal').classList.contains('show'))return;           // never stack over another modal
+  if(!G.events)G.events={next:0,log:[]};
+  if(!G.events.next){scheduleNextEvent();return;}
+  if(G.sol<G.events.next)return;
+  const seen=new Set(G.events.log);
+  let pool=SOL_EVENTS.filter(e=>!seen.has(e.id));if(!pool.length){pool=SOL_EVENTS;G.events.log=[];}  // recycle once all seen
+  showEvent(pool[Math.floor(Math.random()*pool.length)]);
+}
+
 // Campaign intro — establishes the player (Mission Systems Architect), ORION, and the robotic-prep backstory.
 function showIntro(replay){
   const mc=$('#mcard');
@@ -1514,7 +1622,7 @@ function activateHabitatShell(){
 }
 function removeHabitatShellMarker(){if(habitatShellMarker){scene.remove(habitatShellMarker);habitatShellMarker=null;}}
 
-function save(silent){const data={res:G.res,pop:G.pop,morale:G.morale,colonies:G.colonies,tf:G.tf,sol:G.sol,todFrac:G.todFrac,techDone:G.techDone,milestones:G.milestones,interstellar:G.interstellar,mission:G.mission,story:G.story,campaign:G.campaign,buildings:G.buildings.map(o=>({key:o.key,gx:o.gx,gz:o.gz}))};
+function save(silent){const data={res:G.res,pop:G.pop,morale:G.morale,colonies:G.colonies,tf:G.tf,sol:G.sol,todFrac:G.todFrac,techDone:G.techDone,milestones:G.milestones,interstellar:G.interstellar,mission:G.mission,story:G.story,campaign:G.campaign,events:G.events,buildings:G.buildings.map(o=>({key:o.key,gx:o.gx,gz:o.gz}))};
   localStorage.setItem(SAVE_KEY,JSON.stringify(data));if(!silent)toast('💾 Colony saved','good');}
 function load(){
   try{const d=JSON.parse(localStorage.getItem(SAVE_KEY));if(!d)return false;
@@ -1522,6 +1630,7 @@ function load(){
     G.sol=d.sol;G.todFrac=d.todFrac;G.techDone=d.techDone||{};G.milestones=d.milestones||{};G.interstellar=d.interstellar||false;
     // campaign state — safe defaults so older saves (pre-Iteration-1) still load
     G.mission=(d.mission&&typeof d.mission.idx==='number')?d.mission:{idx:0};G.story=d.story||{};G.campaign=d.campaign||{};
+    G.events=(d.events&&Array.isArray(d.events.log))?d.events:{next:0,log:[]};   // Sol Events (safe default for old saves)
     for(const b of d.buildings){if(!inGrid(b.gx,b.gz))continue;
       const dir=gridToDir(b.gx,b.gz).normalize();const pos=dir.clone().multiplyScalar(R+heightAt(dir));
       const mesh=makeBuildingMesh(b.key);mesh.position.copy(pos);orientToNormal(mesh,dir);scene.add(mesh);
@@ -1545,7 +1654,7 @@ function animate(){
 
   if(dtGame>0){
     G.todFrac+=dtGame/SOL_SECONDS;
-    while(G.todFrac>=1){G.todFrac-=1;G.sol++;toast(`☀️ Sol ${G.sol} begins`,'');}
+    while(G.todFrac>=1){G.todFrac-=1;G.sol++;toast(`☀️ Sol ${G.sol} begins`,'');maybeFireEvent();}
     tickEconomy(dtGame/SOL_SECONDS);
     saveAccum+=dt;if(saveAccum>20){saveAccum=0;save();}
     autoLaunch-=dtGame;if(autoLaunch<=0){autoLaunch=18+Math.random()*16;launchAnySpaceport();}
@@ -1558,7 +1667,10 @@ function animate(){
   const ang=G.todFrac*Math.PI*2-Math.PI/2;
   sun.position.set(Math.cos(ang)*R*4,R*1.0,Math.sin(ang)*R*4);
   sun.intensity=2.4*(dustStormActive?0.5:1);
-  if(atmMesh){atmMesh.material.uniforms.strength.value=dustStormActive?1.9:1.0;}
+  if(atmMesh){const s=dustStormActive?1.9:1.0;atmMesh.material.uniforms.strength.value=s;if(atmMesh2)atmMesh2.material.uniforms.strength.value=s*(0.85+dl*0.3);}
+  // subtle star twinkle + cinematic exposure that dips toward the night side
+  if(starField)starField.material.opacity=0.72+Math.sin(t*1.7)*0.06+dl*0.12;
+  renderer.toneMappingExposure=1.02+dl*0.20-(dustStormActive?0.12:0);
 
   // moons
   phobos.position.set(Math.cos(t*0.18)*R*2.4,Math.sin(t*0.18)*R*0.5,Math.sin(t*0.18)*R*2.4);
