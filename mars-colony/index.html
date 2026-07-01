@@ -62,8 +62,8 @@
   .res .v{font-family:var(--mono);font-weight:600;font-size:13px;letter-spacing:-.02em;line-height:1.1}
   .res .r{font-size:9.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-family:var(--mono)}
   .res .r.pos{color:var(--good)}.res .r.neg{color:var(--bad)}
-  .res.alert .v{color:var(--bad);animation:flick .9s infinite}
-  @keyframes flick{0%,100%{opacity:1}50%{opacity:.4}}
+  .res.alert{background:rgba(255,111,111,.10)}
+  .res.alert .v{color:var(--bad)}
   .spacer{flex:1}
   .clock{display:flex;align-items:center;gap:12px;padding:3px 4px 3px 14px;border-left:1px solid var(--line)}
   .clock .sol{font-family:var(--mono);font-weight:600;font-size:15px;letter-spacing:.04em}
@@ -159,6 +159,12 @@
   .mcard h2{margin:10px 0 8px;font-size:23px;letter-spacing:.03em}
   .mcard p{color:var(--muted);font-size:13.5px;line-height:1.65;margin:0 0 20px}
   .mcard .mbtns{display:flex;gap:10px}
+  /* Sol Event choice buttons — stacked, label + consequence line */
+  .mcard .evbtns{flex-direction:column;gap:9px}
+  .mcard .evchoice{flex-direction:column;align-items:flex-start;gap:2px;padding:12px 14px;text-align:left}
+  .mcard .evchoice b{font-size:14px;color:var(--ink);letter-spacing:.02em}
+  .mcard .evchoice .evd{font-family:var(--mono);font-size:11px;color:var(--amber);letter-spacing:0}
+  .mcard .evchoice:hover b{color:var(--rust-2)}
 
   .hint{position:fixed;bottom:92px;left:50%;transform:translateX(-50%);pointer-events:none;
     font-size:12px;color:var(--ink);background:var(--glass-2);border:1px solid var(--line-2);
@@ -413,6 +419,7 @@ const ICONS={
 const G = {
   res:{power:60,oxygen:140,water:140,food:140,materials:280,science:0,credits:240},
   pop:0, popCap:0, morale:62, moraleTarget:62, colonies:0,  // no crew until the first Habitat is built (robotic prep only)
+  crewArrived:false,     // the first Habitat brings the crew down — only then can the colony "die"
   tf:{temp:0,oxygen:0,pressure:0},
   sol:1, todFrac:0, speed:1, paused:false,
   buildings:[], techDone:{}, selected:null, demolish:false,
@@ -424,13 +431,16 @@ const G = {
   mission:{idx:0},       // campaign objective chain progress
   story:{},              // fired ORION story-beat flags
   campaign:{},           // cross-episode flags (e.g. earthCargoApplied)
+  events:{next:0,log:[]},// Sol Events: next-fire sol + ids already resolved
 };
 
 /* ============================================================= *
  *  THREE.JS SCENE                                                *
  * ============================================================= */
 let renderer,scene,camera,sun,sunPivot,ambient,hemi,terrain,cursor,starField,atmMesh;
-let phobos,deimos,sunMesh,sunHalo;
+let phobos,deimos,sunMesh,sunHalo,rimLight,atmMesh2,skyDome,cityLights;
+let seaMesh,vegMesh;                 // terraforming visualisation: rising oceans + spreading vegetation
+const _atmWarm=new THREE.Color(0xff7a3c),_atmCool=new THREE.Color(0x8fd0ff),_atmCol=new THREE.Color();
 const clock=new THREE.Clock();
 const tileOccupied=new Array(GRID*GRID).fill(false);
 const dustParticles=[];
@@ -459,8 +469,10 @@ function initScene(){
   camera=new THREE.PerspectiveCamera(52,vw()/vh(),0.5,5000);
   G._vw=vw;G._vh=vh;
 
-  hemi=new THREE.HemisphereLight(0xffb070,0x2a0f06,0.4);scene.add(hemi);
-  ambient=new THREE.AmbientLight(0xff8855,0.18);scene.add(ambient);
+  hemi=new THREE.HemisphereLight(0xffb070,0x241028,0.46);scene.add(hemi);
+  ambient=new THREE.AmbientLight(0xff8855,0.16);scene.add(ambient);
+  // cool rim/fill from opposite the sun — gives the globe shape and a filmic cold-shadow side
+  rimLight=new THREE.DirectionalLight(0x5a6cff,0.5);rimLight.position.set(-R*3,-R*0.5,-R*2.4);scene.add(rimLight);
 
   sunPivot=new THREE.Object3D();scene.add(sunPivot);
   sun=new THREE.DirectionalLight(0xfff0e0,2.4);
@@ -476,16 +488,27 @@ function initScene(){
     new THREE.MeshBasicMaterial({color:0xff9a4a,transparent:true,opacity:0.18,blending:THREE.AdditiveBlending,depthWrite:false,fog:false}));
   sun.add(sunHalo);
 
-  buildTerrain();buildStars();buildMoons();buildCursor();initDust();initCamera();
+  buildSky();buildTerrain();buildTerraform();buildStars();buildMoons();buildCursor();initDust();initCamera();
   addEventListeners();
 }
 
+/* ---------- deep-space sky backdrop ---------- */
+function buildSky(){
+  // huge inverted sphere with a painted gradient: ink-black zenith → faint aubergine → warm mars-limb haze
+  skyDome=new THREE.Mesh(new THREE.SphereGeometry(2600,32,24),new THREE.ShaderMaterial({
+    uniforms:{top:{value:new THREE.Color(0x05030a)},mid:{value:new THREE.Color(0x140a1e)},horiz:{value:new THREE.Color(0x3a1524)}},
+    vertexShader:`varying vec3 vP;void main(){vP=normalize(position);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
+    fragmentShader:`varying vec3 vP;uniform vec3 top,mid,horiz;void main(){float h=vP.y*0.5+0.5;vec3 c=mix(horiz,mid,smoothstep(0.0,0.42,h));c=mix(c,top,smoothstep(0.4,0.95,h));gl_FragColor=vec4(c,1.0);}`,
+    side:THREE.BackSide,depthWrite:false,fog:false}));
+  scene.add(skyDome);
+}
 /* ---------- planet ---------- */
 function buildTerrain(){
   const geo=new THREE.SphereGeometry(R,200,150);
   const pos=geo.attributes.position;const colors=[];
-  const cLow=new THREE.Color(0x4a1e10),cMid=new THREE.Color(0x8a3a18),cHi=new THREE.Color(0xc26a38),
-        cDust=new THREE.Color(0xd98a4a),cPolar=new THREE.Color(0xe8dcc8),cBasin=new THREE.Color(0x6a3320);
+  const cLow=new THREE.Color(0x37150a),cMid=new THREE.Color(0x8f3c1a),cHi=new THREE.Color(0xd0743a),
+        cDust=new THREE.Color(0xe6a05a),cPolar=new THREE.Color(0xf2e8d8),cBasin=new THREE.Color(0x53241a),
+        cDark=new THREE.Color(0x2a1208);
   const v=new THREE.Vector3();
   for(let i=0;i<pos.count;i++){
     v.fromBufferAttribute(pos,i).normalize();
@@ -493,25 +516,32 @@ function buildTerrain(){
     pos.setXYZ(i,v.x*rr,v.y*rr,v.z*rr);
     const t=THREE.MathUtils.clamp((h+5)/10,0,1);
     let c=cLow.clone().lerp(cMid,Math.min(1,t*2)).lerp(cHi,Math.max(0,t*2-1));
-    if(h<-2.2)c.lerp(cBasin,0.5);
-    const sp=(noise3(v.x*9,v.y*9,v.z*9)+1)*0.5;
-    c.lerp(cDust,sp*0.16);
-    const cap=THREE.MathUtils.smoothstep(Math.abs(v.y),0.86,0.97);
-    c.lerp(cPolar,cap*0.85);
+    // broad regional albedo — dark basaltic maria vs bright dusty highlands (low-freq noise)
+    const region=(noise3(v.x*2.1+3.7,v.y*2.1,v.z*2.1)+1)*0.5;
+    c.lerp(cDark,(1-THREE.MathUtils.smoothstep(region,0.12,0.42))*0.4);
+    c.lerp(cDust,THREE.MathUtils.smoothstep(region,0.62,0.94)*0.22);
+    if(h<-2.2)c.lerp(cBasin,0.55);
+    // fine wind-blown dust speckle
+    const sp=(noise3(v.x*11,v.y*11,v.z*11)+1)*0.5;
+    c.lerp(cDust,sp*0.12);
+    // crisper polar caps with a ragged, noise-broken edge
+    const edge=noise3(v.x*7,v.y*7,v.z*7)*0.03;
+    const cap=THREE.MathUtils.smoothstep(Math.abs(v.y)+edge,0.83,0.95);
+    c.lerp(cPolar,cap*0.9);
     colors.push(c.r,c.g,c.b);
   }
   geo.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));
   geo.computeVertexNormals();
-  terrain=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({vertexColors:true,roughness:0.95,metalness:0.03}));
+  terrain=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({vertexColors:true,roughness:0.92,metalness:0.04}));
   terrain.receiveShadow=true;scene.add(terrain);
 
-  // craters / boulders for flair
+  // craters / boulders for flair — varied palette (4 shared materials keep RAM low)
   const rockGeo=new THREE.IcosahedronGeometry(1,0);
-  const rockMat=new THREE.MeshStandardMaterial({color:0x6a3320,roughness:1,flatShading:true});
-  for(let i=0;i<60;i++){
+  const rockMats=[0x6a3320,0x7a4028,0x4a2214,0x8a5a38].map(c=>new THREE.MeshStandardMaterial({color:c,roughness:1,flatShading:true}));
+  for(let i=0;i<84;i++){
     const dir=new THREE.Vector3().randomDirection();
-    const m=new THREE.Mesh(rockGeo,rockMat);
-    const sc=0.6+Math.random()*2.2;m.scale.set(sc,sc*0.6,sc);
+    const m=new THREE.Mesh(rockGeo,rockMats[i&3]);
+    const sc=0.5+Math.random()*2.4;m.scale.set(sc*(0.8+Math.random()*0.4),sc*0.55,sc*(0.8+Math.random()*0.4));
     m.position.copy(dir.multiplyScalar(R+heightAt(dir)));
     orientToNormal(m,dir);m.rotateY(Math.random()*6);m.castShadow=true;m.receiveShadow=true;
     scene.add(m);
@@ -522,21 +552,81 @@ function buildTerrain(){
     new THREE.MeshBasicMaterial({color:0xff8a4a,wireframe:true,transparent:true,opacity:0.05}));
   scene.add(grid);
 
-  // Fresnel atmosphere rim glow
+  // Fresnel atmosphere rim glow — tight bright limb
   atmMesh=new THREE.Mesh(new THREE.SphereGeometry(R*1.14,64,48),new THREE.ShaderMaterial({
     uniforms:{glow:{value:new THREE.Color(0xff7a3c)},strength:{value:1.0}},
     vertexShader:`varying vec3 vN;void main(){vN=normalize(normalMatrix*normal);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
     fragmentShader:`varying vec3 vN;uniform vec3 glow;uniform float strength;void main(){float i=pow(max(0.0,0.72-dot(vN,vec3(0.0,0.0,1.0))),2.2)*strength;gl_FragColor=vec4(glow,1.0)*i;}`,
     side:THREE.BackSide,blending:THREE.AdditiveBlending,transparent:true,depthWrite:false}));
   scene.add(atmMesh);
+  // wider, softer haze bloom around the limb — reads as a real atmosphere from orbit
+  atmMesh2=new THREE.Mesh(new THREE.SphereGeometry(R*1.30,48,36),new THREE.ShaderMaterial({
+    uniforms:{glow:{value:new THREE.Color(0xff6a7a)},strength:{value:1.0}},
+    vertexShader:`varying vec3 vN;void main(){vN=normalize(normalMatrix*normal);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
+    fragmentShader:`varying vec3 vN;uniform vec3 glow;uniform float strength;void main(){float i=pow(max(0.0,0.62-dot(vN,vec3(0.0,0.0,1.0))),3.4)*0.5*strength;gl_FragColor=vec4(glow,1.0)*i;}`,
+    side:THREE.BackSide,blending:THREE.AdditiveBlending,transparent:true,depthWrite:false}));
+  scene.add(atmMesh2);
 }
 
+/* ---------- terraforming visualisation ----------
+ * Two overlays driven every frame by G.tf (temp / oxygen / pressure):
+ *  · seaMesh — a translucent ocean sphere whose radius + opacity rise with warmth
+ *    & pressure, so water fills the basins and lowlands, leaving highlands as land.
+ *  · vegMesh — green vegetation hugging the terrain, fading in with oxygen, only
+ *    in habitable latitudes/elevations (baked per-vertex suitability). */
+function buildTerraform(){
+  seaMesh=new THREE.Mesh(new THREE.SphereGeometry(R,96,64),
+    new THREE.MeshStandardMaterial({color:0x2f6fa8,roughness:0.14,metalness:0.25,transparent:true,opacity:0,depthWrite:false}));
+  seaMesh.renderOrder=1;scene.add(seaMesh);
+
+  const g=new THREE.SphereGeometry(R,180,132);const pos=g.attributes.position;
+  const aVeg=new Float32Array(pos.count),cols=[];const v=new THREE.Vector3(),cg=new THREE.Color();
+  for(let i=0;i<pos.count;i++){
+    v.fromBufferAttribute(pos,i).normalize();
+    const h=heightAt(v);const rr=R+h+0.06;pos.setXYZ(i,v.x*rr,v.y*rr,v.z*rr);
+    const lat=Math.abs(v.y);
+    let s=1-THREE.MathUtils.smoothstep(lat,0.52,0.82);        // lush near equator, none at poles
+    s*=1-THREE.MathUtils.smoothstep(h,3.0,6.5);               // no forest on high peaks
+    const n=(noise3(v.x*3.6+11,v.y*3.6,v.z*3.6)+1)*0.5;
+    s*=THREE.MathUtils.smoothstep(n,0.34,0.72);               // patchy — meadows, not a paint bucket
+    aVeg[i]=THREE.MathUtils.clamp(s,0,1);
+    cg.setHSL(0.34-n*0.07,0.55,0.24+n*0.16);cols.push(cg.r,cg.g,cg.b);   // varied greens
+  }
+  g.computeVertexNormals();
+  g.setAttribute('aVeg',new THREE.BufferAttribute(aVeg,1));
+  g.setAttribute('aCol',new THREE.Float32BufferAttribute(cols,3));
+  vegMesh=new THREE.Mesh(g,new THREE.ShaderMaterial({
+    uniforms:{uOpacity:{value:0}},
+    vertexShader:`attribute float aVeg;attribute vec3 aCol;varying float vV;varying vec3 vC;varying vec3 vN;
+      void main(){vV=aVeg;vC=aCol;vN=normalize(normalMatrix*normal);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
+    fragmentShader:`varying float vV;varying vec3 vC;varying vec3 vN;uniform float uOpacity;
+      void main(){float a=vV*uOpacity;if(a<0.01)discard;float lam=0.45+0.55*max(0.0,dot(vN,vec3(0.4,0.5,0.7)));gl_FragColor=vec4(vC*lam,a);}`,
+    transparent:true,depthWrite:false}));
+  vegMesh.renderOrder=2;scene.add(vegMesh);
+}
+// Drive the terraforming overlays from G.tf every frame — oceans rise with warmth+pressure, vegetation with oxygen.
+function updateTerraform(){
+  const avg=(G.tf.temp+G.tf.oxygen+G.tf.pressure)/3;
+  if(vegMesh)vegMesh.material.uniforms.uOpacity.value=THREE.MathUtils.clamp(G.tf.oxygen/100,0,1)*0.92;
+  if(seaMesh){const wp=THREE.MathUtils.clamp(Math.min(G.tf.temp,G.tf.pressure)/100,0,1);
+    seaMesh.visible=wp>0.02;seaMesh.scale.setScalar((R+(-3+wp*4.4))/R);seaMesh.material.opacity=wp*0.8;}
+  if(atmMesh&&!dustStormActive){atmMesh.material.uniforms.glow.value.copy(_atmWarm).lerp(_atmCool,avg/100);}
+  if(hemi)hemi.color.setHSL(0.06+avg/100*0.34,0.6,0.55);   // sky ambience warms toward blue as the air thickens
+}
 function buildStars(){
-  const n=3000,geo=new THREE.BufferGeometry(),arr=[],col=[];
+  const n=3400,geo=new THREE.BufferGeometry(),arr=[],col=[];
   const c=new THREE.Color();
+  // tilted galactic band: stars concentrate near a plane, rest scattered — reads as a faint Milky Way
+  const bandN=new THREE.Vector3(0.3,1,0.5).normalize();
   for(let i=0;i<n;i++){
-    const v=new THREE.Vector3().randomDirection().multiplyScalar(1600);arr.push(v.x,v.y,v.z);
-    c.setHSL(0.05+Math.random()*0.12,0.4,0.6+Math.random()*0.4);col.push(c.r,c.g,c.b);
+    let v=new THREE.Vector3().randomDirection();
+    if(i%2===0){ // pull half the stars toward the band plane
+      const along=v.clone().addScaledVector(bandN,-v.dot(bandN));
+      v=v.lerp(along.normalize(),0.72+Math.random()*0.22);
+    }
+    v.multiplyScalar(1600);arr.push(v.x,v.y,v.z);
+    const warm=Math.random();
+    c.setHSL(0.55-warm*0.5,0.35*Math.random(),0.62+Math.random()*0.38);col.push(c.r,c.g,c.b);
   }
   geo.setAttribute('position',new THREE.Float32BufferAttribute(arr,3));
   geo.setAttribute('color',new THREE.Float32BufferAttribute(col,3));
@@ -574,6 +664,7 @@ function initDust(){
  *  CAMERA (orbit a fixed globe)                                  *
  * ============================================================= */
 const cam={theta:Math.PI*0.25,phi:1.0,radius:R*2.0};
+let introSweep=null;                 // cinematic first-load camera glide (cancelled by any user input)
 function initCamera(){updateCamera();}
 function updateCamera(){
   cam.phi=THREE.MathUtils.clamp(cam.phi,0.12,Math.PI-0.12);
@@ -586,7 +677,7 @@ function updateCamera(){
 }
 function addEventListeners(){
   const el=renderer.domElement;let drag=false,lx=0,ly=0;
-  el.addEventListener('mousedown',e=>{drag=true;lx=e.clientX;ly=e.clientY;pickDownX=e.clientX;pickDownY=e.clientY;});
+  el.addEventListener('mousedown',e=>{drag=true;introSweep=null;lx=e.clientX;ly=e.clientY;pickDownX=e.clientX;pickDownY=e.clientY;});
   addEventListener('mouseup',()=>drag=false);
   addEventListener('mousemove',e=>{
     pointer.x=(e.clientX/innerWidth)*2-1;pointer.y=-(e.clientY/innerHeight)*2+1;
@@ -596,11 +687,11 @@ function addEventListeners(){
     cam.phi-=dy*0.005;
     updateCamera();
   });
-  el.addEventListener('wheel',e=>{e.preventDefault();cam.radius*=1+Math.sign(e.deltaY)*0.08;updateCamera();},{passive:false});
+  el.addEventListener('wheel',e=>{e.preventDefault();introSweep=null;cam.radius*=1+Math.sign(e.deltaY)*0.08;updateCamera();},{passive:false});
   el.addEventListener('contextmenu',e=>e.preventDefault());
   el.addEventListener('click',onClick);
   let pinch=0;
-  el.addEventListener('touchstart',e=>{if(e.touches.length===1){drag=true;lx=e.touches[0].clientX;ly=e.touches[0].clientY;}
+  el.addEventListener('touchstart',e=>{introSweep=null;if(e.touches.length===1){drag=true;lx=e.touches[0].clientX;ly=e.touches[0].clientY;}
     else if(e.touches.length===2){pinch=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);}},{passive:true});
   el.addEventListener('touchmove',e=>{
     if(e.touches.length===1&&drag){const dx=e.touches[0].clientX-lx,dy=e.touches[0].clientY-ly;lx=e.touches[0].clientX;ly=e.touches[0].clientY;cam.theta+=dx*0.006;cam.phi-=dy*0.006;updateCamera();}
@@ -680,15 +771,22 @@ function makeLamp(x,z){
 function makeTemplate(key){
   const b=BUILDINGS[key];const g=new THREE.Group();
   const lamps=[];
-  const pad=new THREE.Mesh(new THREE.CylinderGeometry(TILE*0.46,TILE*0.5,0.3,18),mat(0x3a2418,0.95,0.05));
+  const pad=new THREE.Mesh(new THREE.CylinderGeometry(TILE*0.44,TILE*0.5,0.28,22),mat(0x463024,0.9,0.06));
   pad.castShadow=pad.receiveShadow=true;g.add(pad);
+  const padRim=new THREE.Mesh(new THREE.CylinderGeometry(TILE*0.5,TILE*0.5,0.07,22),mat(0x22140b,0.85,0.12));
+  padRim.position.y=0.15;padRim.receiveShadow=true;g.add(padRim);
   const add=(m,x=0,y=0,z=0)=>{m.castShadow=true;m.receiveShadow=true;m.position.set(x,y,z);g.add(m);return m;};
 
   switch(key){
     case'solar':{
-      add(new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.12,1,8),mat(0x555)),0,0.6);
-      const panel=add(new THREE.Mesh(new THREE.BoxGeometry(2.6,0.1,1.5),mat(0x10406e,0.25,0.7,0x0a2540,0.3)),0,1.2);panel.rotation.x=-0.5;
-      g.userData.panel=panel;lamps.push(add(makeLamp(1.2,0)));break;}
+      add(new THREE.Mesh(new THREE.CylinderGeometry(0.13,0.16,1.1,10),mat(0x4a4a52,0.6,0.5)),0,0.55);
+      const arr=new THREE.Group();arr.position.set(0,1.2,0);arr.rotation.x=-0.5;g.add(arr);
+      arr.add(new THREE.Mesh(new THREE.BoxGeometry(2.9,0.08,1.75),mat(0x2a2a30,0.5,0.6)));        // frame
+      const panelMat=mat(0x123f6e,0.2,0.75,0x0a2b52,0.3);let panel=null;                          // shared cell material (day-emissive)
+      for(let cx=-1;cx<=1;cx++)for(let cz=-1;cz<=1;cz+=2){
+        const cell=new THREE.Mesh(new THREE.BoxGeometry(0.84,0.06,0.76),panelMat);cell.position.set(cx*0.92,0.08,cz*0.42);arr.add(cell);panel=cell;
+      }
+      g.userData.panel=panel;lamps.push(add(makeLamp(1.4,0)));break;}
     case'wind':{
       add(new THREE.Mesh(new THREE.CylinderGeometry(0.16,0.28,5.2,10),mat(0xdddddd,0.5,0.3)),0,2.6);
       const hub=new THREE.Group();hub.position.y=5.2;g.add(hub);
@@ -864,6 +962,9 @@ function placeBuilding(key,gx,gz){
   }
   G.buildings.push(obj);tileOccupied[idx(gx,gz)]=true;
   spawnPuff(pos,dir);beep(440,0.08);toast(`${b.name} — construction started`,'good');
+  // The first Habitat brings the crew down from orbit — seed the founding colonists.
+  if(key==='habitat'&&!G.crewArrived){G.pop=Math.max(G.pop,3);G.crewArrived=true;computeRates();updateResBar();
+    setTimeout(()=>toast('🧑‍🚀 The first crew descends from orbit — Mars is inhabited.','disc'),700);}
   if(key==='spaceport')toast('🚀 Spaceport online — Earth supply & launches unlocked!','disc');
   return true;
 }
@@ -883,11 +984,17 @@ function demolishAt(gx,gz){
 function onClick(e){
   if(G.over)return;
   // Earth habitat shell: pick the 3D pallet to unfold it. Ignore camera drags (mouse moved since press).
-  if(habitatShellMarker&&habitatShellActivatable()&&!G.demolish){
+  if(!G.demolish){
     const moved=e?Math.hypot((e.clientX||0)-pickDownX,(e.clientY||0)-pickDownY):0;
     if(moved<6){
-      raycaster.setFromCamera(pointer,camera);
-      if(raycaster.intersectObject(habitatShellMarker,true).length){activateHabitatShell();return;}
+      if(habitatShellMarker&&habitatShellActivatable()){
+        raycaster.setFromCamera(pointer,camera);
+        if(raycaster.intersectObject(habitatShellMarker,true).length){activateHabitatShell();return;}
+      }
+      if(dronePatternMarker&&dronePatternActivatable()){
+        raycaster.setFromCamera(pointer,camera);
+        if(raycaster.intersectObject(dronePatternMarker,true).length){activateDronePattern();return;}
+      }
     }
   }
   if(!hoveredTile)return;
@@ -958,9 +1065,11 @@ function tickEconomy(dtSol){
   const lifeOK=G.res.oxygen>0&&G.res.water>0&&G.res.food>0;
   const growth=THREE.MathUtils.clamp(G.morale/70,0.3,1.5)*(G.techDone.culture?1.3:1);
   if(lifeOK&&G.pop<G.popCap)G.pop+=0.6*growth*dtSol;
-  else if(!lifeOK){G.pop-=1.2*dtSol;if(Math.random()<0.35*dtSol)toast("Colonists are suffering — fix life support!",'bad');}
+  else if(!lifeOK&&G.crewArrived){G.pop-=1.2*dtSol;if(Math.random()<0.35*dtSol)toast("Colonists are suffering — fix life support!",'bad');}
   G.pop=Math.max(0,Math.min(G.pop,G.popCap));
-  if(G.pop<0.5&&G.popCap>0&&!G.over)gameOver(false);
+  if(G.pop>=1)G.crewArrived=true;                       // crew is now on the surface
+  // only a colony that was actually crewed can be lost — an empty robotic site can't "perish"
+  if(G.crewArrived&&G.pop<0.5&&G.popCap>0&&!G.over)gameOver(false);
   if(G.bonusT>0){G.bonusT-=dtSol;if(G.bonusT<=0){G.bonus={};G.moraleBonus=0;}}
   updatePending(dtSol);
   checkMilestones();
@@ -1113,6 +1222,12 @@ const render={info:renderInfo,missions:renderMissions,tech:renderTech,evo:render
 function bar(label,val,color){return `<div style="margin:8px 0 4px;font-size:12px;display:flex;justify-content:space-between"><span>${label}</span><b>${val.toFixed(0)}%</b></div>
   <div style="height:9px;border-radius:6px;background:rgba(255,255,255,.08);overflow:hidden"><i style="display:block;height:100%;width:${val}%;background:${color};transition:width .4s"></i></div>`;}
 
+function eventsLogHtml(){
+  const log=(G.events&&G.events.log)||[];
+  if(!log.length)return'';
+  const rows=log.slice(-4).reverse().map(id=>{const e=SOL_EVENTS.find(x=>x.id===id);return e?`<div class="stat"><span>${e.emoji} ${e.title}</span><b style="color:var(--good)">✓</b></div>`:'';}).join('');
+  return `<div style="margin-top:14px;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--rust)">Recent dispatches</div>${rows}`;
+}
 function renderInfo(){
   const avg=(G.tf.temp+G.tf.oxygen+G.tf.pressure)/3;
   side.innerHTML=`<h3>📊 Colony Overview <span class="close" id="sclose">✕</span></h3>
@@ -1127,6 +1242,7 @@ function renderInfo(){
   <div class="stat"><span>Buildings</span><b>${G.buildings.length}</b></div>
   <div class="stat"><span>Power balance</span><b style="color:${G.prodPower>=G.usePower?'var(--good)':'var(--bad)'}">${Math.round(G.prodPower)} / ${Math.round(G.usePower)} ⚡</b></div>
   <div class="stat"><span>Inventions</span><b>${Object.keys(G.techDone).length} / ${Object.keys(TECHS).length}</b></div>
+  ${eventsLogHtml()}
   <div style="margin-top:14px"><button class="btn danger" id="reset">↺ New colony</button></div>`;
   $('#sclose').onclick=closeSide;
   $('#reset').onclick=()=>{if(confirm('Abandon this colony and start over?')){localStorage.removeItem(SAVE_KEY);location.reload();}};
@@ -1319,6 +1435,80 @@ function renderMissions(){
   side.innerHTML=html;$('#sclose').onclick=closeSide;$('#replayIntro').onclick=()=>{closeSide();showIntro(true);};
 }
 
+/* ============================================================= *
+ *  SOL EVENTS — periodic dilemmas with real consequences        *
+ * ============================================================= */
+const SOL_EVENTS=[
+  {id:'ice',emoji:'🧊',title:'SUBSURFACE ICE BREACH',
+   story:'Ground radar just lit up under Sector 7 — a fat vein of water ice, far shallower than any survey predicted. Command wants a call before the drill crew commits.',
+   choices:[
+     {label:'Pump it now',detail:'+80 water · −10 power',fx:{water:80,power:-10},toast:'💧 Ice vein tapped — reservoirs surging.'},
+     {label:'Cap & core it',detail:'+45 science',fx:{science:45},toast:'🔬 Ice vein cored and catalogued.',orion:'Discipline. That seam will still be there once we understand it.'}]},
+  {id:'flare',emoji:'☀️',title:'SOLAR FLARE INBOUND',
+   story:'ORION reads a class-X flare cresting the limb. Radiation spike in ~40 minutes. We can safe the grid, or keep production running and gamble on the shielding.',
+   choices:[
+     {label:'Safe the grid',detail:'−20 power, no damage',fx:{power:-20},toast:'🛡️ Non-essentials powered down — flare rode out clean.'},
+     {label:'Keep running',detail:'−30 materials, +35 science',fx:{materials:-30,science:35},toast:'⚡ Flare data captured — some panels scorched.',orion:'Bold. The physics dataset is excellent. The maintenance backlog is not.'}]},
+  {id:'earth',emoji:'📡',title:'TRANSMISSION FROM EARTH',
+   story:'A crewed transfer window opens early. Earth offers to reroute three specialists to your colony — or, if you would rather not stretch life support yet, a discretionary funding grant.',
+   choices:[
+     {label:'Welcome the crew',detail:'+8 morale · +15 science',fx:{morale:8,science:15},toast:'🤝 New specialists inbound — spirits up.',orion:'More hands, more minds. Also more oxygen demand. Worth it.'},
+     {label:'Request funding',detail:'+70 credits',fx:{credits:70},toast:'💳 Earth wires a discretionary grant.'}]},
+  {id:'meteor',emoji:'🪨',title:'METEOR SHOWER',
+   story:'A debris stream is grazing the colony’s orbit. A few fragments will reach the surface. Deploy the mobile shielding, or hold materials and take your chances.',
+   choices:[
+     {label:'Deploy shielding',detail:'−15 materials, safe',fx:{materials:-15},toast:'🛡️ Shielding deployed — impacts absorbed.'},
+     {label:'Take the chance',detail:'−40 materials, +25 science',fx:{materials:-40,science:25},toast:'☄️ A dome cracked, but the fragments are priceless samples.',orion:'The repair crews and I have… notes.'}]},
+  {id:'seam',emoji:'💎',title:'RARE MINERAL SEAM',
+   story:'Excavation for a foundation exposed a seam threaded with rare metals. Sell the yield to Earth’s markets, or reserve it as colony feedstock.',
+   choices:[
+     {label:'Sell to Earth',detail:'+70 credits · −10 power',fx:{credits:70,power:-10},toast:'💰 Ore convoy sold — credits banked.'},
+     {label:'Reserve feedstock',detail:'+50 materials',fx:{materials:50},toast:'🏗️ Ore stockpiled for construction.'}]},
+  {id:'lichen',emoji:'🌱',title:'ENGINEERED LICHEN TRIAL',
+   story:'The lab has a cold-hardy lichen strain ready. Release it into the regolith to seed the atmosphere, or keep it contained and study it further.',
+   choices:[
+     {label:'Seed the regolith',detail:'+atmosphere · −20 water',fx:{water:-20,tfOxygen:2.5},toast:'🌱 Lichen seeded — a first breath of oxygen.',orion:'Terraforming, one microbe at a time. This is how worlds begin.'},
+     {label:'Keep studying',detail:'+40 science',fx:{science:40},toast:'🔬 Strain sequenced and archived.'}]},
+  {id:'signal',emoji:'🛰️',title:'ANOMALOUS SIGNAL',
+   story:'A structured burst repeats on a dead frequency. Almost certainly a reflection off Phobos… almost. Chase it down, or log it and move on.',
+   choices:[
+     {label:'Investigate',detail:'+50 science · −10 power',fx:{science:50,power:-10},toast:'📡 Signal traced — it was Phobos. Probably.',orion:'Probably. I have flagged the frequency. For science. Only science.'},
+     {label:'Log and move on',detail:'+12 credits',fx:{credits:12},toast:'🗒️ Signal logged for later.'}]},
+];
+function evApply(d){
+  for(const k of ['credits','materials','water','power','science','food','oxygen'])if(d[k])G.res[k]=Math.max(0,(G.res[k]||0)+d[k]);
+  if(d.morale)G.morale=THREE.MathUtils.clamp(G.morale+d.morale,0,100);
+  if(d.tfOxygen)G.tf.oxygen=(G.tf.oxygen||0)+d.tfOxygen;
+  if(d.tfTemp)G.tf.temp=(G.tf.temp||0)+d.tfTemp;
+  updateResBar();
+}
+function scheduleNextEvent(){G.events.next=G.sol+3+Math.floor(Math.random()*3);}   // ~every 3–5 sols
+function showEvent(ev){
+  G.paused=true;const mc=$('#mcard');
+  mc.innerHTML=`<div class="emoji">${ev.emoji}</div><h2>${ev.title}</h2>
+   <div class="who" style="border-left-color:var(--amber)">SOL ${G.sol} · PRIORITY DISPATCH</div>
+   <p class="story">${ev.story}</p>
+   <div class="mbtns evbtns">${ev.choices.map((c,i)=>`<button class="btn evchoice" data-i="${i}"><b>${c.label}</b><span class="evd">${c.detail}</span></button>`).join('')}</div>`;
+  $('#modal').classList.add('show');
+  for(const id of['sp1','sp2','sp3'])$('#'+id)?.classList.remove('on');$('#sp0')?.classList.add('on');
+  mc.querySelectorAll('.evchoice').forEach(b=>b.onclick=()=>{
+    const c=ev.choices[+b.dataset.i];evApply(c.fx||{});
+    if(c.toast)toast(c.toast,'disc');if(c.orion)setTimeout(()=>orion(c.orion),700);
+    beep(660,0.09);$('#modal').classList.remove('show');setSpeed(1);
+    G.events.log.push(ev.id);scheduleNextEvent();save(true);
+  });
+}
+function maybeFireEvent(){
+  if(G.over||G.paused||G.pop<=0)return;                       // events begin once the colony is crewed
+  if($('#modal').classList.contains('show'))return;           // never stack over another modal
+  if(!G.events)G.events={next:0,log:[]};
+  if(!G.events.next){scheduleNextEvent();return;}
+  if(G.sol<G.events.next)return;
+  const seen=new Set(G.events.log);
+  let pool=SOL_EVENTS.filter(e=>!seen.has(e.id));if(!pool.length){pool=SOL_EVENTS;G.events.log=[];}  // recycle once all seen
+  showEvent(pool[Math.floor(Math.random()*pool.length)]);
+}
+
 // Campaign intro — establishes the player (Mission Systems Architect), ORION, and the robotic-prep backstory.
 function showIntro(replay){
   const mc=$('#mcard');
@@ -1409,6 +1599,9 @@ function gameOver(won,kind){
 let cargoKitsSpawned=false, surveyTile=null;
 let habitatShellMarker=null;        // activatable Earth habitat-shell pallet (null if no kit / already spent)
 let pickDownX=0, pickDownY=0;       // mousedown pos so onClick can tell a shell-tap from a camera drag
+// v6 drone pattern: activatable core → one helper drone → one cargo-pad job
+let dronePatternMarker=null, droneHelper=null, droneJob=null, dronePadMesh=null;
+let droneCoreSite=null, dronePadSite=null, dronePadNormal=null;
 // nearest extractor-valid (polar/lowland) tile to the colony — where the survey pack flagged ice
 function findSurveyTile(){
   const ref=G.buildings[0];const c=(ref?ref.dir.clone():gridToDir(0,GRID/2)).normalize();
@@ -1430,9 +1623,9 @@ function spawnCargoKits(){
   if(ref){pos=ref.pos.clone();t1=ref.t1.clone();t2=ref.t2.clone();sdir=ref.dir.clone().normalize();}
   else{sdir=gridToDir(0,GRID/2).normalize();pos=sdir.clone().multiplyScalar(R+heightAt(sdir));const tb=tangentBasis(sdir);t1=tb.t1;t2=tb.t2;}
   const box=(g,w,h,d,c,x,y,z,em,ei)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat(c,0.85,0.15,em||0,ei||0.6));m.position.set(x,y,z);g.add(m);return m;};
+  const siteAt=(a,b)=>{let s=pos.clone().addScaledVector(t1,a).addScaledVector(t2,b);const nd=s.clone().normalize();return{site:nd.clone().multiplyScalar(R+heightAt(nd)),nd};};
   const placeKit=(a,b,build)=>{                          // a/b = offsets along the two surface tangents
-    let site=pos.clone().addScaledVector(t1,a).addScaledVector(t2,b);
-    const nd=site.clone().normalize();site=nd.clone().multiplyScalar(R+heightAt(nd));
+    const {site,nd}=siteAt(a,b);
     const g=new THREE.Group();g.position.copy(site);orientToNormal(g,nd);build(g);
     g.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});scene.add(g);return g;
   };
@@ -1450,8 +1643,22 @@ function spawnCargoKits(){
     });
     applyHabitatShellVisual();   // folded+pulsing if fresh, unfolded if a prior session already activated it
   }
-  // Drone Pattern Core — crate with a glowing cyan core (future promise)
-  if(c.constructionDronePattern)placeKit(1.1,2.7,g=>{box(g,1.2,1.0,1.2,0x33414e,0,0.5,0);const core=new THREE.Mesh(new THREE.IcosahedronGeometry(0.34,0),mat(0x0a2630,0.3,0.4,0x2f8fb0,1.3));core.position.y=1.15;g.add(core);});
+  // Drone Pattern Core — activatable (v6): tap it to fabricate one helper drone that stabilises the cargo pad
+  if(c.constructionDronePattern){
+    droneCoreSite=siteAt(1.1,2.7).site;
+    const pd=siteAt(2.7,1.2);dronePadSite=pd.site;dronePadNormal=pd.nd;
+    if(droneJobDone()){buildDronePad();}                 // reload after the job finished — show the pad result only
+    else{
+      dronePatternMarker=placeKit(1.1,2.7,g=>{
+        box(g,1.2,1.0,1.2,0x33414e,0,0.5,0);
+        const core=new THREE.Mesh(new THREE.IcosahedronGeometry(0.34,0),mat(0x0a2630,0.3,0.4,0x2f8fb0,1.3));core.position.y=1.15;g.add(core);
+        const ring=new THREE.Mesh(new THREE.RingGeometry(1.05,1.32,24),new THREE.MeshBasicMaterial({color:0x2fd0e6,transparent:true,opacity:0.5,side:THREE.DoubleSide}));ring.rotation.x=-Math.PI/2;ring.position.y=0.06;g.add(ring);
+        g.userData={core,ring};
+      });
+      applyDronePatternVisual();
+      if(G.campaign.dronePatternActivated)restoreDroneJob();  // reload mid-job → re-run to completion (reward guarded)
+    }
+  }
   // Water Survey Marker — at the flagged ice tile (only if the survey kit was sent)
   if(c.waterSurvey){
     surveyTile=findSurveyTile();
@@ -1473,7 +1680,7 @@ function applyEarthCargo(){
   const c=(G.earthCargo&&G.earthCargo.cargo)||{};
   if(c.powerKit)G.res.credits+=20;
   if(c.waterSurvey)G.res.water+=20;
-  if(c.constructionDronePattern)G.res.science+=20;
+  if(c.constructionDronePattern){G.res.science+=20;G.campaign.dronePatternReady=true;}   // arms the activatable drone core
   if(c.habitatShellKit)G.campaign.habitatShellReady=true;   // arms the first-Habitat discount (consumed on build)
   G.campaign.earthCargoApplied=true;
   G.story.earthCargoReceived=true;              // fire-once story beat (persisted via the story save path)
@@ -1483,7 +1690,7 @@ function applyEarthCargo(){
   toast('📦 Cape Helios cargo unpacked — '+(sent.join(' · ')||'empty manifest'),'disc');
   const bits=[c.powerKit&&'a power kit',c.waterSurvey&&'a survey pack',c.habitatShellKit&&'a habitat shell',c.constructionDronePattern&&'a drone-pattern core'].filter(Boolean);
   setTimeout(()=>orion(`Cape Helios cargo telemetry confirmed — ${bits.length?bits.join(', ')+' unpacked':'a sparse manifest'}, within damage margins. I will avoid sounding surprised.`),1400);
-  if(c.constructionDronePattern)setTimeout(()=>orion('The drone-pattern core is intact and filed. Once Mars has fabrication, we can print our own construction units.'),5400);
+  if(c.constructionDronePattern&&dronePatternActivatable())setTimeout(()=>orion('The drone-pattern core is staged by the cargo cache — tap it to fabricate one helper drone and stabilise the cargo pad. One-time.'),5400);
   if(c.habitatShellKit&&habitatShellActivatable())setTimeout(()=>orion('The folded habitat shell is staged by the cargo cache. Tap it to unfold — it makes the first dome, and only the first, cheaper to raise. One use.'),7200);
   if(c.waterSurvey&&surveyTile)setTimeout(()=>orion('Survey pack mapped a shallow ice seam. Not magic. Just better homework — the marker is on your map.'),9000);
   // dry note for whatever was left behind on Earth — no penalty beyond the missing effect
@@ -1514,14 +1721,73 @@ function activateHabitatShell(){
 }
 function removeHabitatShellMarker(){if(habitatShellMarker){scene.remove(habitatShellMarker);habitatShellMarker=null;}}
 
-function save(silent){const data={res:G.res,pop:G.pop,morale:G.morale,colonies:G.colonies,tf:G.tf,sol:G.sol,todFrac:G.todFrac,techDone:G.techDone,milestones:G.milestones,interstellar:G.interstellar,mission:G.mission,story:G.story,campaign:G.campaign,buildings:G.buildings.map(o=>({key:o.key,gx:o.gx,gz:o.gz}))};
+/* ---- v6: Construction Drone Pattern — one activatable core, one helper drone, one job ---- */
+function droneJobDone(){return !!(G.campaign&&G.campaign.droneHelperJobDone);}
+function dronePatternActivatable(){return !!(G.campaign&&G.campaign.dronePatternReady)&&!G.campaign.dronePatternActivated&&!droneJobDone();}
+function applyDronePatternVisual(){
+  if(!dronePatternMarker)return;
+  const {core,ring}=dronePatternMarker.userData;
+  if(G.campaign&&G.campaign.dronePatternActivated){core.material.emissiveIntensity=2.2;ring.visible=false;}
+  else{ring.visible=true;}
+}
+function buildDronePad(){                                   // the visible completed result — a reinforced cargo pad
+  if(dronePadMesh||!dronePadSite)return;
+  const g=new THREE.Group();g.position.copy(dronePadSite);orientToNormal(g,dronePadNormal||dronePadSite.clone().normalize());
+  g.add(new THREE.Mesh(new THREE.CylinderGeometry(1.15,1.28,0.14,20),mat(0x4a5560,0.7,0.4)));
+  const ring=new THREE.Mesh(new THREE.RingGeometry(0.9,1.12,24),new THREE.MeshBasicMaterial({color:0x2fd0e6,transparent:true,opacity:0.6,side:THREE.DoubleSide}));ring.rotation.x=-Math.PI/2;ring.position.y=0.1;g.add(ring);
+  for(let i=0;i<4;i++){const a=i/4*Math.PI*2;const post=new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.06,0.7,6),mat(0x8a929c,0.6,0.5));post.position.set(Math.cos(a)*1.02,0.35,Math.sin(a)*1.02);g.add(post);}
+  g.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});
+  scene.add(g);dronePadMesh=g;
+}
+function activateDronePattern(){
+  if(!dronePatternActivatable())return;
+  G.campaign.dronePatternActivated=true;
+  applyDronePatternVisual();
+  droneHelper=makeDrone();scene.add(droneHelper);
+  droneJob={phase:'move',t:0};
+  toast('🤖 Helper drone fabricated — dispatching to the cargo pad.','disc');
+  beep(600,0.1);
+  orion('Construction pattern accepted. I have fabricated one helper drone. Try not to assign it philosophy.');
+  save(true);
+}
+function restoreDroneJob(){if(droneJobDone())return;droneHelper=makeDrone();scene.add(droneHelper);droneJob={phase:'move',t:0};}
+function tickDroneJob(dt,time){
+  if(!droneJob||!droneHelper||!droneCoreSite||!dronePadSite)return;
+  const j=droneJob,up=dronePadNormal||dronePadSite.clone().normalize();
+  if(j.phase==='move'){
+    j.t+=dt/2.0;const k=Math.min(1,j.t);
+    droneHelper.position.copy(droneCoreSite.clone().lerp(dronePadSite,k)).addScaledVector(up,1.2+Math.sin(time*4)*0.15);
+    orientToNormal(droneHelper,up);
+    if(k>=1){j.phase='work';j.t=0;}
+  }else if(j.phase==='work'){
+    j.t+=dt;
+    droneHelper.position.copy(dronePadSite).addScaledVector(up,0.85+Math.abs(Math.sin(time*8))*0.15);
+    const sp=droneHelper.userData.spark;if(sp)sp.visible=Math.sin(time*30)>0;
+    if(j.t>=2.6)completeDroneJob();
+  }
+}
+function completeDroneJob(){
+  buildDronePad();
+  if(droneHelper){scene.remove(droneHelper);droneHelper=null;}
+  droneJob=null;
+  if(!G.campaign.droneHelperJobDone){                       // grant the one-time reward exactly once
+    G.campaign.droneHelperJobDone=true;G.res.materials+=20;updateResBar();
+    toast('🤖 Cargo pad stabilised — +20 materials recovered.','disc');
+    orion('Cargo pad reinforced. The drone performed admirably and asked for nothing. Unlike the crew.');
+  }
+  if(dronePatternMarker){scene.remove(dronePatternMarker);dronePatternMarker=null;}   // core is spent
+  save(true);
+}
+
+function save(silent){const data={res:G.res,pop:G.pop,crewArrived:G.crewArrived,morale:G.morale,colonies:G.colonies,tf:G.tf,sol:G.sol,todFrac:G.todFrac,techDone:G.techDone,milestones:G.milestones,interstellar:G.interstellar,mission:G.mission,story:G.story,campaign:G.campaign,events:G.events,buildings:G.buildings.map(o=>({key:o.key,gx:o.gx,gz:o.gz}))};
   localStorage.setItem(SAVE_KEY,JSON.stringify(data));if(!silent)toast('💾 Colony saved','good');}
 function load(){
   try{const d=JSON.parse(localStorage.getItem(SAVE_KEY));if(!d)return false;
-    Object.assign(G.res,d.res);G.pop=d.pop;G.morale=d.morale??62;G.colonies=d.colonies||0;Object.assign(G.tf,d.tf);
+    Object.assign(G.res,d.res);G.pop=d.pop;G.crewArrived=d.crewArrived||d.pop>=1;G.morale=d.morale??62;G.colonies=d.colonies||0;Object.assign(G.tf,d.tf);
     G.sol=d.sol;G.todFrac=d.todFrac;G.techDone=d.techDone||{};G.milestones=d.milestones||{};G.interstellar=d.interstellar||false;
     // campaign state — safe defaults so older saves (pre-Iteration-1) still load
     G.mission=(d.mission&&typeof d.mission.idx==='number')?d.mission:{idx:0};G.story=d.story||{};G.campaign=d.campaign||{};
+    G.events=(d.events&&Array.isArray(d.events.log))?d.events:{next:0,log:[]};   // Sol Events (safe default for old saves)
     for(const b of d.buildings){if(!inGrid(b.gx,b.gz))continue;
       const dir=gridToDir(b.gx,b.gz).normalize();const pos=dir.clone().multiplyScalar(R+heightAt(dir));
       const mesh=makeBuildingMesh(b.key);mesh.position.copy(pos);orientToNormal(mesh,dir);scene.add(mesh);
@@ -1543,9 +1809,17 @@ function animate(){
   const dt=Math.min(clock.getDelta(),0.05);
   const speed=G.paused?0:G.speed;const dtGame=dt*speed;
 
+  if(introSweep){                    // cinematic first-load glide (ease-out)
+    introSweep.t+=dt;const k=1-Math.pow(1-Math.min(1,introSweep.t/introSweep.dur),3);
+    cam.radius=THREE.MathUtils.lerp(introSweep.from.radius,introSweep.to.radius,k);
+    cam.phi=THREE.MathUtils.lerp(introSweep.from.phi,introSweep.to.phi,k);
+    cam.theta=THREE.MathUtils.lerp(introSweep.from.theta,introSweep.to.theta,k);
+    updateCamera();if(k>=1)introSweep=null;
+  }
+
   if(dtGame>0){
     G.todFrac+=dtGame/SOL_SECONDS;
-    while(G.todFrac>=1){G.todFrac-=1;G.sol++;toast(`☀️ Sol ${G.sol} begins`,'');}
+    while(G.todFrac>=1){G.todFrac-=1;G.sol++;toast(`☀️ Sol ${G.sol} begins`,'');maybeFireEvent();}
     tickEconomy(dtGame/SOL_SECONDS);
     saveAccum+=dt;if(saveAccum>20){saveAccum=0;save();}
     autoLaunch-=dtGame;if(autoLaunch<=0){autoLaunch=18+Math.random()*16;launchAnySpaceport();}
@@ -1558,7 +1832,12 @@ function animate(){
   const ang=G.todFrac*Math.PI*2-Math.PI/2;
   sun.position.set(Math.cos(ang)*R*4,R*1.0,Math.sin(ang)*R*4);
   sun.intensity=2.4*(dustStormActive?0.5:1);
-  if(atmMesh){atmMesh.material.uniforms.strength.value=dustStormActive?1.9:1.0;}
+  if(atmMesh){const s=dustStormActive?1.9:1.0;atmMesh.material.uniforms.strength.value=s;if(atmMesh2)atmMesh2.material.uniforms.strength.value=s*(0.85+dl*0.3);}
+  // steady stars (no whole-sky flicker) + cinematic exposure that dips toward the night side
+  if(starField)starField.material.opacity=0.82+dl*0.10;
+  renderer.toneMappingExposure=1.02+dl*0.20-(dustStormActive?0.12:0);
+
+  updateTerraform();
 
   // moons
   phobos.position.set(Math.cos(t*0.18)*R*2.4,Math.sin(t*0.18)*R*0.5,Math.sin(t*0.18)*R*2.4);
@@ -1626,6 +1905,8 @@ function animate(){
 
   updateCursor();
   if(habitatShellMarker&&habitatShellMarker.userData.ring&&habitatShellActivatable())habitatShellMarker.userData.ring.material.opacity=0.35+Math.sin(t*4)*0.25;
+  if(dronePatternMarker){const ud=dronePatternMarker.userData;if(ud.core)ud.core.rotation.y+=dt*0.8;if(ud.ring&&dronePatternActivatable())ud.ring.material.opacity=0.35+Math.sin(t*4)*0.25;}
+  tickDroneJob(dt,t);
   starField.rotation.y=t*0.004;
   renderer.render(scene,camera);
 }
@@ -1682,6 +1963,11 @@ function start(){
   // frame camera on the colony
   const aim=(G.buildings[0]?G.buildings[0].dir:gridToDir(0,GRID/2)).clone().normalize();
   cam.phi=Math.acos(THREE.MathUtils.clamp(aim.y,-1,1));cam.theta=Math.atan2(aim.z,aim.x);updateCamera();
+  if(!loaded){                       // cinematic first-load glide: start high & far, ease down to the framed colony
+    const to={radius:cam.radius,phi:cam.phi,theta:cam.theta};
+    cam.radius=R*4.4;cam.phi=THREE.MathUtils.clamp(to.phi*0.6+0.22,0.2,1.3);cam.theta=to.theta-0.6;updateCamera();
+    introSweep={t:0,dur:2.8,from:{radius:cam.radius,phi:cam.phi,theta:cam.theta},to};
+  }
   buildDock();computeRates();updateResBar();
   reconcileCampaignSilent(); // sync objectives/story to the current colony (starter buildings or loaded save) silently
   if(G.earthCargo)applyEarthCargo(); // Earth→Mars continuity: cache marker (always) + one-time bonus & ORION beat
