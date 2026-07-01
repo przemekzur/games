@@ -663,6 +663,7 @@ function initDust(){
  *  CAMERA (orbit a fixed globe)                                  *
  * ============================================================= */
 const cam={theta:Math.PI*0.25,phi:1.0,radius:R*2.0};
+let introSweep=null;                 // cinematic first-load camera glide (cancelled by any user input)
 function initCamera(){updateCamera();}
 function updateCamera(){
   cam.phi=THREE.MathUtils.clamp(cam.phi,0.12,Math.PI-0.12);
@@ -675,7 +676,7 @@ function updateCamera(){
 }
 function addEventListeners(){
   const el=renderer.domElement;let drag=false,lx=0,ly=0;
-  el.addEventListener('mousedown',e=>{drag=true;lx=e.clientX;ly=e.clientY;pickDownX=e.clientX;pickDownY=e.clientY;});
+  el.addEventListener('mousedown',e=>{drag=true;introSweep=null;lx=e.clientX;ly=e.clientY;pickDownX=e.clientX;pickDownY=e.clientY;});
   addEventListener('mouseup',()=>drag=false);
   addEventListener('mousemove',e=>{
     pointer.x=(e.clientX/innerWidth)*2-1;pointer.y=-(e.clientY/innerHeight)*2+1;
@@ -685,11 +686,11 @@ function addEventListeners(){
     cam.phi-=dy*0.005;
     updateCamera();
   });
-  el.addEventListener('wheel',e=>{e.preventDefault();cam.radius*=1+Math.sign(e.deltaY)*0.08;updateCamera();},{passive:false});
+  el.addEventListener('wheel',e=>{e.preventDefault();introSweep=null;cam.radius*=1+Math.sign(e.deltaY)*0.08;updateCamera();},{passive:false});
   el.addEventListener('contextmenu',e=>e.preventDefault());
   el.addEventListener('click',onClick);
   let pinch=0;
-  el.addEventListener('touchstart',e=>{if(e.touches.length===1){drag=true;lx=e.touches[0].clientX;ly=e.touches[0].clientY;}
+  el.addEventListener('touchstart',e=>{introSweep=null;if(e.touches.length===1){drag=true;lx=e.touches[0].clientX;ly=e.touches[0].clientY;}
     else if(e.touches.length===2){pinch=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);}},{passive:true});
   el.addEventListener('touchmove',e=>{
     if(e.touches.length===1&&drag){const dx=e.touches[0].clientX-lx,dy=e.touches[0].clientY-ly;lx=e.touches[0].clientX;ly=e.touches[0].clientY;cam.theta+=dx*0.006;cam.phi-=dy*0.006;updateCamera();}
@@ -1215,6 +1216,12 @@ const render={info:renderInfo,missions:renderMissions,tech:renderTech,evo:render
 function bar(label,val,color){return `<div style="margin:8px 0 4px;font-size:12px;display:flex;justify-content:space-between"><span>${label}</span><b>${val.toFixed(0)}%</b></div>
   <div style="height:9px;border-radius:6px;background:rgba(255,255,255,.08);overflow:hidden"><i style="display:block;height:100%;width:${val}%;background:${color};transition:width .4s"></i></div>`;}
 
+function eventsLogHtml(){
+  const log=(G.events&&G.events.log)||[];
+  if(!log.length)return'';
+  const rows=log.slice(-4).reverse().map(id=>{const e=SOL_EVENTS.find(x=>x.id===id);return e?`<div class="stat"><span>${e.emoji} ${e.title}</span><b style="color:var(--good)">✓</b></div>`:'';}).join('');
+  return `<div style="margin-top:14px;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--rust)">Recent dispatches</div>${rows}`;
+}
 function renderInfo(){
   const avg=(G.tf.temp+G.tf.oxygen+G.tf.pressure)/3;
   side.innerHTML=`<h3>📊 Colony Overview <span class="close" id="sclose">✕</span></h3>
@@ -1229,6 +1236,7 @@ function renderInfo(){
   <div class="stat"><span>Buildings</span><b>${G.buildings.length}</b></div>
   <div class="stat"><span>Power balance</span><b style="color:${G.prodPower>=G.usePower?'var(--good)':'var(--bad)'}">${Math.round(G.prodPower)} / ${Math.round(G.usePower)} ⚡</b></div>
   <div class="stat"><span>Inventions</span><b>${Object.keys(G.techDone).length} / ${Object.keys(TECHS).length}</b></div>
+  ${eventsLogHtml()}
   <div style="margin-top:14px"><button class="btn danger" id="reset">↺ New colony</button></div>`;
   $('#sclose').onclick=closeSide;
   $('#reset').onclick=()=>{if(confirm('Abandon this colony and start over?')){localStorage.removeItem(SAVE_KEY);location.reload();}};
@@ -1795,6 +1803,14 @@ function animate(){
   const dt=Math.min(clock.getDelta(),0.05);
   const speed=G.paused?0:G.speed;const dtGame=dt*speed;
 
+  if(introSweep){                    // cinematic first-load glide (ease-out)
+    introSweep.t+=dt;const k=1-Math.pow(1-Math.min(1,introSweep.t/introSweep.dur),3);
+    cam.radius=THREE.MathUtils.lerp(introSweep.from.radius,introSweep.to.radius,k);
+    cam.phi=THREE.MathUtils.lerp(introSweep.from.phi,introSweep.to.phi,k);
+    cam.theta=THREE.MathUtils.lerp(introSweep.from.theta,introSweep.to.theta,k);
+    updateCamera();if(k>=1)introSweep=null;
+  }
+
   if(dtGame>0){
     G.todFrac+=dtGame/SOL_SECONDS;
     while(G.todFrac>=1){G.todFrac-=1;G.sol++;toast(`☀️ Sol ${G.sol} begins`,'');maybeFireEvent();}
@@ -1941,6 +1957,11 @@ function start(){
   // frame camera on the colony
   const aim=(G.buildings[0]?G.buildings[0].dir:gridToDir(0,GRID/2)).clone().normalize();
   cam.phi=Math.acos(THREE.MathUtils.clamp(aim.y,-1,1));cam.theta=Math.atan2(aim.z,aim.x);updateCamera();
+  if(!loaded){                       // cinematic first-load glide: start high & far, ease down to the framed colony
+    const to={radius:cam.radius,phi:cam.phi,theta:cam.theta};
+    cam.radius=R*4.4;cam.phi=THREE.MathUtils.clamp(to.phi*0.6+0.22,0.2,1.3);cam.theta=to.theta-0.6;updateCamera();
+    introSweep={t:0,dur:2.8,from:{radius:cam.radius,phi:cam.phi,theta:cam.theta},to};
+  }
   buildDock();computeRates();updateResBar();
   reconcileCampaignSilent(); // sync objectives/story to the current colony (starter buildings or loaded save) silently
   if(G.earthCargo)applyEarthCargo(); // Earth→Mars continuity: cache marker (always) + one-time bonus & ORION beat
