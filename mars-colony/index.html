@@ -586,7 +586,7 @@ function updateCamera(){
 }
 function addEventListeners(){
   const el=renderer.domElement;let drag=false,lx=0,ly=0;
-  el.addEventListener('mousedown',e=>{drag=true;lx=e.clientX;ly=e.clientY;});
+  el.addEventListener('mousedown',e=>{drag=true;lx=e.clientX;ly=e.clientY;pickDownX=e.clientX;pickDownY=e.clientY;});
   addEventListener('mouseup',()=>drag=false);
   addEventListener('mousemove',e=>{
     pointer.x=(e.clientX/innerWidth)*2-1;pointer.y=-(e.clientY/innerHeight)*2+1;
@@ -814,7 +814,14 @@ function makeBuildingMesh(key){
 /* ============================================================= *
  *  PLACEMENT                                                     *
  * ============================================================= */
-function habitatDiscountActive(){return !!(G.campaign&&G.campaign.habitatShellReady&&!G.campaign.habitatDiscountUsed);}
+// ---- Earth Habitat Shell (v5): an activatable pallet, not an automatic discount ----
+function noHabitatYet(){return !G.buildings.some(o=>o.key==='habitat');}
+// Treat the legacy v2–v4 `habitatDiscountUsed` flag as "shell used" so old saves stay consistent.
+function habitatShellUsedFlag(){return !!(G.campaign&&(G.campaign.habitatShellUsed||G.campaign.habitatDiscountUsed));}
+function habitatShellPresent(){return !!(G.campaign&&G.campaign.habitatShellReady)&&!habitatShellUsedFlag();}
+function habitatShellActivatable(){return habitatShellPresent()&&!G.campaign.habitatShellActivated;}
+// Discount applies only after the player unfolds the shell, and only while no Habitat exists yet (first dome).
+function habitatDiscountActive(){return !!(G.campaign&&G.campaign.habitatShellActivated&&!habitatShellUsedFlag()&&noHabitatYet());}
 function effCost(b){
   const m=G.bonus.buildCost||1;const o={};
   for(const[k,v]of Object.entries(b.cost))o[k]=Math.ceil(v*m);
@@ -831,9 +838,16 @@ function biomeOK(key,gx,gz){const b=BUILDINGS[key];return !b.biomes||b.biomes.in
 function placeBuilding(key,gx,gz){
   const b=BUILDINGS[key];const cost=effCost(b);
   if(!canAfford(cost)){toast("Not enough resources",'bad');return false;}
-  const usedHabitatShell=(b===BUILDINGS.habitat&&habitatDiscountActive());
+  const isFirstHabitat=(b===BUILDINGS.habitat&&noHabitatYet());
+  const usedHabitatShell=(isFirstHabitat&&habitatDiscountActive());   // discount only if unfolded first
   spend(cost);
-  if(usedHabitatShell){G.campaign.habitatDiscountUsed=true;toast('🏠 Habitat shell kit consumed — first dome assembled at reduced cost.','disc');buildDock();}
+  // The Earth habitat shell is spent on the FIRST Habitat — unfolded (discount) or not (forfeited). One-time.
+  if(isFirstHabitat&&habitatShellPresent()){
+    G.campaign.habitatShellUsed=true;G.campaign.habitatDiscountUsed=true;
+    removeHabitatShellMarker();
+    toast(usedHabitatShell?'🏠 Cape Helios habitat shell folded into the first dome — built at reduced cost.':'🏠 First dome raised; the staged habitat shell was never unfolded and is now spent.','disc');
+    buildDock();save(true);
+  }
   const dir=gridToDir(gx,gz);const pos=dir.clone().multiplyScalar(R+heightAt(dir));
   const mesh=makeBuildingMesh(key);mesh.position.copy(pos);orientToNormal(mesh,dir);mesh.scale.y=0.01;
   scene.add(mesh);
@@ -866,8 +880,17 @@ function demolishAt(gx,gz){
   G.buildings.splice(i,1);tileOccupied[idx(gx,gz)]=false;
   beep(220,0.1);toast(`${b.name} demolished (40% refunded)`,'warn');
 }
-function onClick(){
-  if(G.over||!hoveredTile)return;
+function onClick(e){
+  if(G.over)return;
+  // Earth habitat shell: pick the 3D pallet to unfold it. Ignore camera drags (mouse moved since press).
+  if(habitatShellMarker&&habitatShellActivatable()&&!G.demolish){
+    const moved=e?Math.hypot((e.clientX||0)-pickDownX,(e.clientY||0)-pickDownY):0;
+    if(moved<6){
+      raycaster.setFromCamera(pointer,camera);
+      if(raycaster.intersectObject(habitatShellMarker,true).length){activateHabitatShell();return;}
+    }
+  }
+  if(!hoveredTile)return;
   const {gx,gz}=hoveredTile;
   if(G.demolish){demolishAt(gx,gz);return;}
   if(!G.selected)return;
@@ -1384,6 +1407,8 @@ function gameOver(won,kind){
 /* ---------- save/load ---------- */
 /* ---------- Earth→Mars campaign continuity (Spine v2: concrete cargo) ---------- */
 let cargoKitsSpawned=false, surveyTile=null;
+let habitatShellMarker=null;        // activatable Earth habitat-shell pallet (null if no kit / already spent)
+let pickDownX=0, pickDownY=0;       // mousedown pos so onClick can tell a shell-tap from a camera drag
 // nearest extractor-valid (polar/lowland) tile to the colony — where the survey pack flagged ice
 function findSurveyTile(){
   const ref=G.buildings[0];const c=(ref?ref.dir.clone():gridToDir(0,GRID/2)).normalize();
@@ -1413,8 +1438,18 @@ function spawnCargoKits(){
   };
   // Power Kit Crate — battery pallet
   if(c.powerKit)placeKit(3.3,-1.6,g=>{box(g,1.7,0.6,1.2,0x4a4a52,0,0.3,0);for(let i=0;i<3;i++)box(g,0.36,0.7,0.9,0xffc24d,(i-1)*0.47,0.9,0,0x553300,0.5);});
-  // Habitat Shell Crate — folded dome shell on a pallet
-  if(c.habitatShellKit)placeKit(3.7,1.3,g=>{box(g,2.0,0.5,1.6,0x7a4a30,0,0.25,0);const d=new THREE.Mesh(new THREE.SphereGeometry(0.9,16,10,0,Math.PI*2,0,Math.PI*0.5),glass(0xffb888,0x224466));d.scale.set(1,0.45,1);d.position.y=0.5;g.add(d);});
+  // Habitat Shell Pallet — folded dome shell; activatable until the first Habitat is built (v5)
+  if(c.habitatShellKit&&!habitatShellUsedFlag()){
+    habitatShellMarker=placeKit(3.7,1.3,g=>{
+      box(g,2.0,0.5,1.6,0x7a4a30,0,0.25,0);
+      const dome=new THREE.Mesh(new THREE.SphereGeometry(0.9,16,10,0,Math.PI*2,0,Math.PI*0.5),glass(0xffb888,0x224466));
+      dome.scale.set(1,0.45,1);dome.position.y=0.5;g.add(dome);
+      const ring=new THREE.Mesh(new THREE.RingGeometry(1.25,1.55,24),new THREE.MeshBasicMaterial({color:0x7fe0ff,transparent:true,opacity:0.5,side:THREE.DoubleSide}));
+      ring.rotation.x=-Math.PI/2;ring.position.y=0.07;g.add(ring);
+      g.userData={dome,ring};
+    });
+    applyHabitatShellVisual();   // folded+pulsing if fresh, unfolded if a prior session already activated it
+  }
   // Drone Pattern Core — crate with a glowing cyan core (future promise)
   if(c.constructionDronePattern)placeKit(1.1,2.7,g=>{box(g,1.2,1.0,1.2,0x33414e,0,0.5,0);const core=new THREE.Mesh(new THREE.IcosahedronGeometry(0.34,0),mat(0x0a2630,0.3,0.4,0x2f8fb0,1.3));core.position.y=1.15;g.add(core);});
   // Water Survey Marker — at the flagged ice tile (only if the survey kit was sent)
@@ -1449,14 +1484,38 @@ function applyEarthCargo(){
   const bits=[c.powerKit&&'a power kit',c.waterSurvey&&'a survey pack',c.habitatShellKit&&'a habitat shell',c.constructionDronePattern&&'a drone-pattern core'].filter(Boolean);
   setTimeout(()=>orion(`Cape Helios cargo telemetry confirmed — ${bits.length?bits.join(', ')+' unpacked':'a sparse manifest'}, within damage margins. I will avoid sounding surprised.`),1400);
   if(c.constructionDronePattern)setTimeout(()=>orion('The drone-pattern core is intact and filed. Once Mars has fabrication, we can print our own construction units.'),5400);
+  if(c.habitatShellKit&&habitatShellActivatable())setTimeout(()=>orion('The folded habitat shell is staged by the cargo cache. Tap it to unfold — it makes the first dome, and only the first, cheaper to raise. One use.'),7200);
   if(c.waterSurvey&&surveyTile)setTimeout(()=>orion('Survey pack mapped a shallow ice seam. Not magic. Just better homework — the marker is on your map.'),9000);
   // dry note for whatever was left behind on Earth — no penalty beyond the missing effect
   const gap=[c.powerKit?null:'Power Kit',c.waterSurvey?null:'Water Survey Kit',c.habitatShellKit?null:'Habitat Shell Kit',c.constructionDronePattern?null:'Drone Pattern'].filter(Boolean);
   if(gap.length)setTimeout(()=>orion(`Manifest gap noted: ${gap.join(', ')} absent. I will pretend this was a strategic decision.`),12600);
 }
+// Reflect shell state on the 3D pallet: folded + pulsing ring when activatable, unfolded + glow once activated.
+function applyHabitatShellVisual(){
+  if(!habitatShellMarker)return;
+  const {dome,ring}=habitatShellMarker.userData;
+  if(G.campaign&&G.campaign.habitatShellActivated){
+    dome.scale.set(1.15,1.0,1.15);dome.position.y=0.6;dome.material.opacity=0.62;dome.material.emissive.setHex(0x3a6a88);dome.material.emissiveIntensity=0.8;
+    ring.visible=false;
+  }else{
+    dome.scale.set(1,0.45,1);dome.position.y=0.5;
+    ring.visible=true;
+  }
+}
+function activateHabitatShell(){
+  if(!habitatShellActivatable())return;
+  G.campaign.habitatShellActivated=true;
+  applyHabitatShellVisual();
+  buildDock();updateResBar();
+  toast('🏠 Habitat shell unfolded — the first dome will cost 40 fewer materials.','disc');
+  beep(560,0.12);
+  orion('Habitat shell unfolded. Not a home yet, but statistically better than dying outside.');
+  save(true);   // persist the armed discount so a reload before building keeps it
+}
+function removeHabitatShellMarker(){if(habitatShellMarker){scene.remove(habitatShellMarker);habitatShellMarker=null;}}
 
-function save(){const data={res:G.res,pop:G.pop,morale:G.morale,colonies:G.colonies,tf:G.tf,sol:G.sol,todFrac:G.todFrac,techDone:G.techDone,milestones:G.milestones,interstellar:G.interstellar,mission:G.mission,story:G.story,campaign:G.campaign,buildings:G.buildings.map(o=>({key:o.key,gx:o.gx,gz:o.gz}))};
-  localStorage.setItem(SAVE_KEY,JSON.stringify(data));toast('💾 Colony saved','good');}
+function save(silent){const data={res:G.res,pop:G.pop,morale:G.morale,colonies:G.colonies,tf:G.tf,sol:G.sol,todFrac:G.todFrac,techDone:G.techDone,milestones:G.milestones,interstellar:G.interstellar,mission:G.mission,story:G.story,campaign:G.campaign,buildings:G.buildings.map(o=>({key:o.key,gx:o.gx,gz:o.gz}))};
+  localStorage.setItem(SAVE_KEY,JSON.stringify(data));if(!silent)toast('💾 Colony saved','good');}
 function load(){
   try{const d=JSON.parse(localStorage.getItem(SAVE_KEY));if(!d)return false;
     Object.assign(G.res,d.res);G.pop=d.pop;G.morale=d.morale??62;G.colonies=d.colonies||0;Object.assign(G.tf,d.tf);
@@ -1566,6 +1625,7 @@ function animate(){
     p.needsUpdate=true;pf.pts.material.opacity=Math.max(0,pf.life);if(pf.life<=0){disposePuff(pf);puffs.splice(i,1);}}
 
   updateCursor();
+  if(habitatShellMarker&&habitatShellMarker.userData.ring&&habitatShellActivatable())habitatShellMarker.userData.ring.material.opacity=0.35+Math.sin(t*4)*0.25;
   starField.rotation.y=t*0.004;
   renderer.render(scene,camera);
 }
@@ -1597,7 +1657,7 @@ function bindTools(){
   $('#tTech').onclick=()=>openSide('tech');
   $('#tEvo').onclick=()=>openSide('evo');
   $('#tShop').onclick=()=>openSide('shop');
-  $('#tSave').onclick=save;
+  $('#tSave').onclick=()=>save();
   $('#tHelp').onclick=()=>openSide('help');
   $('#tDemo').onclick=()=>{G.demolish=!G.demolish;if(G.demolish)G.selected=null;refreshDock();updateTools();showHint(G.demolish?'Demolish mode: click a building to remove it (40% refund).':'');};
 }
