@@ -438,6 +438,8 @@ const G = {
  * ============================================================= */
 let renderer,scene,camera,sun,sunPivot,ambient,hemi,terrain,cursor,starField,atmMesh;
 let phobos,deimos,sunMesh,sunHalo,rimLight,atmMesh2,skyDome,cityLights;
+let seaMesh,vegMesh;                 // terraforming visualisation: rising oceans + spreading vegetation
+const _atmWarm=new THREE.Color(0xff7a3c),_atmCool=new THREE.Color(0x8fd0ff),_atmCol=new THREE.Color();
 const clock=new THREE.Clock();
 const tileOccupied=new Array(GRID*GRID).fill(false);
 const dustParticles=[];
@@ -485,7 +487,7 @@ function initScene(){
     new THREE.MeshBasicMaterial({color:0xff9a4a,transparent:true,opacity:0.18,blending:THREE.AdditiveBlending,depthWrite:false,fog:false}));
   sun.add(sunHalo);
 
-  buildSky();buildTerrain();buildStars();buildMoons();buildCursor();initDust();initCamera();
+  buildSky();buildTerrain();buildTerraform();buildStars();buildMoons();buildCursor();initDust();initCamera();
   addEventListeners();
 }
 
@@ -565,6 +567,51 @@ function buildTerrain(){
   scene.add(atmMesh2);
 }
 
+/* ---------- terraforming visualisation ----------
+ * Two overlays driven every frame by G.tf (temp / oxygen / pressure):
+ *  · seaMesh — a translucent ocean sphere whose radius + opacity rise with warmth
+ *    & pressure, so water fills the basins and lowlands, leaving highlands as land.
+ *  · vegMesh — green vegetation hugging the terrain, fading in with oxygen, only
+ *    in habitable latitudes/elevations (baked per-vertex suitability). */
+function buildTerraform(){
+  seaMesh=new THREE.Mesh(new THREE.SphereGeometry(R,96,64),
+    new THREE.MeshStandardMaterial({color:0x2f6fa8,roughness:0.14,metalness:0.25,transparent:true,opacity:0,depthWrite:false}));
+  seaMesh.renderOrder=1;scene.add(seaMesh);
+
+  const g=new THREE.SphereGeometry(R,180,132);const pos=g.attributes.position;
+  const aVeg=new Float32Array(pos.count),cols=[];const v=new THREE.Vector3(),cg=new THREE.Color();
+  for(let i=0;i<pos.count;i++){
+    v.fromBufferAttribute(pos,i).normalize();
+    const h=heightAt(v);const rr=R+h+0.06;pos.setXYZ(i,v.x*rr,v.y*rr,v.z*rr);
+    const lat=Math.abs(v.y);
+    let s=1-THREE.MathUtils.smoothstep(lat,0.52,0.82);        // lush near equator, none at poles
+    s*=1-THREE.MathUtils.smoothstep(h,3.0,6.5);               // no forest on high peaks
+    const n=(noise3(v.x*3.6+11,v.y*3.6,v.z*3.6)+1)*0.5;
+    s*=THREE.MathUtils.smoothstep(n,0.34,0.72);               // patchy — meadows, not a paint bucket
+    aVeg[i]=THREE.MathUtils.clamp(s,0,1);
+    cg.setHSL(0.34-n*0.07,0.55,0.24+n*0.16);cols.push(cg.r,cg.g,cg.b);   // varied greens
+  }
+  g.computeVertexNormals();
+  g.setAttribute('aVeg',new THREE.BufferAttribute(aVeg,1));
+  g.setAttribute('aCol',new THREE.Float32BufferAttribute(cols,3));
+  vegMesh=new THREE.Mesh(g,new THREE.ShaderMaterial({
+    uniforms:{uOpacity:{value:0}},
+    vertexShader:`attribute float aVeg;attribute vec3 aCol;varying float vV;varying vec3 vC;varying vec3 vN;
+      void main(){vV=aVeg;vC=aCol;vN=normalize(normalMatrix*normal);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
+    fragmentShader:`varying float vV;varying vec3 vC;varying vec3 vN;uniform float uOpacity;
+      void main(){float a=vV*uOpacity;if(a<0.01)discard;float lam=0.45+0.55*max(0.0,dot(vN,vec3(0.4,0.5,0.7)));gl_FragColor=vec4(vC*lam,a);}`,
+    transparent:true,depthWrite:false}));
+  vegMesh.renderOrder=2;scene.add(vegMesh);
+}
+// Drive the terraforming overlays from G.tf every frame — oceans rise with warmth+pressure, vegetation with oxygen.
+function updateTerraform(){
+  const avg=(G.tf.temp+G.tf.oxygen+G.tf.pressure)/3;
+  if(vegMesh)vegMesh.material.uniforms.uOpacity.value=THREE.MathUtils.clamp(G.tf.oxygen/100,0,1)*0.92;
+  if(seaMesh){const wp=THREE.MathUtils.clamp(Math.min(G.tf.temp,G.tf.pressure)/100,0,1);
+    seaMesh.visible=wp>0.02;seaMesh.scale.setScalar((R+(-3+wp*4.4))/R);seaMesh.material.opacity=wp*0.8;}
+  if(atmMesh&&!dustStormActive){atmMesh.material.uniforms.glow.value.copy(_atmWarm).lerp(_atmCool,avg/100);}
+  if(hemi)hemi.color.setHSL(0.06+avg/100*0.34,0.6,0.55);   // sky ambience warms toward blue as the air thickens
+}
 function buildStars(){
   const n=3400,geo=new THREE.BufferGeometry(),arr=[],col=[];
   const c=new THREE.Color();
@@ -1767,6 +1814,8 @@ function animate(){
   // steady stars (no whole-sky flicker) + cinematic exposure that dips toward the night side
   if(starField)starField.material.opacity=0.82+dl*0.10;
   renderer.toneMappingExposure=1.02+dl*0.20-(dustStormActive?0.12:0);
+
+  updateTerraform();
 
   // moons
   phobos.position.set(Math.cos(t*0.18)*R*2.4,Math.sin(t*0.18)*R*0.5,Math.sin(t*0.18)*R*2.4);
